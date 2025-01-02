@@ -3,7 +3,7 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
-import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType}
+import glance.{type Module, type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType}
 import simplifile
 
 pub type Foo {
@@ -21,11 +21,70 @@ pub fn main() {
   // io.debug(source)
   // io.debug(parsed.custom_types)
 
+  // parsed.custom_types
+  // |> list.map(fn(ct) { ct.definition })
+  // |> list.map(to_json_types)
+  // |> list.flatten
+  // |> list.map(decoder_func_src)
+
+  // parsed.custom_types
+  // |> list.map(fn(ct) { ct.definition })
+  // |> list.map(decoders_src)
+  // |> list.each(fn(d) { io.println(d) })
+
   parsed.custom_types
   |> list.map(fn(ct) { ct.definition })
-  |> list.map(decoders_src)
-  |> list.each(fn(d) { io.println(d) })
+  |> list.map(type_with_magic_comments(_, source))
+  |> result.partition
+  |> fn(x) {
+    let #(oks, _errs) = x
+    oks
+  }
+  |> io.debug
 }
+
+// fn types_with_magic_comments(module: Module, src: String) -> List(#(CustomType, String)) {
+// }
+
+fn type_with_magic_comments(type_: CustomType, src: String) -> Result(#(CustomType, String), Nil) {
+  let lines_from_type_start_to_eof =
+    src
+    |> string.split("\n")
+    |> list.drop_while(fn(line) {
+      !string.contains(line, "type " <> type_.name)
+    })
+
+  let lines_from_type_start_except_last =
+    lines_from_type_start_to_eof
+    |> list.take_while(fn(line) {
+      !string.starts_with(line, "}")
+    })
+
+  let assert Ok(line_last_for_type) =
+    lines_from_type_start_to_eof
+    |> list.drop(list.length(lines_from_type_start_except_last))
+    |> list.take(1)
+    |> list.first
+
+  let lines_for_type_def =
+    list.append(
+      lines_from_type_start_except_last,
+      [line_last_for_type],
+    )
+
+  case string.split(line_last_for_type, "//$") {
+    [_, mc] -> Ok(#(type_, string.trim(mc)))
+    _ -> Error(Nil)
+  }
+}
+
+
+pub type JsonType {
+  JsonType(
+    variant: Variant,
+    fields: List(JsonField),
+  )
+} //$ derive json(decode, encode)
 
 pub type JsonField {
   JsonField(
@@ -50,18 +109,17 @@ fn to_json_field(field: VariantField) -> Result(JsonField, VariantField) {
   }
 }
 
-fn decoders_src(type_: CustomType) -> String {
+fn to_json_types(type_: CustomType) -> List(JsonType) {
   type_.variants
-  |> list.map(decoder_src)
-  |> string.join("\n\n")
+  |> list.map(to_json_type)
 }
 
-fn decoder_src(variant: Variant) -> String {
+fn to_json_type(variant: Variant) -> JsonType {
   let xs = list.map(variant.fields, to_json_field)
 
   case result.all(xs) {
-    Ok(json_fields) ->
-      decoder_func_src(variant, json_fields)
+    Ok(fields) ->
+      JsonType(variant:, fields:)
 
     Error(field) -> {
       io.debug(field)
@@ -69,6 +127,20 @@ fn decoder_src(variant: Variant) -> String {
     }
   }
 }
+
+// fn decoder_src(type_: JsonType) -> String {
+//   let xs = list.map(type_.variant.fields, to_json_field)
+
+//   case result.all(xs) {
+//     Ok(json_fields) ->
+//       decoder_func_src(variant, json_fields)
+
+//     Error(field) -> {
+//       io.debug(field)
+//       panic as "Could not process the above field"
+//     }
+//   }
+// }
 
 fn indent(str: String, level level: Int) {
   let pad =
@@ -79,21 +151,21 @@ fn indent(str: String, level level: Int) {
   pad <> str
 }
 
-fn decoder_func_src(variant: Variant, fields: List(JsonField)) -> String {
+fn decoder_func_src(type_: JsonType) -> String {
   let decode_field_lines =
-    fields
+    type_.fields
     |> list.map(field_decode_line)
     |> list.map(indent(_, level: 1))
 
   let return =
-    decode_success_line(variant, fields)
+    decode_success_line(type_.variant, type_.fields)
     |> indent(level: 1)
 
-  let func_name = "decoder_" <> variant.name
+  let func_name = "decoder_" <> type_.variant.name
 
   [
     [
-      "pub fn " <> func_name <> "() -> Decoder(" <> variant.name <> ") {",
+      "pub fn " <> func_name <> "() -> Decoder(" <> type_.variant.name <> ") {",
     ],
     decode_field_lines,
     [
