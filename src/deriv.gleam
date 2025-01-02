@@ -14,7 +14,7 @@ pub type Foo {
     name: String,
     active: Bool,
   )
-} //$ derive json(decode)
+} //$ derive json(decode,encode)
 
 pub fn main() {
   let assert Ok(source) = simplifile.read("src/deriv.gleam")
@@ -112,11 +112,11 @@ fn type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType,
     |> list.take(1)
     |> list.first
 
-  let lines_for_type_def =
-    list.append(
-      lines_from_type_start_except_last,
-      [line_last_for_type],
-    )
+  // let lines_for_type_def =
+  //   list.append(
+  //     lines_from_type_start_except_last,
+  //     [line_last_for_type],
+  //   )
 
   case string.split(line_last_for_type, "//$") {
     [_, mc] ->
@@ -161,7 +161,27 @@ fn to_json_field(field: VariantField) -> Result(JsonField, VariantField) {
 }
 
 fn gen_json_encoders(type_: CustomType) -> String {
-  "encode"
+  type_
+  |> to_json_types
+  |> list.map(fn(jt) {
+    let encode_lines =
+      jt.fields
+      |> list.map(fn(f) {
+        "#(\"NAME\", json.FUNC(value.NAME)),"
+        |> string.replace(each: "NAME", with: f.name)
+        |> string.replace(each: "FUNC", with: f.func)
+      })
+
+    [
+      "pub fn encode_" <> type_.name <> "(value: " <>  type_.name <> ") -> Json {",
+      "  json.object([",
+           encode_lines |> list.map(indent(_, level: 2)) |> string.join("\n"),
+      "  ])",
+      "}",
+    ]
+    |> string.join("\n")
+  })
+  |> string.join("\n\n")
 }
 
 fn gen_json_decoders(type_: CustomType) -> String {
