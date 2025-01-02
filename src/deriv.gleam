@@ -8,6 +8,7 @@ import gleam/io
 import glance.{type Module, type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType}
 import gleam/regexp.{Match}
 import simplifile
+import shellout
 
 pub type Foo {
   Foo(
@@ -48,17 +49,20 @@ fn gen_imports(files: List(File)) -> String {
 }
 
 pub fn main() {
-  let path = "src/deriv.gleam"
+  // let assert Ok(output) = shellout.command(in: ".", run: "find", with: ["src", "-name", "'*.gleam'"], opt: [])
+  let assert Ok(output) = shellout.command(in: ".", run: "find", with: ["src", "-name", "*.gleam"], opt: [])
+  let filepaths =
+    output
+    |> string.trim
+    |> string.split("\n")
 
-  [path]
+  filepaths
   |> list.index_map(fn(path, idx) {
     let assert Ok(src) = simplifile.read(path)
     let module = file_path_to_gleam_module_str(path)
     let file = File(module: , src:, idx: idx+1)
 
     let assert Ok(parsed) = glance.module(src)
-
-    // io.debug(parsed)
 
     let gen_src =
       parsed.custom_types
@@ -70,10 +74,6 @@ pub fn main() {
         oks
       }
       |> list.map(gen_derivations(_, file))
-      |> list.map(fn(str) {
-        // io.println(str)
-        str
-      })
       |> string.join("\n\n")
 
     Gen(file: file, src: gen_src)
