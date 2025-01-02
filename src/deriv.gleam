@@ -1,9 +1,11 @@
-import gleam/option.{None}
+import gleam/option.{Some, None}
+import gleam/dict.{type Dict}
 import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
 import glance.{type Module, type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType}
+import gleam/regexp.{Match}
 import simplifile
 
 pub type Foo {
@@ -12,7 +14,7 @@ pub type Foo {
     name: String,
     active: Bool,
   )
-}
+} //$ derive json(decode)
 
 pub fn main() {
   let assert Ok(source) = simplifile.read("src/deriv.gleam")
@@ -32,21 +34,65 @@ pub fn main() {
   // |> list.map(decoders_src)
   // |> list.each(fn(d) { io.println(d) })
 
+
   parsed.custom_types
   |> list.map(fn(ct) { ct.definition })
-  |> list.map(type_with_magic_comments(_, source))
+  |> list.map(type_with_derivations(_, source))
   |> result.partition
   |> fn(x) {
     let #(oks, _errs) = x
     oks
   }
-  |> io.debug
+  |> list.map(gen_derivations)
+  |> list.each(fn(str) { io.println(str) })
+}
+
+fn gen_derivations(x: #(CustomType, List(Derivation))) -> String {
+  let #(type_, derivs) = x
+
+  let ds = derivations() // TODO call once, pass from `main`
+
+  derivs
+  |> list.map(fn(d) {
+    case dict.get(ds, d.name) {
+      Ok(f) -> f(type_, d.opts)
+      _ -> ""
+    }
+  })
+  |> list.filter(fn(str) { str != "" })
+  |> string.join("\n\n")
+}
+
+fn derivations() -> Dict(String, fn(CustomType, List(String)) -> String) {
+  [
+    #("json", fn(type_, opts) {
+      let decoders =
+        case list.contains(opts, "decode") {
+          False -> ""
+          True -> gen_json_decoders(type_)
+        }
+
+      let encoders =
+        case list.contains(opts, "encode") {
+          False -> ""
+          True -> gen_json_encoders(type_)
+        }
+
+      [
+        decoders,
+        encoders
+      ]
+      |> list.filter(fn(str) { str != "" })
+      |> string.join("\n\n")
+    })
+  ]
+  |> dict.from_list
 }
 
 // fn types_with_magic_comments(module: Module, src: String) -> List(#(CustomType, String)) {
 // }
 
-fn type_with_magic_comments(type_: CustomType, src: String) -> Result(#(CustomType, String), Nil) {
+fn type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType, List(Derivation)), Nil) {
   let lines_from_type_start_to_eof =
     src
     |> string.split("\n")
@@ -73,7 +119,12 @@ fn type_with_magic_comments(type_: CustomType, src: String) -> Result(#(CustomTy
     )
 
   case string.split(line_last_for_type, "//$") {
-    [_, mc] -> Ok(#(type_, string.trim(mc)))
+    [_, mc] ->
+      parse_derivations(mc)
+      |> result.map(fn(ds) {
+        #(type_, ds)
+      })
+
     _ -> Error(Nil)
   }
 }
@@ -84,7 +135,7 @@ pub type JsonType {
     variant: Variant,
     fields: List(JsonField),
   )
-} //$ derive json(decode, encode)
+}
 
 pub type JsonField {
   JsonField(
@@ -107,6 +158,16 @@ fn to_json_field(field: VariantField) -> Result(JsonField, VariantField) {
     _ ->
       Error(field)
   }
+}
+
+fn gen_json_encoders(type_: CustomType) -> String {
+  "encode"
+}
+
+fn gen_json_decoders(type_: CustomType) -> String {
+  to_json_types(type_)
+  |> list.map(decoder_func_src)
+  |> string.join("\n")
 }
 
 fn to_json_types(type_: CustomType) -> List(JsonType) {
@@ -157,7 +218,7 @@ fn decoder_func_src(type_: JsonType) -> String {
     |> list.map(field_decode_line)
     |> list.map(indent(_, level: 1))
 
-  let return =
+  let success =
     decode_success_line(type_.variant, type_.fields)
     |> indent(level: 1)
 
@@ -166,11 +227,12 @@ fn decoder_func_src(type_: JsonType) -> String {
   [
     [
       "pub fn " <> func_name <> "() -> Decoder(" <> type_.variant.name <> ") {",
+      // TODO `Decoder(TYPE)` rather than `Decoder(VARIANT)`
     ],
     decode_field_lines,
     [
       "",
-      return,
+      success,
       "}",
     ],
   ]
@@ -205,4 +267,44 @@ fn field_decode_line(field: JsonField) -> String {
     ")",
   ]
   |> string.join("")
+}
+
+// MAGIC COMMENT PARSER
+
+pub type Derivation {
+  Derivation(
+    name: String,
+    opts: List(String),
+  )
+}
+
+fn parse_derivations(raw: String) -> Result(List(Derivation), Nil) {
+  let assert Ok(re) = regexp.from_string("((\\w+)[(]([^)]+)[)]\\s*)+")
+
+  let raw = string.trim(raw)
+
+  case string.starts_with(raw, "derive") {
+    False -> Error(Nil)
+    True -> {
+      let str =
+        raw
+        |> string.drop_start(6)
+        |> string.trim
+
+      string.split(str, " ")
+      |> list.map(fn(d) {
+        case regexp.scan(re, d) {
+          [Match(submatches: [_, Some(deriv), Some(opts_str)], ..)] -> {
+            let opts = string.split(opts_str, ",")
+
+            Ok(Derivation(name: deriv, opts:))
+          }
+
+          _ ->
+            panic as { "Parse failure on derivation: " <> d }
+        }
+      })
+      |> result.all
+    }
+  }
 }
