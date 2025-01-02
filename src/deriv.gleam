@@ -20,20 +20,7 @@ pub fn main() {
   let assert Ok(source) = simplifile.read("src/deriv.gleam")
   let assert Ok(parsed) = glance.module(source)
 
-  // io.debug(source)
-  // io.debug(parsed.custom_types)
-
-  // parsed.custom_types
-  // |> list.map(fn(ct) { ct.definition })
-  // |> list.map(to_json_types)
-  // |> list.flatten
-  // |> list.map(decoder_func_src)
-
-  // parsed.custom_types
-  // |> list.map(fn(ct) { ct.definition })
-  // |> list.map(decoders_src)
-  // |> list.each(fn(d) { io.println(d) })
-
+  // io.debug(parsed)
 
   parsed.custom_types
   |> list.map(fn(ct) { ct.definition })
@@ -45,6 +32,8 @@ pub fn main() {
   }
   |> list.map(gen_derivations)
   |> list.each(fn(str) { io.println(str) })
+
+  Nil
 }
 
 fn gen_derivations(x: #(CustomType, List(Derivation))) -> String {
@@ -130,14 +119,14 @@ fn type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType,
 }
 
 
-pub type JsonType {
+type JsonType {
   JsonType(
     variant: Variant,
     fields: List(JsonField),
   )
 }
 
-pub type JsonField {
+type JsonField {
   JsonField(
     name: String,
     func: String,
@@ -291,7 +280,7 @@ fn field_decode_line(field: JsonField) -> String {
 
 // MAGIC COMMENT PARSER
 
-pub type Derivation {
+type Derivation {
   Derivation(
     name: String,
     opts: List(String),
