@@ -4,3 +4,6 @@
 erl_crash.dump
 
 .scratch/
+
+src/deriv/foo
+src/deriv/bar
