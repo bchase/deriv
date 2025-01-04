@@ -199,12 +199,30 @@ fn type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType,
     |> list.take(1)
     |> list.first
 
+  let assert Ok(re) = regexp.from_string(
+    "^\\s*([_a-z0-9]+)\\s*[:]\\s*(.+)[,]?\\s*[/][/][$]\\s*(.+)$"
+  )
+  lines_from_type_start_except_last
+  |> list.map(fn(line) {
+    case regexp.scan(re, line) {
+      [Match(_txt, [Some(field_name), Some(_type), Some(magic_comment)])] ->
+        Ok(#(field_name, magic_comment))
+
+      _ ->
+        Error(Nil)
+    }
+  })
+  |> result.values
+  |> dict.from_list
+  |> io.debug
+
   // // TODO field magic comments
   // let lines_for_type_def =
   //   list.append(
   //     lines_from_type_start_except_last,
   //     [line_last_for_type],
   //   )
+  // io.println(lines_for_type_def |> string.join("\n"))
 
   case string.split(line_last_for_type, "//$") {
     [_, mc] ->
