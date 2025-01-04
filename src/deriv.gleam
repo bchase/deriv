@@ -36,6 +36,8 @@ pub fn main() {
     |> string.trim
     |> string.split("\n")
 
+  let gen_funcs = build_gen_funcs()
+
   filepaths
   |> list.index_map(fn(path, idx) {
     let assert Ok(src) = simplifile.read(path)
@@ -48,7 +50,7 @@ pub fn main() {
     |> list.map(fn(ct) { ct.definition })
     |> list.map(type_with_derivations(_, src))
     |> result.values
-    |> list.flat_map(gen_derivations(_, file))
+    |> list.flat_map(gen_derivations(_, file, gen_funcs))
   })
   |> list.flatten
   |> list.group(fn(gen) {
@@ -132,14 +134,13 @@ const deriv_imports =
 fn gen_derivations(
   x: #(CustomType, List(Derivation)),
   file: File,
+  gen_funcs: Dict(String, GenFunc),
 ) -> List(Gen) {
   let #(type_, derivs) = x
 
-  let ds = derivations() // TODO call once, pass from `main`
-
   derivs
   |> list.map(fn(d) {
-    case dict.get(ds, d.name) {
+    case dict.get(gen_funcs, d.name) {
       Error(_) -> Error(Nil)
       Ok(f) -> {
         let src = f(type_, d.opts, file)
@@ -150,7 +151,9 @@ fn gen_derivations(
   |> result.values
 }
 
-fn derivations() -> Dict(String, fn(CustomType, List(String), File) -> String) {
+type GenFunc = fn(CustomType, List(String), File) -> String
+
+fn build_gen_funcs() -> Dict(String, GenFunc) {
   [
     #("json", fn(type_, opts, file) {
       let decoders =
