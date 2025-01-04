@@ -1,6 +1,6 @@
 pub type Foo {
   Foo(
-    id: Int,
+    id: Int, //$ json(decode(decoder(foo/bar.baz)))
     name: String,
     active: Bool,
   )
