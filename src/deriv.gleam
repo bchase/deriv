@@ -52,6 +52,16 @@ fn deriv_output_path() -> String {
   |> string.replace(each: "PKG", with: pkg)
 }
 
+fn output_path(deriv: Derivation, file: File) -> String {
+  [
+    "src",
+    "deriv",
+    file.module,
+    deriv.name <> ".gleam",
+  ]
+  |> string.join("/")
+}
+
 pub fn main() {
   let assert Ok(output) = shellout.command(in: ".", run: "find", with: ["src", "-name", "*.gleam"], opt: [])
   let filepaths =
@@ -59,37 +69,81 @@ pub fn main() {
     |> string.trim
     |> string.split("\n")
 
-  let output_str =
-    filepaths
-    |> list.index_map(fn(path, idx) {
-      let assert Ok(src) = simplifile.read(path)
-      let module = file_path_to_gleam_module_str(path)
-      let file = File(module: , src:, idx: idx+1)
+  // let output_str =
+  //   filepaths
+  //   |> list.index_map(fn(path, idx) {
+  //     let assert Ok(src) = simplifile.read(path)
+  //     let module = file_path_to_gleam_module_str(path)
+  //     let file = File(module: , src:, idx: idx+1)
 
-      let assert Ok(parsed) = glance.module(src)
+  //     let assert Ok(parsed) = glance.module(src)
 
-      let gen_src =
-        parsed.custom_types
-        |> list.map(fn(ct) { ct.definition })
-        |> list.map(type_with_derivations(_, src))
-        |> result.partition
-        |> fn(x) {
-          let #(oks, _errs) = x
-          oks
-        }
-        |> list.map(gen_derivations(_, file))
-        |> string.join("\n\n")
+  //     let gen_src =
+  //       parsed.custom_types
+  //       |> list.map(fn(ct) { ct.definition })
+  //       |> list.map(type_with_derivations(_, src))
+  //       |> result.partition
+  //       |> fn(x) {
+  //         let #(oks, _errs) = x
 
-      Gen(file: file, src: gen_src)
-    })
-    |> list.filter(fn(gen) { gen.src != "" })
-    |> gen_full_deriv_src
-    |> function.tap(fn(src) { io.println(src) })
+  //         // list.each(oks, fn(ok) {
+  //         //   let #(_type, ds) = ok
+  //         //   list.each(ds, fn(d) {
+  //         //     io.debug(file)
+  //         //     io.debug(d)
+  //         //     io.debug(output_path(d, file))
+  //         //   })
+  //         // })
 
-  let output_path = deriv_output_path()
+  //         oks
+  //       }
+  //       |> list.map(gen_derivations(_, file))
+  //       |> string.join("\n\n")
+
+  //     Gen(file: file, src: gen_src)
+  //   })
+  //   |> list.filter(fn(gen) { gen.src != "" })
+  //   |> gen_full_deriv_src
+  //   |> function.tap(fn(src) { io.println(src) })
+
+  // let output_path = deriv_output_path()
 
   // simplifile.create_directory_all
   // let assert Ok(_) = simplifile.write(output_path, output_str)
+
+  filepaths
+  |> list.index_map(fn(path, idx) {
+    let assert Ok(src) = simplifile.read(path)
+    let module = file_path_to_gleam_module_str(path)
+    let file = File(module: , src:, idx: idx+1)
+
+    let assert Ok(parsed) = glance.module(src)
+
+    parsed.custom_types
+    |> list.map(fn(ct) { ct.definition })
+    |> list.map(type_with_derivations(_, src))
+    |> result.partition
+    |> fn(x) {
+      let #(oks, _errs) = x
+      oks
+    }
+    |> list.flat_map(gen_derivations_(_, file))
+  })
+  |> list.flatten
+  |> list.group(fn(gen) {
+    #(gen.file.module, gen.deriv.name)
+  })
+  |> dict.each(fn(group, gens) {
+    let #(module, name) = group
+
+    io.println(module <> " -- " <> name)
+    list.each(gens, fn(gen) {
+      io.println(gen.src)
+    })
+    // // io.println(gen.file.module)
+    // // io.println(gen.deriv.name)
+    // // io.println(gen.src)
+  })
 
   Nil
 }
@@ -107,6 +161,31 @@ fn gen_full_deriv_src(gens: List(Gen)) -> String {
   [imports]
   |> list.append(derivs_src)
   |> string.join("\n\n")
+}
+
+fn gen_derivations_(
+  x: #(CustomType, List(Derivation)),
+  file: File,
+) -> List(GenA) {
+  let #(type_, derivs) = x
+
+  let ds = derivations() // TODO call once, pass from `main`
+
+  derivs
+  |> list.map(fn(d) {
+    case dict.get(ds, d.name) {
+      Error(_) -> Error(Nil)
+      Ok(f) -> {
+        let src = f(type_, d.opts, file)
+        Ok(GenA(file:, deriv: d, src:))
+      }
+    }
+  })
+  |> result.partition
+  |> fn(x) {
+    let #(oks, _errs) = x
+    oks
+  }
 }
 
 fn gen_derivations(x: #(CustomType, List(Derivation)), file: File) -> String {
@@ -203,6 +282,14 @@ type File {
 type Gen {
   Gen(
     file: File,
+    src: String,
+  )
+}
+
+type GenA {
+  GenA(
+    file: File,
+    deriv: Derivation,
     src: String,
   )
 }
