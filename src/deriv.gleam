@@ -11,14 +11,6 @@ import gleam/regexp.{Match}
 import simplifile
 import shellout
 
-pub type Foo {
-  Foo(
-    id: Int,
-    name: String,
-    active: Bool,
-  )
-} //$ derive json(decode,encode)
-
 fn file_path_to_gleam_module_str(path: String) -> String {
   let assert Ok(leading_src_slash) = regexp.from_string("^src[/]")
   let assert Ok(trailing_dot_gleam) = regexp.from_string("[.]gleam$")
@@ -90,13 +82,14 @@ pub fn main() {
 
       Gen(file: file, src: gen_src)
     })
+    |> list.filter(fn(gen) { gen.src != "" })
     |> gen_full_deriv_src
     |> function.tap(fn(src) { io.println(src) })
 
   let output_path = deriv_output_path()
 
   // simplifile.create_directory_all
-  let assert Ok(_) = simplifile.write(output_path, output_str)
+  // let assert Ok(_) = simplifile.write(output_path, output_str)
 
   Nil
 }
