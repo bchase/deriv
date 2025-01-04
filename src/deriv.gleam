@@ -10,6 +10,7 @@ import glance.{type Module, type CustomType, type Variant, type VariantField, La
 import gleam/regexp.{Match}
 import simplifile
 import shellout
+import deriv/util
 
 fn file_path_to_gleam_module_str(path: String) -> String {
   let assert Ok(leading_src_slash) = regexp.from_string("^src[/]")
@@ -29,15 +30,15 @@ fn terminal_module_string(module: String) -> String {
   str
 }
 
-fn gen_imports(files: List(File)) -> String {
+fn build_module_imports(files: List(File)) -> String {
   list.map(files, fn(file) {
     "import MODULE as mINDEX"
     |> string.replace(each: "MODULE", with: file.module)
     |> string.replace(each: "INDEX", with: file.idx |> int.to_string)
   })
-  |> list.append([
-    "import decode/zero.{type Decoder} as decode",
-  ])
+  // |> list.append([
+  //   "import decode/zero.{type Decoder} as decode",
+  // ])
   |> string.join("\n")
 }
 
@@ -52,15 +53,15 @@ fn deriv_output_path() -> String {
   |> string.replace(each: "PKG", with: pkg)
 }
 
-fn output_path(deriv: Derivation, file: File) -> String {
-  [
-    "src",
-    "deriv",
-    file.module,
-    deriv.name <> ".gleam",
-  ]
-  |> string.join("/")
-}
+// fn output_path(deriv: Derivation, file: File) -> String {
+//   [
+//     "src",
+//     "deriv",
+//     file.module,
+//     deriv.name <> ".gleam",
+//   ]
+//   |> string.join("/")
+// }
 
 pub fn main() {
   let assert Ok(output) = shellout.command(in: ".", run: "find", with: ["src", "-name", "*.gleam"], opt: [])
@@ -82,7 +83,7 @@ pub fn main() {
   //       parsed.custom_types
   //       |> list.map(fn(ct) { ct.definition })
   //       |> list.map(type_with_derivations(_, src))
-  //       |> result.partition
+  //       |> result.partition // TODO `values`
   //       |> fn(x) {
   //         let #(oks, _errs) = x
 
@@ -122,7 +123,7 @@ pub fn main() {
     parsed.custom_types
     |> list.map(fn(ct) { ct.definition })
     |> list.map(type_with_derivations(_, src))
-    |> result.partition
+    |> result.partition // TODO `values`
     |> fn(x) {
       let #(oks, _errs) = x
       oks
@@ -136,23 +137,83 @@ pub fn main() {
   |> dict.each(fn(group, gens) {
     let #(module, name) = group
 
-    io.println(module <> " -- " <> name)
-    list.each(gens, fn(gen) {
-      io.println(gen.src)
-    })
-    // // io.println(gen.file.module)
-    // // io.println(gen.deriv.name)
-    // // io.println(gen.src)
+    let output_path =
+      [
+        "src",
+        "deriv",
+        module,
+        name <> ".gleam",
+      ]
+      |> string.join("/")
+
+    let files =
+      gens
+      |> list.map(fn(g) { g.file })
+      |> list.unique
+    let module_imports = build_module_imports(files)
+
+    let derivs = list.map(gens, fn(g) { g.deriv })
+    let assert Ok(deriv_imports) = build_deriv_imports(derivs)
+
+    let defs = list.map(gens, fn(gen) { gen.src })
+
+    let output_str =
+      [
+        module_imports,
+        deriv_imports,
+      ]
+      |> string.join("\n")
+      |> fn(imports) { [imports] }
+      |> list.append(defs)
+      |> string.join("\n\n")
+
+    // io.println("// " <> output_path)
+    // io.println(output_str)
+
+    let dir = string.replace(output_path, {name <> ".gleam"}, "")
+    let assert Ok(_) = simplifile.create_directory_all(dir)
+    let assert Ok(_) = simplifile.write(output_path, output_str)
   })
 
   Nil
 }
 
+fn build_deriv_imports(derivs: List(Derivation)) -> Result(String, Nil) {
+  let deriv_imports = dict.from_list(deriv_imports)
+
+  derivs
+  |> list.flat_map(fn(d) {
+    list.map(d.opts, fn(opt) {
+      #(d.name, opt)
+    })
+  })
+  |> list.unique
+  |> list.map(dict.get(deriv_imports, _))
+  |> result.values
+  |> list.map(string.trim)
+  |> fn(strs) {
+    case strs {
+      [] -> Error(Nil)
+      _ -> Ok(string.join(strs, "\n"))
+    }
+  }
+}
+
+const deriv_imports =
+  [
+    #(#("json", "decode"), "
+      import decode/zero.{type Decoder} as decode
+    "),
+    #(#("json", "encode"), "
+      import gleam/json.{type Json}
+    "),
+  ]
+
 fn gen_full_deriv_src(gens: List(Gen)) -> String {
   let imports =
     gens
     |> list.map(fn(gen) { gen.file })
-    |> gen_imports
+    |> build_module_imports
 
   let derivs_src =
     gens
@@ -181,7 +242,7 @@ fn gen_derivations_(
       }
     }
   })
-  |> result.partition
+  |> result.partition // TODO `values`
   |> fn(x) {
     let #(oks, _errs) = x
     oks
@@ -344,7 +405,7 @@ fn gen_json_encoders(type_: CustomType, file: File) -> String {
       })
 
     [
-      "pub fn encode_" <> type_.name <> "(value: m" <> int.to_string(file.idx) <> "." <>  type_.name <> ") -> Json {",
+      "pub fn encode_" <> util.snake_case(type_.name) <> "(value: m" <> int.to_string(file.idx) <> "." <>  type_.name <> ") -> Json {",
       "  json.object([",
            encode_lines |> list.map(indent(_, level: 2)) |> string.join("\n"),
       "  ])",
@@ -413,7 +474,7 @@ fn decoder_func_src(type_: JsonType, file: File) -> String {
     decode_success_line(type_, file)
     |> indent(level: 1)
 
-  let func_name = "decoder_" <> type_.variant.name
+  let func_name = "decoder_" <> util.snake_case(type_.variant.name)
 
   [
     [
