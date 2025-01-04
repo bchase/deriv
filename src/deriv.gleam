@@ -100,9 +100,8 @@ pub fn main() {
     let assert Ok(_) = simplifile.write(output_path, output_str)
   })
 
-  io.debug(parse("foo(bar(baz(boo)))"))
-  io.debug(parse("asdf(qwer(zxcv))"))
-  io.debug(parse("abc(def)"))
+  io.debug(parse_deriv_field_opt("foo(bar(baz(asdf/qwer.zxcv)))"))
+  io.debug(parse_deriv_field_opt("foo(bar(asdf/qwer.zxcv))"))
 
   Nil
 }
@@ -213,7 +212,7 @@ fn type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType,
   |> list.map(fn(line) {
     case regexp.scan(re, line) {
       [Match(_txt, [Some(field_name), Some(_type), Some(magic_comment)])] -> {
-        case parse(io.debug(magic_comment)) {
+        case parse_deriv_field_opt(magic_comment) {
           Error(_) -> Error(Nil)
           Ok(opt) ->
             Ok(#(field_name, [opt]))
@@ -226,7 +225,7 @@ fn type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType,
   })
   |> result.values
   |> dict.from_list
-  |> io.debug
+  // |> io.debug
 
   // // TODO field magic comments
   // let lines_for_type_def =
@@ -465,21 +464,21 @@ type DerivFieldOpt {
 type Token {
   LParen
   RParen
-  Word(String)
+  Str(String)
 }
 
-fn parse(str: String) -> Result(DerivFieldOpt, Nil) {
+fn parse_deriv_field_opt(str: String) -> Result(DerivFieldOpt, Nil) {
   let lexer =
     lexer.simple([
       lexer.token("(", LParen),
       lexer.token(")", RParen),
-      lexer.variable(set.from_list([ "(", ")" ]), Word),
+      lexer.identifier("[^()]", "[^()]", set.from_list([ "(", ")" ]), Str),
     ])
 
   let str_parser = {
-    use tok <- nibble.take_map("expected str")
+    use tok <- nibble.take_map("expected key")
     case tok {
-      Word(str) -> Some(str)
+      Str(str) -> Some(str)
       _ -> None
     }
   }
