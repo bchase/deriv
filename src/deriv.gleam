@@ -243,6 +243,7 @@ type Derivation {
 
 type JsonType {
   JsonType(
+    type_: CustomType,
     variant: Variant,
     fields: List(JsonField),
   )
@@ -303,15 +304,15 @@ fn gen_json_decoders(type_: CustomType, file: File) -> String {
 
 fn to_json_types(type_: CustomType) -> List(JsonType) {
   type_.variants
-  |> list.map(to_json_type)
+  |> list.map(to_json_type(type_, _))
 }
 
-fn to_json_type(variant: Variant) -> JsonType {
+fn to_json_type(type_: CustomType, variant: Variant) -> JsonType {
   let xs = list.map(variant.fields, to_json_field)
 
   case result.all(xs) {
     Ok(fields) ->
-      JsonType(variant:, fields:)
+      JsonType(type_:, variant:, fields:)
 
     Error(field) -> {
       io.debug(field)
@@ -339,12 +340,11 @@ fn decoder_func_src(type_: JsonType, file: File) -> String {
     decode_success_line(type_, file)
     |> indent(level: 1)
 
-  let func_name = "decoder_" <> util.snake_case(type_.variant.name)
+  let func_name = "decoder_" <> util.snake_case(type_.type_.name)
 
   [
     [
-      "pub fn " <> func_name <> "() -> Decoder(m" <> {int.to_string(file.idx)} <> "." <> type_.variant.name <> ") {",
-      // TODO `Decoder(TYPE)` rather than `Decoder(VARIANT)`
+      "pub fn " <> func_name <> "() -> Decoder(m" <> {int.to_string(file.idx)} <> "." <> type_.type_.name <> ") {",
     ],
     decode_field_lines,
     [
