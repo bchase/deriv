@@ -1,5 +1,6 @@
 import gleam/option.{Some, None}
 import gleam/dict.{type Dict}
+import gleam/function
 import gleam/int
 import gleam/result
 import gleam/list
@@ -48,38 +49,54 @@ fn gen_imports(files: List(File)) -> String {
   |> string.join("\n")
 }
 
+fn deriv_output_path() -> String {
+  let assert Ok(src) = simplifile.read("gleam.toml")
+
+  let assert Ok(re) = regexp.from_string("name = \"(\\w+)\"")
+
+  let assert [Match(_, [Some(pkg)])] = regexp.scan(re, src)
+
+  "src/PKG/derivs.gleam"
+  |> string.replace(each: "PKG", with: pkg)
+}
+
 pub fn main() {
-  // let assert Ok(output) = shellout.command(in: ".", run: "find", with: ["src", "-name", "'*.gleam'"], opt: [])
   let assert Ok(output) = shellout.command(in: ".", run: "find", with: ["src", "-name", "*.gleam"], opt: [])
   let filepaths =
     output
     |> string.trim
     |> string.split("\n")
 
-  filepaths
-  |> list.index_map(fn(path, idx) {
-    let assert Ok(src) = simplifile.read(path)
-    let module = file_path_to_gleam_module_str(path)
-    let file = File(module: , src:, idx: idx+1)
+  let output_str =
+    filepaths
+    |> list.index_map(fn(path, idx) {
+      let assert Ok(src) = simplifile.read(path)
+      let module = file_path_to_gleam_module_str(path)
+      let file = File(module: , src:, idx: idx+1)
 
-    let assert Ok(parsed) = glance.module(src)
+      let assert Ok(parsed) = glance.module(src)
 
-    let gen_src =
-      parsed.custom_types
-      |> list.map(fn(ct) { ct.definition })
-      |> list.map(type_with_derivations(_, src))
-      |> result.partition
-      |> fn(x) {
-        let #(oks, _errs) = x
-        oks
-      }
-      |> list.map(gen_derivations(_, file))
-      |> string.join("\n\n")
+      let gen_src =
+        parsed.custom_types
+        |> list.map(fn(ct) { ct.definition })
+        |> list.map(type_with_derivations(_, src))
+        |> result.partition
+        |> fn(x) {
+          let #(oks, _errs) = x
+          oks
+        }
+        |> list.map(gen_derivations(_, file))
+        |> string.join("\n\n")
 
-    Gen(file: file, src: gen_src)
-  })
-  |> gen_full_deriv_src
-  |> io.println
+      Gen(file: file, src: gen_src)
+    })
+    |> gen_full_deriv_src
+    |> function.tap(fn(src) { io.println(src) })
+
+  let output_path = deriv_output_path()
+
+  // simplifile.create_directory_all
+  let assert Ok(_) = simplifile.write(output_path, output_str)
 
   Nil
 }
