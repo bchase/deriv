@@ -2,6 +2,15 @@ import gleam/list
 import gleam/string
 import gleam/regexp.{type Regexp}
 
+pub fn indent(str: String, level level: Int) {
+  let pad =
+    "  "
+    |> list.repeat(level)
+    |> string.join("")
+
+  pad <> str
+}
+
 pub fn snake_case(str: String) -> String {
   let assert Ok(re) = regexp.from_string("[A-Z]")
 
