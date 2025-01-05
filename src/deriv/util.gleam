@@ -12,7 +12,9 @@ pub fn snake_case(str: String) -> String {
   |> list.reverse
   |> list.fold(SC(acc: [], curr: [], next_is_capital: True), step_snake_case)
   |> fn(sc) {
-    sc.acc
+    let result = list.append(sc.acc, [sc.curr])
+
+    result
     |> list.map(fn(group) {
       group
       |> list.reverse
