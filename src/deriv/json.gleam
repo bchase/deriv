@@ -1,4 +1,5 @@
 import gleam/option.{None}
+import gleam/dict
 import gleam/int
 import gleam/result
 import gleam/list
@@ -9,23 +10,17 @@ import deriv/types.{type Imports, type File, File}
 import deriv/util
 
 pub fn gen(type_: CustomType, opts: List(String), file: File) -> String {
-  let decoders =
-    case list.contains(opts, "decode") {
-      False -> ""
-      True -> gen_json_decoders(type_, file)
-    }
+  let gen_funcs_for_opts =
+    [
+      #("decode", gen_json_decoders),
+      #("encode", gen_json_encoders),
+    ]
+    |> dict.from_list
 
-  let encoders =
-    case list.contains(opts, "encode") {
-      False -> ""
-      True -> gen_json_encoders(type_, file)
-    }
-
-  [
-    decoders,
-    encoders
-  ]
-  |> list.filter(fn(str) { str != "" })
+  opts
+  |> list.map(dict.get(gen_funcs_for_opts, _))
+  |> result.values
+  |> list.map(fn(f) { f(type_, file)})
   |> string.join("\n\n")
 }
 
