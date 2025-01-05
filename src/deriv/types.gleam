@@ -1,4 +1,9 @@
 import gleam/option.{type Option}
+import glance.{type CustomType}
+
+pub type GenFunc = fn(CustomType, List(String), File) -> String
+
+pub type Imports = List(#(#(String, String), String)) // ((deriv, opt), import)
 
 pub type File {
   File(
