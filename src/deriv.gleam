@@ -12,19 +12,15 @@ import deriv/parser
 import deriv/json
 // import gleam/io
 
-fn all_gen_funcs() -> Dict(String, GenFunc) {
+const all_gen_funcs: List(#(String, GenFunc)) =
   [
     #("json", json.gen),
   ]
-  |> dict.from_list
-}
 
-fn all_deriv_imports() -> Imports {
+const all_deriv_imports: List(Imports) =
   [
     json.imports,
   ]
-  |> list.flatten
-}
 
 pub fn main() {
   let filepaths = find_project_src_gleam_filepaths()
@@ -45,7 +41,7 @@ fn find_project_src_gleam_filepaths() -> List(String) {
 // GEN DERIVS
 
 fn gen_derivs(filepaths: List(String)) -> List(Gen) {
-  let gen_funcs = all_gen_funcs()
+  let gen_funcs = all_gen_funcs |>  dict.from_list
 
   filepaths
   |> list.index_map(fn(path, idx) {
@@ -175,7 +171,10 @@ fn build_module_imports(gens: List(Gen)) -> String {
 fn build_deriv_imports(gens: List(Gen)) -> String {
   let derivs = list.map(gens, fn(g) { g.deriv })
 
-  let deriv_imports = dict.from_list(all_deriv_imports())
+  let deriv_imports =
+    all_deriv_imports
+    |> list.flatten
+    |> dict.from_list
 
   derivs
   |> list.flat_map(fn(d) {
