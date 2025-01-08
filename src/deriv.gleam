@@ -1,3 +1,4 @@
+import gleam/option.{Some, None}
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/result
@@ -7,7 +8,7 @@ import glance.{type CustomType}
 import gleam/regexp
 import simplifile
 import shellout
-import deriv/types.{type File, File, type Output, Output, type GenFunc, type Imports, type Gen, Gen, type Derivation, Derivation}
+import deriv/types.{type File, File, type Output, Output, type GenFunc, type Imports, type Import, Import, type Gen, Gen, type Derivation, Derivation}
 import deriv/parser
 import deriv/json
 import gleam/io
@@ -193,4 +194,88 @@ fn build_deriv_imports(gens: List(Gen)) -> String {
     }
   }
   |> result.unwrap("")
+}
+
+fn consolidate_imports(all_imports: List(Import)) -> List(Import) {
+  all_imports
+  |> list.group(fn(i) { i.module })
+  |> dict.to_list
+  |> list.map(fn(x) {
+    let #(module, imports) = x
+
+    let alias =
+      imports
+      |> list.map(fn(i) { i.alias })
+      |> option.values
+      |> fn(aliases) {
+        case aliases {
+          [] -> None
+          [alias] -> Some(alias)
+          _ -> panic as {
+            [
+              { "0 or 1 allowed, but for module `" <> module <> "` multiple module aliases found :" },
+              ..aliases // TODO trailing "," here blows up `glance` but not gleam compiler
+            ]
+            |> string.join(" ")
+          }
+        }
+      }
+
+    let types =
+      imports
+      |> list.flat_map(fn(i) { i.types })
+      |> list.unique
+
+    let constructors =
+      imports
+      |> list.flat_map(fn(i) { i.constructors })
+      |> list.unique
+
+    Import(
+      module:,
+      types:,
+      constructors:,
+      alias:,
+    )
+  })
+}
+
+fn import_src(i: Import) -> String {
+  let alias =
+    case i.alias {
+      None -> ""
+      Some(name) -> "as " <> name
+    }
+
+  let types =
+    i.types
+    |> list.map(fn(t) { "type " <> t })
+
+  let types_and_constructors =
+    case list.append(types, i.constructors) {
+      [] -> ""
+      xs -> {
+        let str = string.join(xs, ", ")
+
+        ".{" <> str <> "}"
+      }
+    }
+
+  let module_with_types_and_constructors =
+    i.module <> types_and_constructors
+
+  [
+    "import",
+    module_with_types_and_constructors,
+    alias,
+  ]
+  |> list.filter(fn(str) { str != "" })
+  |> string.join(" ")
+}
+
+fn imports_src(imports: List(Import)) -> String {
+  imports
+  |> consolidate_imports
+  |> list.map(import_src)
+  |> string.join("\n")
 }
