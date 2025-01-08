@@ -1,4 +1,4 @@
-import gleam/option.{None}
+import gleam/option.{Some, None}
 import gleam/dict
 import gleam/int
 import gleam/result
@@ -7,7 +7,7 @@ import gleam/string
 import gleam/regexp
 import gleam/io
 import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType}
-import deriv/types.{type Imports, type File, File, type Gen}
+import deriv/types.{type Imports, type Import, Import, type File, File, type Gen}
 import deriv/util
 
 pub fn gen(type_: CustomType, opts: List(String), file: File) -> String {
@@ -18,39 +18,64 @@ pub fn gen(type_: CustomType, opts: List(String), file: File) -> String {
     ]
     |> dict.from_list
 
-  opts
-  |> list.map(dict.get(gen_funcs_for_opts, _))
-  |> result.values
-  |> list.map(fn(f) { f(type_, file)})
+  let imports =
+    gen_imports(opts, type_)
+
+  let funcs =
+    opts
+    |> list.map(dict.get(gen_funcs_for_opts, _))
+    |> result.values
+    |> list.map(fn(f) { f(type_, file)})
+    |> string.join("\n\n")
+
+  [
+    imports,
+    funcs,
+  ]
   |> string.join("\n\n")
 }
 
-fn needs_util_import(gens: List(Gen)) -> Bool {
-  let assert Ok(contains_decoder_uuid) = regexp.from_string("decoder_uuid")
-  let assert Ok(contains_encode_uuid) = regexp.from_string("encode_uuid")
-
-  let checks =
-    [
-      contains_decoder_uuid,
-      contains_encode_uuid,
-    ]
-
-  list.any(gens, fn(gen) {
-    list.any(checks, fn(re) {
-      regexp.check(re, gen.src)
+fn needs_util_import(type_: CustomType) -> Bool {
+  type_
+  |> to_json_types // TODO duplicate work
+  |> list.any(fn(json_type) {
+    list.any(json_type.fields, fn(field) {
+      field.type_ == "Uuid"
     })
   })
 }
 
-pub const imports: Imports =
-  [
-    #(#("json", "decode"), "
-      import decode/zero.{type Decoder} as decode
-    "),
-    #(#("json", "encode"), "
-      import gleam/json.{type Json}
-    "),
-  ]
+pub fn gen_imports(opts: List(String), type_: CustomType) -> String {
+  let json_imports =
+    [
+      #("decode", "
+        import decode/zero.{type Decoder} as decode
+      "),
+      #("encode", "
+        import gleam/json.{type Json}
+      "),
+      ]
+    |> dict.from_list
+
+  opts
+  |> list.unique
+  |> list.map(fn(opt) {
+    dict.get(json_imports, opt)
+  })
+  |> result.values
+  |> fn(imports) {
+    case needs_util_import(type_) {
+      False -> imports
+      True -> list.append(imports, [util_import])
+    }
+  }
+  |> list.map(string.trim)
+  |> string.join("\n")
+}
+
+const util_import = "
+  import deriv/util
+"
 
 type JsonType {
   JsonType(

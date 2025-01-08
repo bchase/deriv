@@ -20,7 +20,7 @@ const all_gen_funcs: List(#(String, GenFunc)) =
 
 const all_deriv_imports: List(Imports) =
   [
-    json.imports,
+    // json.imports,
   ]
 
 pub fn main() {
@@ -101,7 +101,8 @@ fn gen_type_derivs_(
       Error(_) -> Error(Nil)
       Ok(f) -> {
         let src = f(type_, d.opts, file)
-        Ok(Gen(file:, deriv: d, src:))
+
+        Ok(Gen(file:, deriv: d, src:, imports: []))
       }
     }
   })
@@ -140,19 +141,19 @@ fn output_path(output: Output) -> String {
 
 fn build_output_src(gens: List(Gen)) -> String {
   let module_imports = build_module_imports(gens)
-  let deriv_imports = build_deriv_imports(gens)
+  // let deriv_imports = build_deriv_imports(gens)
 
   let defs = list.map(gens, fn(gen) { gen.src })
 
   [
     module_imports,
-    deriv_imports,
+    // deriv_imports,
   ]
   |> list.filter(fn(str) { str != "" })
   |> string.join("\n")
   |> fn(imports) { [imports] }
   |> list.append(defs)
-  |> string.join("\n\n")
+  |> string.join("\n")
 }
 
 fn build_module_imports(gens: List(Gen)) -> String {
