@@ -1,6 +1,20 @@
 import gleam/list
 import gleam/string
 import gleam/regexp.{type Regexp}
+import decode/zero
+import youid/uuid.{type Uuid}
+
+pub fn decoder_uuid() {
+  use bit_array <- zero.then(zero.bit_array)
+  case uuid.from_bit_array(bit_array) {
+    Ok(uuid) -> zero.success(uuid)
+    Error(_) -> zero.failure(uuid.v7(), "uuid")
+  }
+}
+
+pub fn encode_uuid(uuid: Uuid) -> String {
+  uuid.to_string(uuid)
+}
 
 pub fn indent(str: String, level level: Int) {
   let pad =

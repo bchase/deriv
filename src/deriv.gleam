@@ -10,7 +10,7 @@ import shellout
 import deriv/types.{type File, File, type Output, Output, type GenFunc, type Imports, type Gen, Gen, type Derivation, Derivation}
 import deriv/parser
 import deriv/json
-// import gleam/io
+import gleam/io
 
 const all_gen_funcs: List(#(String, GenFunc)) =
   [
@@ -118,12 +118,12 @@ fn write_to_files(xs: List(Gen)) -> Nil {
     let output_path = output_path(output)
     let output_src = build_output_src(gens)
 
-    // io.println("// " <> output_path)
-    // io.println(output_src)
+    io.println("// " <> output_path)
+    io.println(output_src)
 
-    let dir = string.replace(output_path, {output.deriv <> ".gleam"}, "")
-    let assert Ok(_) = simplifile.create_directory_all(dir)
-    let assert Ok(_) = simplifile.write(output_path, output_src)
+    // let dir = string.replace(output_path, {output.deriv <> ".gleam"}, "")
+    // let assert Ok(_) = simplifile.create_directory_all(dir)
+    // let assert Ok(_) = simplifile.write(output_path, output_src)
   })
 }
 

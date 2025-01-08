@@ -4,9 +4,10 @@ import gleam/int
 import gleam/result
 import gleam/list
 import gleam/string
+import gleam/regexp
 import gleam/io
 import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType}
-import deriv/types.{type Imports, type File, File}
+import deriv/types.{type Imports, type File, File, type Gen}
 import deriv/util
 
 pub fn gen(type_: CustomType, opts: List(String), file: File) -> String {
@@ -22,6 +23,23 @@ pub fn gen(type_: CustomType, opts: List(String), file: File) -> String {
   |> result.values
   |> list.map(fn(f) { f(type_, file)})
   |> string.join("\n\n")
+}
+
+fn needs_util_import(gens: List(Gen)) -> Bool {
+  let assert Ok(contains_decoder_uuid) = regexp.from_string("decoder_uuid")
+  let assert Ok(contains_encode_uuid) = regexp.from_string("encode_uuid")
+
+  let checks =
+    [
+      contains_decoder_uuid,
+      contains_encode_uuid,
+    ]
+
+  list.any(gens, fn(gen) {
+    list.any(checks, fn(re) {
+      regexp.check(re, gen.src)
+    })
+  })
 }
 
 pub const imports: Imports =
@@ -45,7 +63,7 @@ type JsonType {
 type JsonField {
   JsonField(
     name: String,
-    func: String,
+    type_: String,
   )
 }
 
@@ -62,9 +80,18 @@ fn gen_json_encoders(type_: CustomType, file: File) -> String {
     let encode_lines =
       jt.fields
       |> list.map(fn(f) {
-        "#(\"NAME\", json.FUNC(value.NAME)),"
+        let encode_func =
+          case f.type_ {
+            "Int" -> "json.int"
+            "String" -> "json.string"
+            "Bool" -> "json.bool"
+            "Uuid" -> "util.encode_uuid"
+            _ -> panic as { "Unsupported field type for JSON decode: " <> f.type_ }
+          }
+
+        "#(\"NAME\", FUNC(value.NAME)),"
         |> string.replace(each: "NAME", with: f.name)
-        |> string.replace(each: "FUNC", with: f.func)
+        |> string.replace(each: "FUNC", with: encode_func)
       })
 
     [
@@ -81,14 +108,17 @@ fn gen_json_encoders(type_: CustomType, file: File) -> String {
 
 fn to_json_field(field: VariantField) -> Result(JsonField, VariantField) {
   case field {
+    LabelledVariantField(NamedType("Uuid", None, []), name) ->
+      Ok(JsonField(name:, type_: "Uuid"))
+
     LabelledVariantField(NamedType("String", None, []), name) ->
-      Ok(JsonField(name:, func: "string"))
+      Ok(JsonField(name:, type_: "String"))
 
     LabelledVariantField(NamedType("Int", None, []), name) ->
-      Ok(JsonField(name:, func: "int"))
+      Ok(JsonField(name:, type_: "Int"))
 
     LabelledVariantField(NamedType("Bool", None, []), name) ->
-      Ok(JsonField(name:, func: "bool"))
+      Ok(JsonField(name:, type_: "Bool"))
 
     _ ->
       Error(field)
@@ -160,13 +190,22 @@ fn decode_success_line(type_: JsonType, file: File) -> String {
 }
 
 fn field_decode_line(field: JsonField) -> String {
+  let decode_func =
+    case field.type_ {
+      "Int" -> "decode.int"
+      "String" -> "decode.string"
+      "Bool" -> "decode.bool"
+      "Uuid" -> "util.decoder_uuid"
+      _ -> panic as { "Unsupported field type for JSON decode: " <> field.type_ }
+    }
+
   [
     "use ",
     field.name,
     " <- decode.field(\"",
     field.name,
-    "\", decode.",
-    field.func,
+    "\", ",
+    decode_func,
     ")",
   ]
   |> string.join("")
