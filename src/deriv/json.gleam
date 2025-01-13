@@ -1,15 +1,15 @@
 import gleam/option.{Some, None}
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/int
 import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
 import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType}
-import deriv/types.{type Import, Import, type File, type Derivation, File, type Gen, Gen}
+import deriv/types.{type Import, Import, type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen}
 import deriv/util
 
-pub fn gen(type_: CustomType, deriv: Derivation, file: File) -> Gen {
+pub fn gen(type_: CustomType, deriv: Derivation, _field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> Gen {
   let opts = deriv.opts
 
   let gen_funcs_for_opts =

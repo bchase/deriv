@@ -85,14 +85,14 @@ fn gen_type_derivs(
   file: File,
   gen_funcs: Dict(String, GenFunc),
 ) -> List(Gen) {
-  let #(type_, derivs, _) = x
+  let #(type_, derivs, field_opts) = x
 
   derivs
   |> list.map(fn(d) {
     case dict.get(gen_funcs, d.name) {
       Error(_) -> Error(Nil)
       Ok(f) -> {
-        Ok(f(type_, d, file))
+        Ok(f(type_, d, field_opts, file))
       }
     }
   })

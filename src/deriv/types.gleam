@@ -1,7 +1,8 @@
 import gleam/option.{type Option}
+import gleam/dict.{type Dict}
 import glance.{type CustomType}
 
-pub type GenFunc = fn(CustomType, Derivation, File) -> Gen
+pub type GenFunc = fn(CustomType, Derivation, Dict(String, List(DerivFieldOpt)), File) -> Gen
 
 pub type Import {
   Import(
