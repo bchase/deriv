@@ -22,6 +22,7 @@ pub fn main() {
   let filepaths = find_project_src_gleam_filepaths()
 
   filepaths
+  |> load_files
   |> gen_derivs
   |> build_writes
   |> perform_file_writes
@@ -37,13 +38,18 @@ fn find_project_src_gleam_filepaths() -> List(String) {
 
 // GEN DERIVS
 
-fn gen_derivs(filepaths: List(String)) -> List(Gen) {
-  let gen_funcs = all_gen_funcs |>  dict.from_list
-
+fn load_files(filepaths: List(String)) -> List(File) {
   filepaths
   |> list.index_map(fn(path, idx) {
-    let file = read_file(path, idx)
+    read_file(path, idx)
+  })
+}
 
+pub fn gen_derivs(files: List(File)) -> List(Gen) {
+  let gen_funcs = all_gen_funcs |>  dict.from_list
+
+  files
+  |> list.map(fn(file) {
     file
     |> parse_types_and_derivations
     |> gen_type_derivs(file, gen_funcs)
@@ -105,7 +111,7 @@ fn gen_type_derivs_(
 
 // WRITE TO FILES
 
-fn build_writes(xs: List(Gen)) -> List(Write) {
+pub fn build_writes(xs: List(Gen)) -> List(Write) {
   xs
   |> list.group(fn(gen) {
     Output(module: gen.file.module, deriv: gen.deriv.name)
