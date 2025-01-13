@@ -1,5 +1,5 @@
 import gleam/option.{Some, None}
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/result
 import gleam/list
 import gleam/string
@@ -10,7 +10,7 @@ import nibble/lexer
 import glance.{type CustomType}
 import deriv/types.{type Derivation, Derivation, type DerivFieldOpt, DerivFieldOpt}
 
-pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType, List(Derivation)), Nil) {
+pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType, List(Derivation), Dict(String, List(DerivFieldOpt))), Nil) {
   let lines_from_type_start_to_eof =
     src
     |> string.split("\n")
@@ -33,24 +33,27 @@ pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(C
   let assert Ok(re) = regexp.from_string(
     "^\\s*([_a-z0-9]+)\\s*[:]\\s*(.+)[,]?\\s*[/][/][$]\\s*(.+)$"
   )
-  lines_from_type_start_except_last
-  |> list.map(fn(line) {
-    case regexp.scan(re, line) {
-      [Match(_txt, [Some(field_name), Some(_type), Some(magic_comment)])] -> {
-        case parse_deriv_field_opt(magic_comment) {
-          Error(_) -> Error(Nil)
-          Ok(opt) ->
-            Ok(#(field_name, [opt]))
-        }
-      }
 
-      _ ->
-        Error(Nil)
-    }
-  })
-  |> result.values
-  |> dict.from_list
-  // |> io.debug
+  let deriv_field_opts =
+    lines_from_type_start_except_last
+    |> list.map(fn(line) {
+      case regexp.scan(re, line) {
+        [Match(_txt, [Some(field_name), Some(_type), Some(magic_comment)])] -> {
+          case parse_deriv_field_opt(magic_comment) {
+            Error(_) -> Error(Nil)
+            Ok(opt) ->
+              Ok(#(field_name, [opt]))
+          }
+        }
+
+        _ ->
+          Error(Nil)
+      }
+    })
+    |> result.values
+    |> dict.from_list
+    // |> io.debug
+    // // dict.from_list([#("name", [DerivFieldOpt("json", Some("encode"), "foo", "bar")])])
 
   // // TODO field magic comments
   // let lines_for_type_def =
@@ -64,7 +67,7 @@ pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(C
     [_, mc] ->
       parse_derivations(mc)
       |> result.map(fn(ds) {
-        #(type_, ds)
+        #(type_, ds, deriv_field_opts)
       })
 
     _ -> Error(Nil)

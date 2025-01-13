@@ -8,10 +8,9 @@ import glance.{type CustomType}
 import gleam/regexp
 import simplifile
 import shellout
-import deriv/types.{type File, File, type Output, Output, type Write, Write, type GenFunc, type Import, Import, type Gen, Gen, type Derivation, Derivation}
+import deriv/types.{type File, File, type Output, Output, type Write, Write, type GenFunc, type Import, Import, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpt}
 import deriv/parser
 import deriv/json
-import gleam/io
 
 const all_gen_funcs: List(#(String, GenFunc)) =
   [
@@ -52,7 +51,7 @@ pub fn gen_derivs(files: List(File)) -> List(Gen) {
   |> list.map(fn(file) {
     file
     |> parse_types_and_derivations
-    |> gen_type_derivs(file, gen_funcs)
+    |> list.flat_map(gen_type_derivs(_, file, gen_funcs))
   })
   |> list.flatten
 }
@@ -72,7 +71,7 @@ fn file_path_to_gleam_module_str(path: String) -> String {
   |> regexp.replace(each: trailing_dot_gleam, in: _, with: "")
 }
 
-fn parse_types_and_derivations(file: File) -> List(#(CustomType, List(Derivation))) {
+fn parse_types_and_derivations(file: File) -> List(#(CustomType, List(Derivation), Dict(String, List(DerivFieldOpt)))) {
   let assert Ok(parsed) = glance.module(file.src)
 
   parsed.custom_types
@@ -82,20 +81,11 @@ fn parse_types_and_derivations(file: File) -> List(#(CustomType, List(Derivation
 }
 
 fn gen_type_derivs(
-  xs: List(#(CustomType, List(Derivation))),
+  x: #(CustomType, List(Derivation), Dict(String, List(DerivFieldOpt))),
   file: File,
   gen_funcs: Dict(String, GenFunc),
 ) -> List(Gen) {
-  xs
-  |> list.flat_map(gen_type_derivs_(_, file, gen_funcs))
-}
-
-fn gen_type_derivs_(
-  x: #(CustomType, List(Derivation)),
-  file: File,
-  gen_funcs: Dict(String, GenFunc),
-) -> List(Gen) {
-  let #(type_, derivs) = x
+  let #(type_, derivs, _) = x
 
   derivs
   |> list.map(fn(d) {

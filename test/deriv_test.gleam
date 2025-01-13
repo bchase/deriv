@@ -16,7 +16,7 @@ pub type Foo {
   Foo(
     uuid: Uuid,
     id: Int,
-    name: String,
+    name: String, //$ json(encode(foo(bar)))
     active: Bool,
   )
 } //$ derive json(decode,encode)
