@@ -27,6 +27,13 @@ pub type Output {
   )
 }
 
+pub type Write {
+  Write(
+    filepath: String,
+    src: String,
+  )
+}
+
 pub type Gen {
   Gen(
     file: File,

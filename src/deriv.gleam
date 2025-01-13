@@ -8,7 +8,7 @@ import glance.{type CustomType}
 import gleam/regexp
 import simplifile
 import shellout
-import deriv/types.{type File, File, type Output, Output, type GenFunc, type Import, Import, type Gen, Gen, type Derivation, Derivation}
+import deriv/types.{type File, File, type Output, Output, type Write, Write, type GenFunc, type Import, Import, type Gen, Gen, type Derivation, Derivation}
 import deriv/parser
 import deriv/json
 import gleam/io
@@ -22,8 +22,9 @@ pub fn main() {
   let filepaths = find_project_src_gleam_filepaths()
 
   filepaths
-  |> gen_derivs()
-  |> write_to_files()
+  |> gen_derivs
+  |> build_writes
+  |> perform_file_writes
 }
 
 fn find_project_src_gleam_filepaths() -> List(String) {
@@ -104,17 +105,28 @@ fn gen_type_derivs_(
 
 // WRITE TO FILES
 
-fn write_to_files(xs: List(Gen)) -> Nil {
+fn build_writes(xs: List(Gen)) -> List(Write) {
   xs
   |> list.group(fn(gen) {
     Output(module: gen.file.module, deriv: gen.deriv.name)
   })
-  |> dict.each(fn(output, gens) {
+  |> dict.map_values(fn(output, gens) {
     let output_path = output_path(output)
     let output_src = build_output_src(gens)
 
-    io.println("// " <> output_path)
-    io.println(output_src)
+    Write(
+      filepath: output_path,
+      src: output_src,
+    )
+  })
+  |> dict.values
+}
+
+fn perform_file_writes(xs: List(Write)) -> Nil {
+  xs
+  |> list.each(fn(write) {
+    io.println("// " <> write.filepath)
+    io.println(write.src)
 
     // let dir = string.replace(output_path, {output.deriv <> ".gleam"}, "")
     // let assert Ok(_) = simplifile.create_directory_all(dir)
