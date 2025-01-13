@@ -161,7 +161,7 @@ fn build_output_src(gens: List(Gen)) -> String {
   |> string.join("\n")
   |> fn(imports) { [imports] }
   |> list.append(defs)
-  |> string.join("\n")
+  |> string.join("\n\n")
 }
 
 fn build_module_imports(gens: List(Gen)) -> String {
