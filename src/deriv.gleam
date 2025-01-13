@@ -100,9 +100,7 @@ fn gen_type_derivs_(
     case dict.get(gen_funcs, d.name) {
       Error(_) -> Error(Nil)
       Ok(f) -> {
-        let src = f(type_, d.opts, file)
-
-        Ok(Gen(file:, deriv: d, src:, imports: []))
+        Ok(f(type_, d, file))
       }
     }
   })
@@ -141,13 +139,17 @@ fn output_path(output: Output) -> String {
 
 fn build_output_src(gens: List(Gen)) -> String {
   let module_imports = build_module_imports(gens)
-  // let deriv_imports = build_deriv_imports(gens)
+  let deriv_imports =
+    gens
+    |> list.flat_map(fn(gen) { gen.imports })
+    |> list.unique
+    |> string.join("\n")
 
   let defs = list.map(gens, fn(gen) { gen.src })
 
   [
     module_imports,
-    // deriv_imports,
+    deriv_imports,
   ]
   |> list.filter(fn(str) { str != "" })
   |> string.join("\n")

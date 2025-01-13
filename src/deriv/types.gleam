@@ -1,7 +1,7 @@
 import gleam/option.{type Option}
 import glance.{type CustomType}
 
-pub type GenFunc = fn(CustomType, List(String), File) -> String
+pub type GenFunc = fn(CustomType, Derivation, File) -> Gen
 
 pub type Imports = List(#(#(String, String), String)) // ((deriv, opt), import)
 
@@ -34,7 +34,8 @@ pub type Gen {
     file: File,
     deriv: Derivation,
     src: String,
-    imports: List(Import),
+    // imports: List(Import),
+    imports: List(String),
   )
 }
 

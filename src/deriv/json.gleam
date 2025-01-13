@@ -7,10 +7,12 @@ import gleam/string
 import gleam/regexp
 import gleam/io
 import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType}
-import deriv/types.{type Imports, type Import, Import, type File, File, type Gen}
+import deriv/types.{type Imports, type Import, Import, type File, type Derivation, File, type Gen, Gen}
 import deriv/util
 
-pub fn gen(type_: CustomType, opts: List(String), file: File) -> String {
+pub fn gen(type_: CustomType, deriv: Derivation, file: File) -> Gen {
+  let opts = deriv.opts
+
   let gen_funcs_for_opts =
     [
       #("decode", gen_json_decoders),
@@ -21,18 +23,14 @@ pub fn gen(type_: CustomType, opts: List(String), file: File) -> String {
   let imports =
     gen_imports(opts, type_)
 
-  let funcs =
+  let src =
     opts
     |> list.map(dict.get(gen_funcs_for_opts, _))
     |> result.values
     |> list.map(fn(f) { f(type_, file)})
     |> string.join("\n\n")
 
-  [
-    imports,
-    funcs,
-  ]
-  |> string.join("\n\n")
+  Gen(file:, deriv:, src:, imports:)
 }
 
 fn needs_util_import(type_: CustomType) -> Bool {
@@ -45,7 +43,7 @@ fn needs_util_import(type_: CustomType) -> Bool {
   })
 }
 
-pub fn gen_imports(opts: List(String), type_: CustomType) -> String {
+fn gen_imports(opts: List(String), type_: CustomType) -> List(String) {
   let json_imports =
     [
       #("decode", "
@@ -70,7 +68,6 @@ pub fn gen_imports(opts: List(String), type_: CustomType) -> String {
     }
   }
   |> list.map(string.trim)
-  |> string.join("\n")
 }
 
 const util_import = "
