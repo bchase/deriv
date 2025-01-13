@@ -32,11 +32,11 @@ pub type Bar {
 let output = "
 import deriv/example/foo as m1
 import decode/zero.{type Decoder} as decode
-import derive/util
+import deriv/util
 import gleam/json.{type Json}
 
 pub fn decoder_foo() -> Decoder(m1.Foo) {
-  use uuid <- decode.field(\"uuid\", util.decoder_uuid)
+  use uuid <- decode.field(\"uuid\", util.decoder_uuid())
   use id <- decode.field(\"id\", decode.int)
   use name <- decode.field(\"name\", decode.string)
   use active <- decode.field(\"active\", decode.bool)

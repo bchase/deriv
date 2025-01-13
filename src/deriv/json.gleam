@@ -80,7 +80,7 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
         let util_import =
           // import deriv/util
           Import(
-            module: "derive/util",
+            module: "deriv/util",
             types: [],
             constructors: [],
             alias: None,
@@ -235,7 +235,7 @@ fn field_decode_line(field: JsonField) -> String {
       "Int" -> "decode.int"
       "String" -> "decode.string"
       "Bool" -> "decode.bool"
-      "Uuid" -> "util.decoder_uuid"
+      "Uuid" -> "util.decoder_uuid()"
       _ -> panic as { "Unsupported field type for JSON decode: " <> field.type_ }
     }
 

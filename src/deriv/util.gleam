@@ -1,10 +1,11 @@
 import gleam/list
 import gleam/string
+import gleam/json.{type Json}
 import gleam/regexp.{type Regexp}
-import decode/zero
+import decode/zero.{type Decoder}
 import youid/uuid.{type Uuid}
 
-pub fn decoder_uuid() {
+pub fn decoder_uuid() -> Decoder(Uuid) {
   use bit_array <- zero.then(zero.bit_array)
   case uuid.from_bit_array(bit_array) {
     Ok(uuid) -> zero.success(uuid)
@@ -12,8 +13,10 @@ pub fn decoder_uuid() {
   }
 }
 
-pub fn encode_uuid(uuid: Uuid) -> String {
-  uuid.to_string(uuid)
+pub fn encode_uuid(uuid: Uuid) -> Json {
+  uuid
+  |> uuid.to_string
+  |> json.string
 }
 
 pub fn indent(str: String, level level: Int) {
