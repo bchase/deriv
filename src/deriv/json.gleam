@@ -43,15 +43,27 @@ fn needs_util_import(type_: CustomType) -> Bool {
   })
 }
 
-fn gen_imports(opts: List(String), type_: CustomType) -> List(String) {
+fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
   let json_imports =
     [
-      #("decode", "
-        import decode/zero.{type Decoder} as decode
-      "),
-      #("encode", "
-        import gleam/json.{type Json}
-      "),
+      #("decode", [
+        // import decode/zero.{type Decoder} as decode
+        Import(
+          module: "decode/zero",
+          types: ["Decoder"],
+          constructors: [],
+          alias: Some("decode"),
+        ),
+      ]),
+      #("encode", [
+        // import gleam/json.{type Json}
+        Import(
+          module: "gleam/json",
+          types: ["Json"],
+          constructors: [],
+          alias: None,
+        ),
+      ]),
       ]
     |> dict.from_list
 
@@ -61,18 +73,25 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(String) {
     dict.get(json_imports, opt)
   })
   |> result.values
+  |> list.flatten
   |> fn(imports) {
     case needs_util_import(type_) {
       False -> imports
-      True -> list.append(imports, [util_import])
+      True -> {
+        let util_import =
+          // import deriv/util
+          Import(
+            module: "derive/util",
+            types: [],
+            constructors: [],
+            alias: None,
+          )
+
+        list.append(imports, [util_import])
+      }
     }
   }
-  |> list.map(string.trim)
 }
-
-const util_import = "
-  import deriv/util
-"
 
 type JsonType {
   JsonType(

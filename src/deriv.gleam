@@ -142,8 +142,7 @@ fn build_output_src(gens: List(Gen)) -> String {
   let deriv_imports =
     gens
     |> list.flat_map(fn(gen) { gen.imports })
-    |> list.unique
-    |> string.join("\n")
+    |> imports_src
 
   let defs = list.map(gens, fn(gen) { gen.src })
 
@@ -211,7 +210,7 @@ fn consolidate_imports(all_imports: List(Import)) -> List(Import) {
       |> list.map(fn(i) { i.alias })
       |> option.values
       |> fn(aliases) {
-        case aliases {
+        case list.unique(aliases) {
           [] -> None
           [alias] -> Some(alias)
           _ -> panic as {

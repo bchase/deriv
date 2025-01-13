@@ -34,8 +34,7 @@ pub type Gen {
     file: File,
     deriv: Derivation,
     src: String,
-    // imports: List(Import),
-    imports: List(String),
+    imports: List(Import),
   )
 }
 
