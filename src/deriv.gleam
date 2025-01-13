@@ -8,7 +8,7 @@ import glance.{type CustomType}
 import gleam/regexp
 import simplifile
 import shellout
-import deriv/types.{type File, File, type Output, Output, type GenFunc, type Imports, type Import, Import, type Gen, Gen, type Derivation, Derivation}
+import deriv/types.{type File, File, type Output, Output, type GenFunc, type Import, Import, type Gen, Gen, type Derivation, Derivation}
 import deriv/parser
 import deriv/json
 import gleam/io
@@ -16,11 +16,6 @@ import gleam/io
 const all_gen_funcs: List(#(String, GenFunc)) =
   [
     #("json", json.gen),
-  ]
-
-const all_deriv_imports: List(Imports) =
-  [
-    // json.imports,
   ]
 
 pub fn main() {
@@ -169,33 +164,6 @@ fn build_module_imports(gens: List(Gen)) -> String {
     |> string.replace(each: "INDEX", with: file.idx |> int.to_string)
   })
   |> string.join("\n")
-}
-
-fn build_deriv_imports(gens: List(Gen)) -> String {
-  let derivs = list.map(gens, fn(g) { g.deriv })
-
-  let deriv_imports =
-    all_deriv_imports
-    |> list.flatten
-    |> dict.from_list
-
-  derivs
-  |> list.flat_map(fn(d) {
-    list.map(d.opts, fn(opt) {
-      #(d.name, opt)
-    })
-  })
-  |> list.unique
-  |> list.map(dict.get(deriv_imports, _))
-  |> result.values
-  |> list.map(string.trim)
-  |> fn(strs) {
-    case strs {
-      [] -> Error(Nil)
-      _ -> Ok(string.join(strs, "\n"))
-    }
-  }
-  |> result.unwrap("")
 }
 
 fn consolidate_imports(all_imports: List(Import)) -> List(Import) {

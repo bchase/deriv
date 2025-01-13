@@ -3,8 +3,6 @@ import glance.{type CustomType}
 
 pub type GenFunc = fn(CustomType, Derivation, File) -> Gen
 
-pub type Imports = List(#(#(String, String), String)) // ((deriv, opt), import)
-
 pub type Import {
   Import(
     module: String,

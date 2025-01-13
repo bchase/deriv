@@ -4,10 +4,9 @@ import gleam/int
 import gleam/result
 import gleam/list
 import gleam/string
-import gleam/regexp
 import gleam/io
 import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType}
-import deriv/types.{type Imports, type Import, Import, type File, type Derivation, File, type Gen, Gen}
+import deriv/types.{type Import, Import, type File, type Derivation, File, type Gen, Gen}
 import deriv/util
 
 pub fn gen(type_: CustomType, deriv: Derivation, file: File) -> Gen {
