@@ -31,6 +31,7 @@ pub type Write {
   Write(
     filepath: String,
     src: String,
+    output: Output,
   )
 }
 

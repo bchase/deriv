@@ -123,6 +123,7 @@ pub fn build_writes(xs: List(Gen)) -> List(Write) {
     Write(
       filepath: output_path,
       src: output_src,
+      output: output,
     )
   })
   |> dict.values
@@ -131,12 +132,12 @@ pub fn build_writes(xs: List(Gen)) -> List(Write) {
 fn perform_file_writes(xs: List(Write)) -> Nil {
   xs
   |> list.each(fn(write) {
-    io.println("// " <> write.filepath)
-    io.println(write.src)
+    // io.println("// " <> write.filepath)
+    // io.println(write.src)
 
-    // let dir = string.replace(output_path, {output.deriv <> ".gleam"}, "")
-    // let assert Ok(_) = simplifile.create_directory_all(dir)
-    // let assert Ok(_) = simplifile.write(output_path, output_src)
+    let dir = string.replace(write.filepath, {write.output.deriv <> ".gleam"}, "")
+    let assert Ok(_) = simplifile.create_directory_all(dir)
+    let assert Ok(_) = simplifile.write(write.filepath, write.src)
   })
 }
 
