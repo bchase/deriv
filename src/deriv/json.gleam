@@ -9,7 +9,7 @@ import glance.{type CustomType, type Variant, type VariantField, LabelledVariant
 import deriv/types.{type Import, Import, type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen}
 import deriv/util
 
-pub fn gen(type_: CustomType, deriv: Derivation, _field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> Gen {
+pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> Gen {
   let opts = deriv.opts
 
   let gen_funcs_for_opts =
@@ -26,20 +26,10 @@ pub fn gen(type_: CustomType, deriv: Derivation, _field_opts: Dict(String, List(
     opts
     |> list.map(dict.get(gen_funcs_for_opts, _))
     |> result.values
-    |> list.map(fn(f) { f(type_, file)})
+    |> list.map(fn(f) { f(type_, field_opts, file)})
     |> string.join("\n\n")
 
   Gen(file:, deriv:, src:, imports:)
-}
-
-fn needs_util_import(type_: CustomType) -> Bool {
-  type_
-  |> to_json_types // TODO duplicate work
-  |> list.any(fn(json_type) {
-    list.any(json_type.fields, fn(field) {
-      field.type_ == "Uuid"
-    })
-  })
 }
 
 fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
@@ -92,6 +82,16 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
   }
 }
 
+fn needs_util_import(type_: CustomType) -> Bool {
+  type_
+  |> to_json_types // TODO duplicate work
+  |> list.any(fn(json_type) {
+    list.any(json_type.fields, fn(field) {
+      field.type_ == "Uuid"
+    })
+  })
+}
+
 type JsonType {
   JsonType(
     type_: CustomType,
@@ -107,19 +107,26 @@ type JsonField {
   )
 }
 
-fn gen_json_decoders(type_: CustomType, file: File) -> String {
+fn gen_json_decoders(type_: CustomType, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> String {
   to_json_types(type_)
-  |> list.map(decoder_func_src(_, file))
+  |> list.map(decoder_func_src(_, field_opts, file))
   |> string.join("\n")
 }
 
-fn gen_json_encoders(type_: CustomType, file: File) -> String {
+fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> String {
   type_
   |> to_json_types
   |> list.map(fn(jt) {
     let encode_lines =
       jt.fields
       |> list.map(fn(f) {
+        let field_opts =
+          all_field_opts
+          |> dict.get(f.name)
+          |> result.unwrap([])
+
+        let json_field_name = json_field_name(f, field_opts)
+
         let encode_func =
           case f.type_ {
             "Int" -> "json.int"
@@ -129,9 +136,10 @@ fn gen_json_encoders(type_: CustomType, file: File) -> String {
             _ -> panic as { "Unsupported field type for JSON decode: " <> f.type_ }
           }
 
-        "#(\"NAME\", FUNC(value.NAME)),"
-        |> string.replace(each: "NAME", with: f.name)
+        "#(\"JSON\", FUNC(value.GLEAM)),"
+        |> string.replace(each: "JSON", with: json_field_name)
         |> string.replace(each: "FUNC", with: encode_func)
+        |> string.replace(each: "GLEAM", with: f.name)
       })
 
     [
@@ -184,10 +192,17 @@ fn to_json_type(type_: CustomType, variant: Variant) -> JsonType {
   }
 }
 
-fn decoder_func_src(type_: JsonType, file: File) -> String {
+fn decoder_func_src(type_: JsonType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> String {
   let decode_field_lines =
     type_.fields
-    |> list.map(field_decode_line)
+    |> list.map(fn(field) {
+      let field_opts =
+        all_field_opts
+        |> dict.get(field.name)
+        |> result.unwrap([])
+
+      field_decode_line(field, field_opts)
+    })
     |> list.map(util.indent(_, level: 1))
 
   let success =
@@ -229,7 +244,20 @@ fn decode_success_line(type_: JsonType, file: File) -> String {
   |> string.join("")
 }
 
-fn field_decode_line(field: JsonField) -> String {
+fn json_field_name(field: JsonField, field_opts: List(DerivFieldOpt)) -> String {
+  field_opts
+  |> list.find(fn(f) { f.deriv == "json" && f.key == "named" })
+  |> fn(x) {
+    case x {
+      Error(_) -> field.name
+      Ok(field_opt) -> field_opt.val
+    }
+  }
+}
+
+fn field_decode_line(field: JsonField, field_opts: List(DerivFieldOpt)) -> String {
+  let json_field_name = json_field_name(field, field_opts)
+
   let decode_func =
     case field.type_ {
       "Int" -> "decode.int"
@@ -243,7 +271,7 @@ fn field_decode_line(field: JsonField) -> String {
     "use ",
     field.name,
     " <- decode.field(\"",
-    field.name,
+    json_field_name,
     "\", ",
     decode_func,
     ")",
