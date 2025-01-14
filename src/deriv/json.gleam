@@ -192,38 +192,92 @@ fn to_json_type(type_: CustomType, variant: Variant) -> JsonType {
   }
 }
 
+fn decoder_func_name(type_: JsonType) -> String {
+  case type_.type_.variants {
+    [] -> panic as "`CustomType` has no `variants`"
+
+    [invariant] ->
+      case invariant.name == type_.type_.name {
+        True -> decoder_func_name_without_type(type_)
+        False -> decoder_func_name_with_type(type_)
+      }
+
+    _multi_variant ->
+      decoder_func_name_with_type(type_)
+  }
+}
+
+fn decoder_func_name_with_type(type_: JsonType) -> String {
+  "decoder_" <> util.snake_case(type_.type_.name) <> "_" <> util.snake_case(type_.variant.name)
+}
+
+fn decoder_func_name_without_type(type_: JsonType) -> String {
+  "decoder_" <> util.snake_case(type_.variant.name)
+}
+
 fn decoder_func_src(type_: JsonType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> String {
-  let decode_field_lines =
-    type_.fields
-    |> list.map(fn(field) {
-      let field_opts =
-        all_field_opts
-        |> dict.get(field.name)
-        |> result.unwrap([])
 
-      field_decode_line(field, field_opts)
-    })
-    |> list.map(util.indent(_, level: 1))
+  let func_name = decoder_func_name(type_)
 
-  let success =
-    decode_success_line(type_, file)
-    |> util.indent(level: 1)
+  decoder_func_src_invariant(
+    func_name,
+    type_,
+    all_field_opts,
+    file,
+  )
+}
 
-  let func_name = "decoder_" <> util.snake_case(type_.type_.name)
+fn decoder_func_src_invariant(
+  func_name: String,
+  type_: JsonType,
+  all_field_opts: Dict(String, List(DerivFieldOpt)),
+  file: File,
+) -> String {
+  let func_def = "pub fn " <> func_name <> "() -> Decoder(m" <> {int.to_string(file.idx)} <> "." <> type_.type_.name <> ")"
+
+  let decode_body: String = decoder_body_src(type_, all_field_opts, file, indent_level: 1)
 
   [
-    [
-      "pub fn " <> func_name <> "() -> Decoder(m" <> {int.to_string(file.idx)} <> "." <> type_.type_.name <> ") {",
-    ],
-    decode_field_lines,
-    [
-      "",
-      success,
-      "}",
-    ],
+    func_def <> " {",
+    decode_body,
+    "}",
   ]
-  |> list.flatten
   |> string.join("\n")
+}
+
+fn decoder_body_src(
+  type_: JsonType,
+  all_field_opts: Dict(String, List(DerivFieldOpt)),
+  file: File,
+  indent_level indent_level: Int,
+) -> String {
+  let lines =
+    type_
+    |> decode_field_lines(all_field_opts)
+    |> list.map(util.indent(_, level: indent_level))
+
+  let success =
+    type_
+    |> decode_success_line(file)
+    |> util.indent(level: indent_level)
+
+  [
+    lines |> string.join("\n"),
+    success,
+  ]
+  |> string.join("\n\n")
+}
+
+fn decode_field_lines(type_: JsonType, all_field_opts: Dict(String, List(DerivFieldOpt))) -> List(String) {
+  type_.fields
+  |> list.map(fn(field) {
+    let field_opts =
+      all_field_opts
+      |> dict.get(field.name)
+      |> result.unwrap([])
+
+    field_decode_line(field, field_opts)
+  })
 }
 
 fn decode_success_line(type_: JsonType, file: File) -> String {
