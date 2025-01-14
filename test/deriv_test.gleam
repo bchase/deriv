@@ -96,6 +96,14 @@ pub type T {
 import deriv/example/mvar as m1
 import decode/zero.{type Decoder} as decode
 
+pub fn decoder_t() -> Decoder(m1.T) {
+  decode.failure(dummy_t(), \"No `Decoder(T)` succeeded\")
+  |> decode.one_of([
+    decoder_t_var1(),
+    decoder_t_var2(),
+  ])
+}
+
 fn decoder_t_var1() -> Decoder(m1.T) {
   util.decode_type_field(variant: \"Var1\", json_field: \"_type\", fail_dummy: TODO(), pass: {
     use var1 <- decode.field(\"var1\", decode.string)
@@ -122,6 +130,9 @@ fn decoder_t_var2() -> Decoder(m1.T) {
 
   write.filepath
   |> should.equal("src/deriv/deriv/example/mvar/json.gleam")
+
+  // io.println(write.src)
+  // io.println(output)
 
   write.src
   |> should.equal(output)

@@ -22,12 +22,33 @@ pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(D
   let imports =
     gen_imports(opts, type_)
 
-  let src =
+  let other_src =
     opts
     |> list.map(dict.get(gen_funcs_for_opts, _))
     |> result.values
     |> list.map(fn(f) { f(type_, field_opts, file)})
     |> string.join("\n\n")
+
+  let src =
+    case type_.variants {
+      [] ->
+        panic as "`CustomType` has no `variants`"
+
+      [_invariant] ->
+        [other_src]
+
+      _multi_variants -> {
+        let multi_variant_type_decoders_src =
+          decoder_funcs_for_multi_variant_type(type_, field_opts, file)
+
+        [
+          multi_variant_type_decoders_src,
+          other_src,
+        ]
+      }
+    }
+    |> string.join("\n\n")
+
 
   Gen(file:, deriv:, src:, imports:)
 }
@@ -212,6 +233,10 @@ fn type_variant_snake_case(type_: JsonType) -> String {
   }
 }
 
+// TODO consolidate?
+fn type_variant_snake_case_with_type_(type_: CustomType, var: Variant) -> String {
+  util.snake_case(type_.name) <> "_" <> util.snake_case(var.name)
+}
 fn type_variant_snake_case_with_type(type_: JsonType) -> String {
   util.snake_case(type_.type_.name) <> "_" <> util.snake_case(type_.variant.name)
 }
@@ -270,6 +295,45 @@ fn util_decode_type_field_call_src(
   ]
   |> list.map(util.indent(_, level: indent_level))
   |> list.intersperse(decode_body)
+  |> string.join("\n")
+}
+
+fn dummy_func_name(type_: CustomType) -> String {
+  "dummy_" <> util.snake_case(type_.name)
+}
+
+fn decoder_funcs_for_multi_variant_type(
+  type_: CustomType,
+  _all_field_opts: Dict(String, List(DerivFieldOpt)),
+  file: File,
+) {
+  let type_snake_case = util.snake_case(type_.name)
+
+  let func_def = "pub fn decoder_" <> type_snake_case <> "() -> Decoder(m" <> {int.to_string(file.idx)} <> "." <> type_.name <> ")"
+
+  let failure_decoder =
+    "decode.failure(DUMMY(), \"No `Decoder(TYPE)` succeeded\")"
+    |> string.replace(each: "DUMMY", with: dummy_func_name(type_))
+    |> string.replace(each: "TYPE", with: type_.name)
+
+  let variant_decoder_funcs_list_lines =
+    type_.variants
+    |> list.map(fn(v) {
+      let f = type_variant_snake_case_with_type_(type_, v)
+
+      { "decoder_" <> f <> "()," }
+      |> util.indent(level: 2)
+    })
+    |> string.join("\n")
+
+  [
+    func_def <> " {",
+    failure_decoder |> util.indent(level: 1),
+    "|> decode.one_of([" |> util.indent(level: 1),
+    variant_decoder_funcs_list_lines,
+    "])" |> util.indent(level: 1),
+    "}",
+  ]
   |> string.join("\n")
 }
 
