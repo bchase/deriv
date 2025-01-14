@@ -26,8 +26,8 @@ pub fn dummy_bool() -> Bool { False }
 pub fn dummy_uuid() -> Uuid { uuid.v7() }
 
 pub fn decoder_uuid() -> Decoder(Uuid) {
-  use bit_array <- decode.then(decode.bit_array)
-  case uuid.from_bit_array(bit_array) {
+  use str <- decode.then(decode.string)
+  case uuid.from_string(str) {
     Ok(uuid) -> decode.success(uuid)
     Error(_) -> decode.failure(uuid.v7(), "uuid")
   }

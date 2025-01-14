@@ -11,6 +11,7 @@ import shellout
 import deriv/types.{type File, File, type Output, Output, type Write, Write, type GenFunc, type Import, Import, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpt}
 import deriv/parser
 import deriv/json
+import gleam/io
 
 const all_gen_funcs: List(#(String, GenFunc)) =
   [
@@ -263,3 +264,5 @@ fn imports_src(imports: List(Import)) -> String {
   |> list.map(import_src)
   |> string.join("\n")
 }
+
+pub fn stop_warning() { io.debug("") }
