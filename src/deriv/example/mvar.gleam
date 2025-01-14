@@ -10,7 +10,6 @@ pub type T {
   )
 } //$ derive json(decode)
 
-// TODO gen for multi variant
 pub fn decoder_t() -> Decoder(T) {
   decode.failure(dummy_t(), "No `Decoder(T)` succeeded")
   |> decode.one_of([
@@ -19,7 +18,6 @@ pub fn decoder_t() -> Decoder(T) {
   ])
 }
 
-// TODO gen with `decode_type_field` if multi var
 fn decoder_t_var1() -> Decoder(T) {
   util.decode_type_field(variant: "Var1", json_field: "_type", fail_dummy: dummy_t(), pass: {
     use var1 <- decode.field("var1", decode.string)
@@ -35,5 +33,8 @@ fn decoder_t_var2() -> Decoder(T) {
   })
 }
 
-// TODO gen for multi var decode
-fn dummy_t() -> T { Var1(util.dummy_string()) }
+fn dummy_t() -> T {
+  Var1(
+    var1: util.dummy_string(),
+  )
+}

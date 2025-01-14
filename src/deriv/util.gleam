@@ -2,14 +2,34 @@ import gleam/list
 import gleam/string
 import gleam/json.{type Json}
 import gleam/regexp.{type Regexp}
-import decode/zero.{type Decoder}
+import decode/zero.{type Decoder} as decode
 import youid/uuid.{type Uuid}
 
+pub fn decode_type_field(
+  variant variant: String,
+  json_field json_field: String,
+  fail_dummy fail_dummy: t,
+  pass decoder: Decoder(t),
+) -> Decoder(t) {
+  use type_field <- decode.field(json_field, decode.string)
+  case type_field == variant {
+    True -> decoder
+    False ->
+      { "`" <> variant <> "` failed to match `" <> json_field <> "`" }
+      |> decode.failure(fail_dummy, _)
+  }
+}
+
+pub fn dummy_string() -> String { "" }
+pub fn dummy_int() -> Int { -1 }
+pub fn dummy_bool() -> Bool { False }
+pub fn dummy_uuid() -> Uuid { uuid.v7() }
+
 pub fn decoder_uuid() -> Decoder(Uuid) {
-  use bit_array <- zero.then(zero.bit_array)
+  use bit_array <- decode.then(decode.bit_array)
   case uuid.from_bit_array(bit_array) {
-    Ok(uuid) -> zero.success(uuid)
-    Error(_) -> zero.failure(uuid.v7(), "uuid")
+    Ok(uuid) -> decode.success(uuid)
+    Error(_) -> decode.failure(uuid.v7(), "uuid")
   }
 }
 

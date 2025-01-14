@@ -41,8 +41,12 @@ pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(D
         let multi_variant_type_decoders_src =
           decoder_funcs_for_multi_variant_type(type_, field_opts, file)
 
+        let dummy_func_src =
+          dummy_func_src(type_, file)
+
         [
           multi_variant_type_decoders_src,
+          dummy_func_src,
           other_src,
         ]
       }
@@ -104,6 +108,14 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
 }
 
 fn needs_util_import(type_: CustomType) -> Bool {
+  is_multi_variant(type_) || uses_uuid(type_)
+}
+
+fn is_multi_variant(type_: CustomType) -> Bool {
+  list.length(type_.variants) > 1
+}
+
+fn uses_uuid(type_: CustomType) -> Bool {
   type_
   |> to_json_types // TODO duplicate work
   |> list.any(fn(json_type) {
@@ -269,6 +281,67 @@ fn decoder_func_src(type_: JsonType, all_field_opts: Dict(String, List(DerivFiel
   }
 }
 
+fn util_call_for_dummy_gleam_type(type_: String) -> String {
+  case type_ {
+    "String" -> "util.dummy_string()"
+    "Int" -> "util.dummy_int()"
+    "Bool" -> "util.dummy_bool()"
+    "Uuid" -> "util.dummy_uuid()"
+    _ -> panic as { "Unsupported type: `" <> type_ <> "`" }
+  }
+}
+
+fn dummy_func_src(type_: CustomType, file: File) -> String {
+  let func_name = "dummy_" <> util.snake_case(type_.name)
+
+  let return = "m" <> int.to_string(file.idx) <> "." <> type_.name
+
+  let variant =
+    case type_.variants {
+      [] ->
+        panic as "`CustomType` has no `variants`"
+
+      [var] ->
+        var
+
+      [var, ..] ->
+        var
+    }
+  let variant_str =
+    "m" <> int.to_string(file.idx) <> "." <> variant.name
+
+  let field_assignments_src =
+    variant.fields
+    |> list.map(fn(field) {
+      case field {
+        LabelledVariantField(NamedType(type_, None, []), name) ->
+          name <> ": " <> util_call_for_dummy_gleam_type(type_) <> ","
+
+        LabelledVariantField(NamedType(_, _, _), _) as var -> {
+          io.debug(var) // what is this case?
+          panic as "handling this kind of `glance.LabelledVariantField` is unimplemented"
+        }
+
+        _ ->
+          panic as "handling `glance.UnlabelledVariantField` is unimplemented"
+      }
+    })
+    |> list.map(util.indent(_, level: 2))
+    |> string.join("\n")
+
+  [
+    // fn dummy_t() -> m1.T {
+    "fn " <> func_name <> "() -> " <> return <> " {",
+    //   m1.Var1(
+    { variant_str <> "(" } |> util.indent(level: 1),
+    field_assignments_src,
+    //     var1: util.dummy_string(),
+    { ")" } |> util.indent(level: 1),
+    "}",
+  ]
+  |> string.join("\n")
+}
+
 fn util_decode_type_field_call_src(
   type_: JsonType,
   all_field_opts: Dict(String, List(DerivFieldOpt)),
@@ -278,13 +351,7 @@ fn util_decode_type_field_call_src(
   let decode_body: String = decoder_body_src(type_, all_field_opts, file, indent_level: indent_level + 1)
 
   let json_field = "_type"
-  let dummy_func_name = "TODO"
-  // TODO
-  //   - require `util` if multi-var type decoded
-  //   - dummy type func
-  //     * gen
-  //     * ref name here
-  //   - gen `pub` `one_of` func for type
+  let dummy_func_name = dummy_func_name(type_.type_)
 
   let open_line = "util.decode_type_field(variant: \"" <> type_.variant.name <> "\", json_field: \"" <> json_field <> "\", fail_dummy: " <> dummy_func_name <> "(), pass: {"
   let close_line = "})"

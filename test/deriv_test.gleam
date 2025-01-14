@@ -95,6 +95,7 @@ pub type T {
  let output = "
 import deriv/example/mvar as m1
 import decode/zero.{type Decoder} as decode
+import deriv/util
 
 pub fn decoder_t() -> Decoder(m1.T) {
   decode.failure(dummy_t(), \"No `Decoder(T)` succeeded\")
@@ -104,15 +105,21 @@ pub fn decoder_t() -> Decoder(m1.T) {
   ])
 }
 
+fn dummy_t() -> m1.T {
+  m1.Var1(
+    var1: util.dummy_string(),
+  )
+}
+
 fn decoder_t_var1() -> Decoder(m1.T) {
-  util.decode_type_field(variant: \"Var1\", json_field: \"_type\", fail_dummy: TODO(), pass: {
+  util.decode_type_field(variant: \"Var1\", json_field: \"_type\", fail_dummy: dummy_t(), pass: {
     use var1 <- decode.field(\"var1\", decode.string)
 
     decode.success(m1.Var1(var1:))
   })
 }
 fn decoder_t_var2() -> Decoder(m1.T) {
-  util.decode_type_field(variant: \"Var2\", json_field: \"_type\", fail_dummy: TODO(), pass: {
+  util.decode_type_field(variant: \"Var2\", json_field: \"_type\", fail_dummy: dummy_t(), pass: {
     use var2 <- decode.field(\"var2\", decode.int)
 
     decode.success(m1.Var2(var2:))
