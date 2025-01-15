@@ -308,6 +308,8 @@ fn derivs_file_import_gens(
 ) -> List(Gen) {
   let assert Ok(module) = glance.module(derivs_file.src)
 
+  write_suppress_warning_type_aliases_to_file(module)
+
   module.imports
   |> list.map(fn(i) { i.definition })
   |> list.map(parser.parse_import_with_derivations(_, derivs_file.src))
@@ -339,14 +341,16 @@ fn load_types_from_file(import_: glance.Import, derivs: List(Derivation), all_fi
   #(file, types_and_derivs)
 }
 
-fn write_suppress_warning_type_aliases_to_file(module) -> Nil {
+fn write_suppress_warning_type_aliases_to_file(module: glance.Module) -> Nil {
   let src =
     module
     |> suppress_warnings_types_to_write
     |> list.map(fn(t) { "pub type SuppressWarnings" <> t <> " = " <> t })
     |> string.join("\n")
 
-  // let assert Ok(_) = simplifile.append(filepath, src)
+  let project_derivs_filepath = "src/" <> project_name() <> "/derivs.gleam"
+
+  let assert Ok(_) = simplifile.append(project_derivs_filepath, src)
 
   Nil
 }
