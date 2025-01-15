@@ -73,6 +73,26 @@ pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(C
     _ -> Error(Nil)
   }
 }
+pub fn parse_import_with_derivations(import_: glance.Import, src: String) -> Result(#(glance.Import, List(Derivation)), Nil) {
+  let magic_comment =
+    src
+    |> string.split("\n")
+    |> list.find(fn(line) {
+      string.starts_with(line, "import ") &&
+        string.contains(line, import_.module)
+    })
+    |> result.map(string.split(_, "//$"))
+
+  case magic_comment {
+    Ok([_, mc]) ->
+      parse_derivations(mc)
+      |> result.map(fn(ds) {
+        #(import_, ds)
+      })
+
+    _ -> Error(Nil)
+  }
+}
 
 fn parse_derivations(raw: String) -> Result(List(Derivation), Nil) {
   let assert Ok(re) = regexp.from_string("((\\w+)[(]([^)]+)[)]\\s*)+")

@@ -8,6 +8,7 @@ import glance.{type CustomType}
 import gleam/regexp
 import simplifile
 import shellout
+import tom
 import deriv/types.{type File, File, type Output, Output, type Write, Write, type GenFunc, type Import, Import, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpt}
 import deriv/parser
 import deriv/json
@@ -45,15 +46,45 @@ fn load_files(filepaths: List(String)) -> List(File) {
   })
 }
 
+fn project_name() -> String {
+  let assert Ok(output) = shellout.command(in: ".", run: "cat", with: ["gleam.toml"], opt: [])
+  let assert Ok(config) = tom.parse(output)
+
+  case tom.get_string(config, ["name"]) {
+    Error(_) -> panic as "Cannot determine project name from `gleam.toml`"
+    Ok(name) -> name
+  }
+}
+
 pub fn gen_derivs(files: List(File)) -> List(Gen) {
   let gen_funcs = all_gen_funcs |>  dict.from_list
 
-  files
-  |> list.map(fn(file) {
-    file
-    |> parse_types_and_derivations
-    |> list.flat_map(gen_type_derivs(_, file, gen_funcs))
-  })
+  let type_inline_gens =
+    files
+    |> list.map(fn(file) {
+      file
+      |> parse_types_and_derivations
+      |> list.flat_map(gen_type_derivs(_, file, gen_funcs))
+    })
+    |> list.flatten
+
+  let project_derivs_module_name = project_name() <> "/derivs"
+
+  let derivs_file =
+    list.find(files, fn(file) {
+      file.module == project_derivs_module_name
+    })
+
+  let derivs_file_import_gens =
+    case derivs_file {
+      Ok(file) -> derivs_file_import_gens(file, files, gen_funcs)
+      _ -> []
+    }
+
+  [
+    type_inline_gens,
+    derivs_file_import_gens,
+  ]
   |> list.flatten
 }
 
@@ -266,3 +297,78 @@ fn imports_src(imports: List(Import)) -> String {
 }
 
 pub fn stop_warning() { io.debug("") }
+
+
+///// ///// ///// ///// ///// /////
+
+fn derivs_file_import_gens(
+  derivs_file: File,
+  all_files: List(File),
+  gen_funcs: Dict(String, GenFunc),
+) -> List(Gen) {
+  let assert Ok(module) = glance.module(derivs_file.src)
+
+  module.imports
+  |> list.map(fn(i) { i.definition })
+  |> list.map(parser.parse_import_with_derivations(_, derivs_file.src))
+  |> result.values
+  |> list.flat_map(fn(x) {
+    let #(import_, derivs) = x
+    let #(file, types_and_derivs) = load_types_from_file(import_, derivs, all_files)
+
+    types_and_derivs
+    |> list.flat_map(gen_type_derivs(_, file, gen_funcs))
+  })
+}
+
+fn load_types_from_file(import_: glance.Import, derivs: List(Derivation), all_files: List(File)) -> #(File, List(#(CustomType, List(Derivation), Dict(String, List(DerivFieldOpt))))) {
+  let assert Ok(file) = list.find(all_files, fn(f) { f.module == import_.module })
+  let assert Ok(module) = glance.module(file.src)
+
+  let type_names =
+    import_.unqualified_types
+    |> list.map(fn(i) { i.name })
+
+  let types_and_derivs =
+    module.custom_types
+    |> list.filter(fn(t) { list.contains(type_names, t.definition.name) })
+    |> list.map(fn(t) {
+      #(t.definition, derivs, dict.new())
+    })
+
+  #(file, types_and_derivs)
+}
+
+fn write_suppress_warning_type_aliases_to_file(module) -> Nil {
+  let src =
+    module
+    |> suppress_warnings_types_to_write
+    |> list.map(fn(t) { "pub type SuppressWarnings" <> t <> " = " <> t })
+    |> string.join("\n")
+
+  // let assert Ok(_) = simplifile.append(filepath, src)
+
+  Nil
+}
+
+fn suppress_warnings_types_to_write(module: glance.Module) -> List(String) {
+  let import_types =
+    module.imports
+    |> list.flat_map(fn(i) {
+      i.definition.unqualified_types
+      |> list.map(fn(t) {
+        t.name
+      })
+    })
+
+  let type_aliases =
+    module.type_aliases
+    |> list.map(fn(ta) {
+      ta.definition.name
+    })
+
+  import_types
+  |> list.filter(fn(t) {
+    !list.contains(type_aliases, "SuppressWarnings" <> t)
+  })
+}
