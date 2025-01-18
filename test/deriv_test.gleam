@@ -32,17 +32,23 @@ pub type Bar {
 
  let output = "
 import deriv/example/foo as m1
-import decode/zero.{type Decoder} as decode
+import decode.{type Decoder}
 import deriv/util
 import gleam/json.{type Json}
 
 pub fn decoder_foo() -> Decoder(m1.Foo) {
-  use uuid <- decode.field(\"uuid\", util.decoder_uuid())
-  use id <- decode.field(\"int_id\", decode.int)
-  use name <- decode.field(\"name\", decode.string)
-  use active <- decode.field(\"active\", decode.bool)
+  decode.into({
+    use uuid <- decode.parameter
+    use id <- decode.parameter
+    use name <- decode.parameter
+    use active <- decode.parameter
 
-  decode.success(m1.Foo(uuid:, id:, name:, active:))
+    m1.Foo(uuid:, id:, name:, active:)
+  })
+  |> decode.field(\"uuid\", util.decoder_uuid())
+  |> decode.field(\"id\", decode.int)
+  |> decode.field(\"name\", decode.string)
+  |> decode.field(\"active\", decode.bool)
 }
 
 pub fn encode_foo(value: m1.Foo) -> Json {
@@ -55,9 +61,12 @@ pub fn encode_foo(value: m1.Foo) -> Json {
 }
 
 pub fn decoder_bar() -> Decoder(m1.Bar) {
-  use baz <- decode.field(\"baz\", decode.bool)
+  decode.into({
+    use baz <- decode.parameter
 
-  decode.success(m1.Bar(baz:))
+    m1.Bar(baz:)
+  })
+  |> decode.field(\"baz\", decode.bool)
 }
   "
   |> string.trim
@@ -74,6 +83,13 @@ pub fn decoder_bar() -> Decoder(m1.Bar) {
 
   // io.println(output)
   // io.println(write.src)
+
+  io.println("")
+  io.println("")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println(output)
 
   write.src
   |> should.equal(output)
@@ -94,36 +110,30 @@ pub type T {
 
  let output = "
 import deriv/example/mvar as m1
-import decode/zero.{type Decoder} as decode
-import deriv/util
+import decode.{type Decoder}
 
 pub fn decoder_t() -> Decoder(m1.T) {
-  decode.failure(dummy_t(), \"No `Decoder(T)` succeeded\")
-  |> decode.one_of([
+  decode.one_of([
     decoder_t_var1(),
     decoder_t_var2(),
   ])
 }
 
-fn dummy_t() -> m1.T {
-  m1.Var1(
-    var1: util.dummy_string(),
-  )
-}
-
 fn decoder_t_var1() -> Decoder(m1.T) {
-  util.decode_type_field(variant: \"Var1\", json_field: \"_type\", fail_dummy: dummy_t(), pass: {
-    use var1 <- decode.field(\"var1\", decode.string)
+  decode.into({
+    use var1 <- decode.parameter
 
-    decode.success(m1.Var1(var1:))
+    m1.Var1(var1:)
   })
+  |> decode.field(\"var1\", decode.string)
 }
 fn decoder_t_var2() -> Decoder(m1.T) {
-  util.decode_type_field(variant: \"Var2\", json_field: \"_type\", fail_dummy: dummy_t(), pass: {
-    use var2 <- decode.field(\"var2\", decode.int)
+  decode.into({
+    use var2 <- decode.parameter
 
-    decode.success(m1.Var2(var2:))
+    m1.Var2(var2:)
   })
+  |> decode.field(\"var2\", decode.int)
 }
   "
   |> string.trim
@@ -138,8 +148,12 @@ fn decoder_t_var2() -> Decoder(m1.T) {
   write.filepath
   |> should.equal("src/deriv/deriv/example/mvar/json.gleam")
 
-  // io.println(write.src)
-  // io.println(output)
+  io.println("")
+  io.println("")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println(output)
 
   write.src
   |> should.equal(output)

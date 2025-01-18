@@ -10,7 +10,5 @@ pub type Foo {
 } //$ derive json(decode,encode)
 
 pub type Bar {
-  Bar(
-    baz: Bool,
-  )
+  Bar(baz: Bool)
 } //$ derive json(decode)

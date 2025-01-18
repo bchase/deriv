@@ -2,34 +2,34 @@ import gleam/list
 import gleam/string
 import gleam/json.{type Json}
 import gleam/regexp.{type Regexp}
-import decode/zero.{type Decoder} as decode
+import decode.{type Decoder}
 import youid/uuid.{type Uuid}
 
 pub fn decode_type_field(
   variant variant: String,
   json_field json_field: String,
-  fail_dummy fail_dummy: t,
   pass decoder: Decoder(t),
 ) -> Decoder(t) {
-  use type_field <- decode.field(json_field, decode.string)
-  case type_field == variant {
-    True -> decoder
-    False ->
-      { "`" <> variant <> "` failed to match `" <> json_field <> "`" }
-      |> decode.failure(fail_dummy, _)
-  }
+  decode.into({
+    use type_field <- decode.parameter
+    type_field
+  })
+  |> decode.field(json_field, decode.string)
+  |> decode.then(fn(type_field) {
+    case type_field == variant {
+      True -> decoder
+      False ->
+        { "`" <> variant <> "` failed to match `" <> json_field <> "`" }
+        |> decode.fail
+    }
+  })
 }
-
-pub fn dummy_string() -> String { "" }
-pub fn dummy_int() -> Int { -1 }
-pub fn dummy_bool() -> Bool { False }
-pub fn dummy_uuid() -> Uuid { uuid.v7() }
 
 pub fn decoder_uuid() -> Decoder(Uuid) {
   use str <- decode.then(decode.string)
   case uuid.from_string(str) {
-    Ok(uuid) -> decode.success(uuid)
-    Error(_) -> decode.failure(uuid.v7(), "uuid")
+    Ok(uuid) -> decode.into(uuid)
+    Error(Nil) -> decode.fail("Failed to parse UUID")
   }
 }
 

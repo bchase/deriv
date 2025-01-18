@@ -39,14 +39,10 @@ pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(D
 
       _multi_variants -> {
         let multi_variant_type_decoders_src =
-          decoder_funcs_for_multi_variant_type(type_, field_opts, file)
-
-        let dummy_func_src =
-          dummy_func_src(type_, file)
+          decoder_func_for_multi_variant_type(type_, field_opts, file)
 
         [
           multi_variant_type_decoders_src,
-          dummy_func_src,
           other_src,
         ]
       }
@@ -61,12 +57,15 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
   let json_imports =
     [
       #("decode", [
-        // import decode/zero.{type Decoder} as decode
+        // // import decode/zero.{type Decoder} as decode
+        // import decode.{type Decoder}
         Import(
-          module: "decode/zero",
+          // module: "decode/zero",
+          module: "decode",
           types: ["Decoder"],
           constructors: [],
-          alias: Some("decode"),
+          // alias: Some("decode"),
+          alias: None,
         ),
       ]),
       #("encode", [
@@ -108,12 +107,13 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
 }
 
 fn needs_util_import(type_: CustomType) -> Bool {
-  is_multi_variant(type_) || uses_uuid(type_)
+  // is_multi_variant(type_) || uses_uuid(type_)
+  uses_uuid(type_)
 }
 
-fn is_multi_variant(type_: CustomType) -> Bool {
-  list.length(type_.variants) > 1
-}
+// fn is_multi_variant(type_: CustomType) -> Bool {
+//   list.length(type_.variants) > 1
+// }
 
 fn uses_uuid(type_: CustomType) -> Bool {
   type_
@@ -264,7 +264,8 @@ fn decoder_func_src(type_: JsonType, all_field_opts: Dict(String, List(DerivFiel
     [] -> panic as "`CustomType` has no `variants`"
 
     [_invariant] ->
-      decoder_func_src_invariant(
+      decoder_func_src_(
+        True,
         func_name,
         type_,
         all_field_opts,
@@ -272,7 +273,8 @@ fn decoder_func_src(type_: JsonType, all_field_opts: Dict(String, List(DerivFiel
       )
 
     _multi_variant ->
-      decoder_func_src_multi_variant(
+      decoder_func_src_(
+        False,
         func_name,
         type_,
         all_field_opts,
@@ -281,95 +283,7 @@ fn decoder_func_src(type_: JsonType, all_field_opts: Dict(String, List(DerivFiel
   }
 }
 
-fn util_call_for_dummy_gleam_type(type_: String) -> String {
-  case type_ {
-    "String" -> "util.dummy_string()"
-    "Int" -> "util.dummy_int()"
-    "Bool" -> "util.dummy_bool()"
-    "Uuid" -> "util.dummy_uuid()"
-    _ -> panic as { "Unsupported type: `" <> type_ <> "`" }
-  }
-}
-
-fn dummy_func_src(type_: CustomType, file: File) -> String {
-  let func_name = "dummy_" <> util.snake_case(type_.name)
-
-  let return = "m" <> int.to_string(file.idx) <> "." <> type_.name
-
-  let variant =
-    case type_.variants {
-      [] ->
-        panic as "`CustomType` has no `variants`"
-
-      [var] ->
-        var
-
-      [var, ..] ->
-        var
-    }
-  let variant_str =
-    "m" <> int.to_string(file.idx) <> "." <> variant.name
-
-  let field_assignments_src =
-    variant.fields
-    |> list.map(fn(field) {
-      case field {
-        LabelledVariantField(NamedType(type_, None, []), name) ->
-          name <> ": " <> util_call_for_dummy_gleam_type(type_) <> ","
-
-        LabelledVariantField(NamedType(_, _, _), _) as var -> {
-          io.debug(var) // what is this case?
-          panic as "handling this kind of `glance.LabelledVariantField` is unimplemented"
-        }
-
-        _ ->
-          panic as "handling `glance.UnlabelledVariantField` is unimplemented"
-      }
-    })
-    |> list.map(util.indent(_, level: 2))
-    |> string.join("\n")
-
-  [
-    // fn dummy_t() -> m1.T {
-    "fn " <> func_name <> "() -> " <> return <> " {",
-    //   m1.Var1(
-    { variant_str <> "(" } |> util.indent(level: 1),
-    field_assignments_src,
-    //     var1: util.dummy_string(),
-    { ")" } |> util.indent(level: 1),
-    "}",
-  ]
-  |> string.join("\n")
-}
-
-fn util_decode_type_field_call_src(
-  type_: JsonType,
-  all_field_opts: Dict(String, List(DerivFieldOpt)),
-  file: File,
-  indent_level indent_level: Int,
-) -> String {
-  let decode_body: String = decoder_body_src(type_, all_field_opts, file, indent_level: indent_level + 1)
-
-  let json_field = "_type"
-  let dummy_func_name = dummy_func_name(type_.type_)
-
-  let open_line = "util.decode_type_field(variant: \"" <> type_.variant.name <> "\", json_field: \"" <> json_field <> "\", fail_dummy: " <> dummy_func_name <> "(), pass: {"
-  let close_line = "})"
-
-  [
-    open_line,
-    close_line,
-  ]
-  |> list.map(util.indent(_, level: indent_level))
-  |> list.intersperse(decode_body)
-  |> string.join("\n")
-}
-
-fn dummy_func_name(type_: CustomType) -> String {
-  "dummy_" <> util.snake_case(type_.name)
-}
-
-fn decoder_funcs_for_multi_variant_type(
+fn decoder_func_for_multi_variant_type(
   type_: CustomType,
   _all_field_opts: Dict(String, List(DerivFieldOpt)),
   file: File,
@@ -377,11 +291,6 @@ fn decoder_funcs_for_multi_variant_type(
   let type_snake_case = util.snake_case(type_.name)
 
   let func_def = "pub fn decoder_" <> type_snake_case <> "() -> Decoder(m" <> {int.to_string(file.idx)} <> "." <> type_.name <> ")"
-
-  let failure_decoder =
-    "decode.failure(DUMMY(), \"No `Decoder(TYPE)` succeeded\")"
-    |> string.replace(each: "DUMMY", with: dummy_func_name(type_))
-    |> string.replace(each: "TYPE", with: type_.name)
 
   let variant_decoder_funcs_list_lines =
     type_.variants
@@ -395,8 +304,7 @@ fn decoder_funcs_for_multi_variant_type(
 
   [
     func_def <> " {",
-    failure_decoder |> util.indent(level: 1),
-    "|> decode.one_of([" |> util.indent(level: 1),
+    "decode.one_of([" |> util.indent(level: 1),
     variant_decoder_funcs_list_lines,
     "])" |> util.indent(level: 1),
     "}",
@@ -404,33 +312,82 @@ fn decoder_funcs_for_multi_variant_type(
   |> string.join("\n")
 }
 
-fn decoder_func_src_multi_variant(
-  func_name: String,
-  type_: JsonType,
-  all_field_opts: Dict(String, List(DerivFieldOpt)),
-  file: File,
-) -> String {
-  let func_def = "fn " <> func_name <> "() -> Decoder(m" <> {int.to_string(file.idx)} <> "." <> type_.type_.name <> ")"
-
-  let decode_body: String = util_decode_type_field_call_src(type_, all_field_opts, file, indent_level: 1)
-
-  [
-    func_def <> " {",
-    decode_body,
-    "}",
-  ]
-  |> string.join("\n")
+type DecodeLines {
+  DecodeLines(
+    params: List(String),
+    fields: List(String),
+  )
 }
 
-fn decoder_func_src_invariant(
+fn decode_lines_for_fields(
+  type_: JsonType,
+) -> DecodeLines {
+  type_.fields
+  |> list.map(fn(field) {
+    #(
+      decode_line_param(field),
+      decode_line_field(field),
+    )
+  })
+  |> list.unzip
+  |> fn(xs) {
+    let #(params, fields) = xs
+    DecodeLines(params:, fields:)
+  }
+}
+
+fn decode_line_param(field: JsonField) -> String {
+  "use NAME <- decode.parameter"
+  |> string.replace(each: "NAME", with: field.name)
+}
+fn decode_line_field(field: JsonField) -> String {
+  let decoder = decoder_line(field)
+
+  "|> decode.field(\"NAME\", DECODER)"
+  |> string.replace(each: "NAME", with: field.name)
+  |> string.replace(each: "DECODER", with: decoder)
+}
+
+fn decoder_func_src_(
+  public: Bool,
   func_name: String,
   type_: JsonType,
   all_field_opts: Dict(String, List(DerivFieldOpt)),
   file: File,
 ) -> String {
-  let func_def = "pub fn " <> func_name <> "() -> Decoder(m" <> {int.to_string(file.idx)} <> "." <> type_.type_.name <> ")"
+  let decode_lines = decode_lines_for_fields(type_)
 
-  let decode_body: String = decoder_body_src(type_, all_field_opts, file, indent_level: 1)
+  let type_const_line = decode_success_line(type_, file)
+
+  let decode_block_body =
+    [
+      decode_lines.params |> list.map(util.indent(_, level: 2)) |> string.join("\n"),
+      type_const_line |> util.indent(level: 2),
+    ]
+    |> string.join("\n\n")
+
+  let decode_field_pipeline =
+    decode_lines.fields |> list.map(util.indent(_, level: 1)) |> string.join("\n")
+
+  // TODO
+  // let decode_body: String = decoder_body_src(type_, all_field_opts, file, indent_level: 1)
+  let decode_body =
+    [
+      "  decode.into({" ,
+      decode_block_body,
+      "  })" ,
+      decode_field_pipeline,
+    ]
+    // |> list.map(util.indent(_, level: 1))
+    |> string.join("\n")
+
+  let pub_ =
+    case public {
+      True -> "pub "
+      False -> ""
+    }
+
+  let func_def = pub_ <> "fn " <> func_name <> "() -> Decoder(m" <> {int.to_string(file.idx)} <> "." <> type_.type_.name <> ")"
 
   [
     func_def <> " {",
@@ -481,16 +438,21 @@ fn decode_success_line(type_: JsonType, file: File) -> String {
     |> list.map(fn(f) { f.name <> ":" })
     |> string.join(", ")
 
-  [
-    "decode.success(m",
-    int.to_string(file.idx),
-    ".",
-    type_.variant.name,
-    "(",
-    field_name_args_str,
-    "))",
-  ]
-  |> string.join("")
+  // [
+  //   "decode.success(m",
+  //   int.to_string(file.idx),
+  //   ".",
+  //   type_.variant.name,
+  //   "(",
+  //   field_name_args_str,
+  //   "))",
+  // ]
+  // |> string.join("")
+
+  "mIDX.VAR(FIELDS)"
+  |> string.replace(each: "IDX", with: int.to_string(file.idx))
+  |> string.replace(each: "VAR", with: type_.variant.name)
+  |> string.replace(each: "FIELDS", with:field_name_args_str)
 }
 
 fn json_field_name(field: JsonField, field_opts: List(DerivFieldOpt)) -> String {
@@ -504,17 +466,20 @@ fn json_field_name(field: JsonField, field_opts: List(DerivFieldOpt)) -> String 
   }
 }
 
+fn decoder_line(field: JsonField) -> String {
+  case field.type_ {
+    "Int" -> "decode.int"
+    "String" -> "decode.string"
+    "Bool" -> "decode.bool"
+    "Uuid" -> "util.decoder_uuid()"
+    _ -> panic as { "Unsupported field type for JSON decode: " <> field.type_ }
+  }
+}
+
 fn field_decode_line(field: JsonField, field_opts: List(DerivFieldOpt)) -> String {
   let json_field_name = json_field_name(field, field_opts)
 
-  let decode_func =
-    case field.type_ {
-      "Int" -> "decode.int"
-      "String" -> "decode.string"
-      "Bool" -> "decode.bool"
-      "Uuid" -> "util.decoder_uuid()"
-      _ -> panic as { "Unsupported field type for JSON decode: " <> field.type_ }
-    }
+  let decode_func = decoder_line(field)
 
   [
     "use ",
@@ -527,3 +492,109 @@ fn field_decode_line(field: JsonField, field_opts: List(DerivFieldOpt)) -> Strin
   ]
   |> string.join("")
 }
+
+// fn dummy_func_src(type_: CustomType, file: File) -> String {
+//   let func_name = "dummy_" <> util.snake_case(type_.name)
+
+//   let return = "m" <> int.to_string(file.idx) <> "." <> type_.name
+
+//   let variant =
+//     case type_.variants {
+//       [] ->
+//         panic as "`CustomType` has no `variants`"
+
+//       [var] ->
+//         var
+
+//       [var, ..] ->
+//         var
+//     }
+//   let variant_str =
+//     "m" <> int.to_string(file.idx) <> "." <> variant.name
+
+//   let field_assignments_src =
+//     variant.fields
+//     |> list.map(fn(field) {
+//       case field {
+//         LabelledVariantField(NamedType(type_, None, []), name) ->
+//           name <> ": " <> util_call_for_dummy_gleam_type(type_) <> ","
+
+//         LabelledVariantField(NamedType(_, _, _), _) as var -> {
+//           io.debug(var) // what is this case?
+//           panic as "handling this kind of `glance.LabelledVariantField` is unimplemented"
+//         }
+
+//         _ ->
+//           panic as "handling `glance.UnlabelledVariantField` is unimplemented"
+//       }
+//     })
+//     |> list.map(util.indent(_, level: 2))
+//     |> string.join("\n")
+
+//   [
+//     // fn dummy_t() -> m1.T {
+//     "fn " <> func_name <> "() -> " <> return <> " {",
+//     //   m1.Var1(
+//     { variant_str <> "(" } |> util.indent(level: 1),
+//     field_assignments_src,
+//     //     var1: util.dummy_string(),
+//     { ")" } |> util.indent(level: 1),
+//     "}",
+//   ]
+//   |> string.join("\n")
+// }
+
+// fn util_call_for_dummy_gleam_type(type_: String) -> String {
+//   case type_ {
+//     "String" -> "util.dummy_string()"
+//     "Int" -> "util.dummy_int()"
+//     "Bool" -> "util.dummy_bool()"
+//     "Uuid" -> "util.dummy_uuid()"
+//     _ -> panic as { "Unsupported type: `" <> type_ <> "`" }
+//   }
+// }
+
+// fn decoder_func_src_multi_variant(
+//   func_name: String,
+//   type_: JsonType,
+//   all_field_opts: Dict(String, List(DerivFieldOpt)),
+//   file: File,
+// ) -> String {
+//   let func_def = "fn " <> func_name <> "() -> Decoder(m" <> {int.to_string(file.idx)} <> "." <> type_.type_.name <> ")"
+
+//   let decode_body: String = util_decode_type_field_call_src(type_, all_field_opts, file, indent_level: 1)
+
+//   [
+//     func_def <> " {",
+//     decode_body,
+//     "}",
+//   ]
+//   |> string.join("\n")
+// }
+
+// fn util_decode_type_field_call_src(
+//   type_: JsonType,
+//   all_field_opts: Dict(String, List(DerivFieldOpt)),
+//   file: File,
+//   indent_level indent_level: Int,
+// ) -> String {
+//   let decode_body: String = decoder_body_src(type_, all_field_opts, file, indent_level: indent_level + 1)
+
+//   let json_field = "_type"
+//   let dummy_func_name = dummy_func_name(type_.type_)
+
+//   let open_line = "util.decode_type_field(variant: \"" <> type_.variant.name <> "\", json_field: \"" <> json_field <> "\", fail_dummy: " <> dummy_func_name <> "(), pass: {"
+//   let close_line = "})"
+
+//   [
+//     open_line,
+//     close_line,
+//   ]
+//   |> list.map(util.indent(_, level: indent_level))
+//   |> list.intersperse(decode_body)
+//   |> string.join("\n")
+// }
+
+// fn dummy_func_name(type_: CustomType) -> String {
+//   "dummy_" <> util.snake_case(type_.name)
+// }

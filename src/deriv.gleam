@@ -11,15 +11,31 @@ import shellout
 import tom
 import deriv/types.{type File, File, type Output, Output, type Write, Write, type GenFunc, type Import, Import, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpt}
 import deriv/parser
-import deriv/json
+import deriv/json as deriv_json
 import gleam/io
+
+import decode as d
+import gleam/json
+// import deriv/deriv/example/mvar/json as mvar
 
 const all_gen_funcs: List(#(String, GenFunc)) =
   [
-    #("json", json.gen),
+    #("json", deriv_json.gen),
   ]
 
 pub fn main() {
+  // let r1 =
+  //   [
+  //     "NOPE",
+  //     "{\"var1\":\"yeet\"}",
+  //   ]
+  //   |> list.map(fn(str) {
+  //     json.decode(from: str, using: d.from(mvar.d_t(), _))
+  //     |> io.debug
+  //   })
+
+  // panic as "DONE"
+
   let filepaths = find_project_src_gleam_filepaths()
 
   filepaths
