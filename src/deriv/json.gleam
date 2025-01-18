@@ -160,6 +160,7 @@ fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivF
         let encode_func =
           case f.type_ {
             "Int" -> "json.int"
+            "Float" -> "json.float"
             "String" -> "json.string"
             "Bool" -> "json.bool"
             "Uuid" -> "util.encode_uuid"
@@ -194,6 +195,9 @@ fn to_json_field(field: VariantField) -> Result(JsonField, VariantField) {
 
     LabelledVariantField(NamedType("Int", None, []), name) ->
       Ok(JsonField(name:, type_: "Int"))
+
+    LabelledVariantField(NamedType("Float", None, []), name) ->
+      Ok(JsonField(name:, type_: "Float"))
 
     LabelledVariantField(NamedType("Bool", None, []), name) ->
       Ok(JsonField(name:, type_: "Bool"))
@@ -425,28 +429,12 @@ fn json_field_name(field: JsonField, field_opts: List(DerivFieldOpt)) -> String 
 fn decoder_line(field: JsonField) -> String {
   case field.type_ {
     "Int" -> "decode.int"
+    "Float" -> "decode.float"
     "String" -> "decode.string"
     "Bool" -> "decode.bool"
     "Uuid" -> "util.decoder_uuid()"
     _ -> panic as { "Unsupported field type for JSON decode: " <> field.type_ }
   }
-}
-
-fn field_decode_line(field: JsonField, field_opts: List(DerivFieldOpt)) -> String {
-  let json_field_name = json_field_name(field, field_opts)
-
-  let decode_func = decoder_line(field)
-
-  [
-    "use ",
-    field.name,
-    " <- decode.field(\"",
-    json_field_name,
-    "\", ",
-    decode_func,
-    ")",
-  ]
-  |> string.join("")
 }
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }

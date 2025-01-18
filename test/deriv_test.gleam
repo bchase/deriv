@@ -19,6 +19,7 @@ pub type Foo {
     id: Int, //$ json(named(int_id))
     name: String,
     active: Bool,
+    ratio: Float,
   )
 } //$ derive json(decode,encode)
 
@@ -42,13 +43,15 @@ pub fn decoder_foo() -> Decoder(m1.Foo) {
     use id <- decode.parameter
     use name <- decode.parameter
     use active <- decode.parameter
+    use ratio <- decode.parameter
 
-    m1.Foo(uuid:, id:, name:, active:)
+    m1.Foo(uuid:, id:, name:, active:, ratio:)
   })
   |> decode.field(\"uuid\", util.decoder_uuid())
   |> decode.field(\"int_id\", decode.int)
   |> decode.field(\"name\", decode.string)
   |> decode.field(\"active\", decode.bool)
+  |> decode.field(\"ratio\", decode.float)
 }
 
 pub fn encode_foo(value: m1.Foo) -> Json {
@@ -57,6 +60,7 @@ pub fn encode_foo(value: m1.Foo) -> Json {
     #(\"int_id\", json.int(value.id)),
     #(\"name\", json.string(value.name)),
     #(\"active\", json.bool(value.active)),
+    #(\"ratio\", json.float(value.ratio)),
   ])
 }
 
