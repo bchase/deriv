@@ -20,6 +20,7 @@ pub type Foo {
     name: String,
     active: Bool,
     ratio: Float,
+    words: List(String),
   )
 } //$ derive json(decode,encode)
 
@@ -36,6 +37,7 @@ import deriv/example/foo as m1
 import decode.{type Decoder}
 import deriv/util
 import gleam/json.{type Json}
+import gleam/list
 
 pub fn decoder_foo() -> Decoder(m1.Foo) {
   decode.into({
@@ -44,14 +46,16 @@ pub fn decoder_foo() -> Decoder(m1.Foo) {
     use name <- decode.parameter
     use active <- decode.parameter
     use ratio <- decode.parameter
+    use words <- decode.parameter
 
-    m1.Foo(uuid:, id:, name:, active:, ratio:)
+    m1.Foo(uuid:, id:, name:, active:, ratio:, words:)
   })
   |> decode.field(\"uuid\", util.decoder_uuid())
   |> decode.field(\"int_id\", decode.int)
   |> decode.field(\"name\", decode.string)
   |> decode.field(\"active\", decode.bool)
   |> decode.field(\"ratio\", decode.float)
+  |> decode.field(\"words\", decode.list(decode.string))
 }
 
 pub fn encode_foo(value: m1.Foo) -> Json {
@@ -61,6 +65,7 @@ pub fn encode_foo(value: m1.Foo) -> Json {
     #(\"name\", json.string(value.name)),
     #(\"active\", json.bool(value.active)),
     #(\"ratio\", json.float(value.ratio)),
+    #(\"words\", json.preprocessed_array(list.map(value.words, json.string))),
   ])
 }
 
@@ -163,5 +168,60 @@ fn decoder_t_var2() -> Decoder(m1.T) {
   |> should.equal(output)
 }
 
-pub fn stop_warning() { io.debug("stop") }
+pub fn json_optional_field_test() {
+  let input = "
+pub type Maybe {
+  Maybe(
+    name: Option(String),
+  )
+} //$ derive json(decode,encode)
+  "
+  |> string.trim
 
+ let output = "
+import deriv/example/maybe as m1
+import decode.{type Decoder}
+import gleam/json.{type Json}
+
+pub fn decoder_maybe() -> Decoder(m1.Maybe) {
+  decode.into({
+    use name <- decode.parameter
+
+    m1.Maybe(name:)
+  })
+  |> decode.field(\"name\", decode.optional(decode.string))
+}
+
+pub fn encode_maybe(value: m1.Maybe) -> Json {
+  json.object([
+    #(\"name\", json.nullable(value.name, json.string)),
+  ])
+}
+  "
+  |> string.trim
+
+  let files = [ File(module: "deriv/example/maybe", src: input, idx: 1) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs
+    |> deriv.build_writes
+
+  write.filepath
+  |> should.equal("src/deriv/deriv/example/maybe/json.gleam")
+
+  // io.println(output)
+  // io.println(write.src)
+
+  io.println("")
+  io.println("")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println(output)
+
+  write.src
+  |> should.equal(output)
+}
+
+pub fn stop_warning() { io.debug("stop") }
