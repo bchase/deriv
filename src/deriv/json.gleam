@@ -321,12 +321,20 @@ type DecodeLines {
 
 fn decode_lines_for_fields(
   type_: JsonType,
+  all_field_opts: Dict(String, List(DerivFieldOpt)),
 ) -> DecodeLines {
   type_.fields
   |> list.map(fn(field) {
+    let field_opts =
+      all_field_opts
+      |> dict.get(field.name)
+      |> result.unwrap([])
+
+    let json_field_name = json_field_name(field, field_opts)
+
     #(
       decode_line_param(field),
-      decode_line_field(field),
+      decode_line_field(field, json_field_name),
     )
   })
   |> list.unzip
@@ -340,11 +348,11 @@ fn decode_line_param(field: JsonField) -> String {
   "use NAME <- decode.parameter"
   |> string.replace(each: "NAME", with: field.name)
 }
-fn decode_line_field(field: JsonField) -> String {
+fn decode_line_field(field: JsonField, json_name: String) -> String {
   let decoder = decoder_line(field)
 
   "|> decode.field(\"NAME\", DECODER)"
-  |> string.replace(each: "NAME", with: field.name)
+  |> string.replace(each: "NAME", with: json_name)
   |> string.replace(each: "DECODER", with: decoder)
 }
 
@@ -355,7 +363,7 @@ fn decoder_func_src_(
   all_field_opts: Dict(String, List(DerivFieldOpt)),
   file: File,
 ) -> String {
-  let decode_lines = decode_lines_for_fields(type_)
+  let decode_lines = decode_lines_for_fields(type_, all_field_opts)
 
   let type_const_line = decode_success_line(type_, file)
 

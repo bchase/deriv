@@ -46,7 +46,7 @@ pub fn decoder_foo() -> Decoder(m1.Foo) {
     m1.Foo(uuid:, id:, name:, active:)
   })
   |> decode.field(\"uuid\", util.decoder_uuid())
-  |> decode.field(\"id\", decode.int)
+  |> decode.field(\"int_id\", decode.int)
   |> decode.field(\"name\", decode.string)
   |> decode.field(\"active\", decode.bool)
 }
