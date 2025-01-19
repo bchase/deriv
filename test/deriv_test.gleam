@@ -1,9 +1,15 @@
 import gleeunit
 import gleeunit/should
 import gleam/string
-import deriv/types.{type File, File}
+import deriv/types.{type File, File, type Import, Import}
 import deriv
 import gleam/io
+import glance
+
+import gleam/list
+import gleam/result
+
+import simplifile
 
 pub fn main() {
   gleeunit.main()
@@ -222,6 +228,181 @@ pub fn encode_maybe(value: m1.Maybe) -> Json {
 
   write.src
   |> should.equal(output)
+}
+
+pub fn replace_function_test() {
+  let src = string.trim("
+import gleam/string
+
+fn foo(str: String) -> String {
+  str
+}
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}")
+
+  let new = string.trim("
+fn other(changed: Int) -> Bool {
+  True
+}")
+
+  let expected = string.trim("
+import gleam/string
+
+fn other(changed: Int) -> Bool {
+  True
+}
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}")
+
+  replace_function(src, "foo", new)
+  |> should.equal(expected)
+}
+
+pub fn rewrite_function_to_file_test() {
+  let dir = "/tmp/gleam/deriv"
+  let filepath = dir <> "/rewrite_function_to_file_test.gleam"
+
+  let old_src = string.trim("
+import gleam/string
+
+fn foo(str: String) -> String {
+  str
+}
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}")
+
+  let new_foo_src = string.trim("
+fn other(changed: Int) -> Bool {
+  True
+}")
+
+  let expected = string.trim("
+import gleam/string
+
+fn other(changed: Int) -> Bool {
+  True
+}
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}")
+
+
+  let assert Ok(_) = simplifile.create_directory_all("/tmp/gleam/deriv")
+  let _ = simplifile.delete(filepath)
+  let assert Ok(_) = simplifile.write(filepath, old_src)
+
+  let assert Ok(_) = rewrite_function_to_file(filepath, "foo", new_foo_src)
+
+  let assert Ok(new_src) = simplifile.read(filepath)
+  let _ = simplifile.delete(filepath)
+
+  new_src
+  |> should.equal(expected)
+}
+
+// fn add_import_test() {
+//   let old_src = string.trim("")
+//   let new_src = string.trim("")
+//   let expected = string.trim("")
+
+//   expected
+//   |> should.equal(new_src)
+// }
+
+// fn prepend_import_to_file_test() {
+// }
+
+// fn add_import(full_src: String, import_: Import) -> String {
+// }
+
+// fn add_import(full_src: String, import_: Import) -> String {
+//   let assert Ok(module) = glance.module(full_src)
+
+//   // let assert Ok(span) =
+//   //   module.functions
+//   //   |> list.find_map(fn(f) {
+//   //     case f.definition.name == func_name {
+//   //       False -> Error(Nil)
+//   //       True -> Ok(f.definition.location)
+//   //     }
+//   //   })
+
+//   // let eof = string.byte_size(full_src) - 1
+
+//   // let before = string.slice(full_src, 0, span.start - 1)
+//   // let after = string.slice(full_src, span.end + 1, eof)
+
+//   // [
+//   //   before,
+//   //   func_src,
+//   //   after,
+//   // ]
+//   // |> string.join("\n")
+//   todo
+// }
+
+fn replace_function(full_src: String, func_name: String, func_src: String) -> String {
+  let assert Ok(module) = glance.module(full_src)
+
+  let assert Ok(span) =
+    module.functions
+    |> list.find_map(fn(f) {
+      case f.definition.name == func_name {
+        False -> Error(Nil)
+        True -> Ok(f.definition.location)
+      }
+    })
+
+  let eof = string.byte_size(full_src) - 1
+
+  let before = string.slice(full_src, 0, span.start - 1)
+  let after = string.slice(full_src, span.end + 1, eof)
+
+  [
+    before,
+    func_src,
+    after,
+  ]
+  |> string.join("\n")
+}
+
+fn rewrite_function_to_file(filepath: String, func_name: String, func_src: String) -> Result(Nil, Nil) {
+  use old_src <- then(simplifile.read(filepath))
+
+  let new_src = replace_function(old_src, func_name, func_src)
+
+  simplifile.write(filepath, new_src)
+}
+
+pub fn then(
+  result: Result(a, err1),
+  fun: fn(a) -> Result(b, err2),
+) -> Result(b, Nil) {
+  result
+  |> result.map_error(log_and_discard_error)
+  |> result.then(fn(x) {
+    fun(x)
+    |> result.map_error(log_and_discard_error)
+  })
+}
+fn log_and_discard_error(err: err) -> Nil {
+  io.debug(err)
+  Nil
 }
 
 pub fn stop_warning() { io.debug("stop") }
