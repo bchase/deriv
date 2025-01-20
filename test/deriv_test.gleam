@@ -142,6 +142,7 @@ fn decoder_t_var1() -> Decoder(m1.T) {
   })
   |> decode.field(\"var1\", decode.string)
 }
+
 fn decoder_t_var2() -> Decoder(m1.T) {
   decode.into({
     use var2 <- decode.parameter
@@ -358,6 +359,8 @@ type Bar {
 
 fn replace_function(full_src: String, func_name: String, func_src: String) -> String {
   let assert Ok(module) = glance.module(full_src)
+
+  io.debug(module)
 
   let assert Ok(span) =
     module.functions

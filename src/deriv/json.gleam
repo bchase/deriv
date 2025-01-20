@@ -6,7 +6,7 @@ import gleam/list
 import gleam/string
 import gleam/io
 import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType}
-import deriv/types.{type Import, Import, type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen}
+import deriv/types.{type Import, Import, type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type Function, Function}
 import deriv/util
 
 pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> Gen {
@@ -26,7 +26,8 @@ pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(D
     opts
     |> list.map(dict.get(gen_funcs_for_opts, _))
     |> result.values
-    |> list.map(fn(f) { f(type_, field_opts, file)})
+    |> list.flat_map(fn(f) { f(type_, field_opts, file)})
+    |> list.map(fn(f) { f.src })
     |> string.join("\n\n")
 
   let src =
@@ -49,8 +50,7 @@ pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(D
     }
     |> string.join("\n\n")
 
-
-  Gen(file:, deriv:, src:, imports:)
+  Gen(file:, deriv:, imports:, funcs: [], src:, meta: dict.new())
 }
 
 fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
@@ -169,10 +169,9 @@ type JsonField {
   )
 }
 
-fn gen_json_decoders(type_: CustomType, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> String {
+fn gen_json_decoders(type_: CustomType, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(Function) {
   to_json_types(type_)
   |> list.map(decoder_func_src(_, field_opts, file))
-  |> string.join("\n")
 }
 
 fn encode_func_for_basic_type(type_: String) -> Result(String, Nil) {
@@ -186,7 +185,7 @@ fn encode_func_for_basic_type(type_: String) -> Result(String, Nil) {
   }
 }
 
-fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> String {
+fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(Function) {
   type_
   |> to_json_types
   |> list.map(fn(jt) {
@@ -237,16 +236,18 @@ fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivF
         |> string.replace(each: "GLEAM", with: f.name)
       })
 
+    let func_name = "encode_" <> util.snake_case(type_.name)
+
     [
-      "pub fn encode_" <> util.snake_case(type_.name) <> "(value: m" <> int.to_string(file.idx) <> "." <>  type_.name <> ") -> Json {",
+      "pub fn " <> func_name <> "(value: m" <> int.to_string(file.idx) <> "." <>  type_.name <> ") -> Json {",
       "  json.object([",
            encode_lines |> list.map(util.indent(_, level: 2)) |> string.join("\n"),
       "  ])",
       "}",
     ]
     |> string.join("\n")
+    |> Function(name: func_name, src: _)
   })
-  |> string.join("\n\n")
 }
 
 fn to_json_field(field: VariantField) -> Result(JsonField, VariantField) {
@@ -330,7 +331,7 @@ fn type_variant_snake_case_without_type(type_: JsonType) -> String {
   util.snake_case(type_.variant.name)
 }
 
-fn decoder_func_src(type_: JsonType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> String {
+fn decoder_func_src(type_: JsonType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> Function {
   let func_name = decoder_func_name(type_)
 
   case type_.type_.variants {
@@ -354,6 +355,7 @@ fn decoder_func_src(type_: JsonType, all_field_opts: Dict(String, List(DerivFiel
         file,
       )
   }
+  |> Function(name: func_name, src: _)
 }
 
 fn decoder_func_for_multi_variant_type(

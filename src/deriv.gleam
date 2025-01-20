@@ -83,6 +83,9 @@ pub fn gen_derivs(files: List(File)) -> List(Gen) {
       |> list.flat_map(gen_type_derivs(_, file, gen_funcs))
     })
     |> list.flatten
+    |> list.map(fn(gen) {
+      Gen(..gen, meta: dict.from_list([#("source", "inline")]))
+    })
 
   let project_derivs_module_name = project_name() <> "/derivs"
 
@@ -96,6 +99,9 @@ pub fn gen_derivs(files: List(File)) -> List(Gen) {
       Ok(file) -> derivs_file_import_gens(file, files, gen_funcs)
       _ -> []
     }
+    |> list.map(fn(gen) {
+      Gen(..gen, meta: dict.from_list([#("source", "import")]))
+    })
 
   [
     type_inline_gens,
@@ -150,6 +156,49 @@ fn gen_type_derivs(
 // WRITE TO FILES
 
 pub fn build_writes(xs: List(Gen)) -> List(Write) {
+  let #(inline_derivs, other_derivs) =
+    xs
+    |> list.partition(fn(gen) {
+      gen.meta
+      |> dict.get("source")
+      |> result.map(fn(source) { source == "inline" })
+      |> result.unwrap(False)
+    })
+
+  let same_file_writes =
+    inline_derivs
+    |> build_same_file_writes
+
+  let diff_file_writes =
+    other_derivs
+    |> build_different_file_writes
+
+  [
+    diff_file_writes,
+    same_file_writes,
+  ]
+  |> list.flatten
+}
+
+pub fn build_same_file_writes(xs: List(Gen)) -> List(Write) {
+  xs
+  |> list.group(fn(gen) {
+    Output(module: gen.file.module, deriv: gen.deriv.name)
+  })
+  |> dict.map_values(fn(output, gens) {
+    let output_path = output_path(output)
+    let output_src = build_output_src(gens)
+
+    Write(
+      filepath: output_path,
+      src: output_src,
+      output: output,
+    )
+  })
+  |> dict.values
+}
+
+pub fn build_different_file_writes(xs: List(Gen)) -> List(Write) {
   xs
   |> list.group(fn(gen) {
     Output(module: gen.file.module, deriv: gen.deriv.name)

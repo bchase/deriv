@@ -36,12 +36,21 @@ pub type Write {
   )
 }
 
+pub type Function {
+  Function(
+    name: String,
+    src: String,
+  )
+}
+
 pub type Gen {
   Gen(
     file: File,
     deriv: Derivation,
-    src: String,
     imports: List(Import),
+    funcs: List(Function),
+    src: String,
+    meta: Dict(String, String),
   )
 }
 
