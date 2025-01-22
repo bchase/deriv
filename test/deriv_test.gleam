@@ -1,15 +1,15 @@
+import gleam/option.{type Option, Some, None}
 import gleeunit
 import gleeunit/should
 import gleam/string
-import deriv/types.{type File, File, type Import, Import}
-import deriv
-import gleam/io
-import glance
-
-import gleam/list
-import gleam/result
-
 import simplifile
+import deriv/types.{type File, File}
+import deriv
+import deriv/util
+import gleam/io
+
+// import glance
+// import gleam/list
 
 pub fn main() {
   gleeunit.main()
@@ -94,7 +94,7 @@ pub fn decoder_bar() -> Decoder(m1.Bar) {
     |> deriv.build_writes
 
   write.filepath
-  |> should.equal("src/deriv/deriv/example/foo/json.gleam")
+  |> should.equal("src/deriv/example/foo.gleam")
 
   // io.println(output)
   // io.println(write.src)
@@ -162,7 +162,7 @@ fn decoder_t_var2() -> Decoder(m1.T) {
     |> deriv.build_writes
 
   write.filepath
-  |> should.equal("src/deriv/deriv/example/mvar/json.gleam")
+  |> should.equal("src/deriv/example/mvar.gleam")
 
   io.println("")
   io.println("")
@@ -215,7 +215,7 @@ pub fn encode_maybe(value: m1.Maybe) -> Json {
     |> deriv.build_writes
 
   write.filepath
-  |> should.equal("src/deriv/deriv/example/maybe/json.gleam")
+  |> should.equal("src/deriv/example/maybe.gleam")
 
   // io.println(output)
   // io.println(write.src)
@@ -263,7 +263,7 @@ type Bar {
   )
 }")
 
-  replace_function(src, "foo", new)
+  util.replace_function(src, "foo", new)
   |> should.equal(expected)
 }
 
@@ -307,7 +307,7 @@ type Bar {
   let _ = simplifile.delete(filepath)
   let assert Ok(_) = simplifile.write(filepath, old_src)
 
-  let assert Ok(_) = rewrite_function_to_file(filepath, "foo", new_foo_src)
+  let assert Ok(_) = util.rewrite_function_to_file(filepath, "foo", new_foo_src)
 
   let assert Ok(new_src) = simplifile.read(filepath)
   let _ = simplifile.delete(filepath)
@@ -315,6 +315,114 @@ type Bar {
   new_src
   |> should.equal(expected)
 }
+
+// pub fn consolidate_imports_test() {
+//   let src = string.trim("
+// import foo/bar
+// import baz
+// import deriv/util
+
+// fn foo(str: String) -> String {
+//   str
+// }
+
+// type Bar {
+//   Baz(
+//     boo: String,
+//   )
+// }")
+
+//   let expected = string.trim("
+// import baz
+// import foo/bar.{type Foo, Bar, foo} as foobar
+// import deriv/util
+// import deriv/foo
+
+// fn other(changed: Int) -> Bool {
+//   True
+// }
+
+// type Bar {
+//   Baz(
+//     boo: String,
+//   )
+// }")
+
+//   let imports = [
+//     Import(
+//       module: "deriv/foo",
+//       types: [],
+//       funcs: [],
+//       alias: None,
+//     ),
+//     Import(
+//       module: "foo/bar",
+//       types: [
+//         ImportV(name: "Foo", alias: None),
+//         ImportV(name: "ABC", alias: Some("DEF")),
+//       ],
+//       funcs: [
+//         ImportV(name: "Bar", alias: None),
+//         ImportV(name: "Boo", alias: Some("BOO")),
+//         ImportV(name: "foo", alias: None),
+//         ImportV(name: "bar", alias: Some("xxx")),
+//       ],
+//       alias: Some("foobar"),
+//     ),
+//   ]
+
+//   consolidate_imports_for(src, imports)
+//   |> should.equal(expected)
+// }
+
+// fn consolidate_imports_for(src: String, imports: List(Import)) -> String {
+//   let assert Ok(module) = glance.module(src)
+
+//   module.imports
+//   |> list.map(to_deriv_imports)
+//   |> consolidate_imports(imports)
+
+//   todo
+// }
+
+// fn consolidate_imports(i1: List(Import), i2: List(Import)) -> List(Import) {
+//   todo
+// }
+
+// fn to_deriv_imports(i: glance.Definition(glance.Import)) -> Import {
+//   // glance.Import(
+//   //   module: "",
+//   //   alias: None,
+//   //   unqualified_types: [],
+//   //   unqualified_values: [],
+//   // )
+
+//   let types =
+//     i.definition.unqualified_types
+//     |> list.map(fn(t) {
+//       ImportV(name: t.name, alias: t.alias)
+//     })
+
+//   let funcs =
+//     i.definition.unqualified_values
+//     |> list.map(fn(t) {
+//       ImportV(name: t.name, alias: t.alias)
+//     })
+
+//   let alias =
+//     case i.definition.alias {
+//       Some(glance.Named(str)) -> Some(str)
+//       Some(glance.Discarded(str)) -> Some("_" <> str)
+//       None -> None
+//     }
+
+//   Import(
+//     module: i.definition.module,
+//     types: types,
+//     funcs: funcs,
+//     alias: alias,
+//   )
+// }
 
 // fn add_import_test() {
 //   let old_src = string.trim("")
@@ -357,55 +465,20 @@ type Bar {
 //   todo
 // }
 
-fn replace_function(full_src: String, func_name: String, func_src: String) -> String {
-  let assert Ok(module) = glance.module(full_src)
-
-  io.debug(module)
-
-  let assert Ok(span) =
-    module.functions
-    |> list.find_map(fn(f) {
-      case f.definition.name == func_name {
-        False -> Error(Nil)
-        True -> Ok(f.definition.location)
-      }
-    })
-
-  let eof = string.byte_size(full_src) - 1
-
-  let before = string.slice(full_src, 0, span.start - 1)
-  let after = string.slice(full_src, span.end + 1, eof)
-
-  [
-    before,
-    func_src,
-    after,
-  ]
-  |> string.join("\n")
-}
-
-fn rewrite_function_to_file(filepath: String, func_name: String, func_src: String) -> Result(Nil, Nil) {
-  use old_src <- then(simplifile.read(filepath))
-
-  let new_src = replace_function(old_src, func_name, func_src)
-
-  simplifile.write(filepath, new_src)
-}
-
-pub fn then(
-  result: Result(a, err1),
-  fun: fn(a) -> Result(b, err2),
-) -> Result(b, Nil) {
-  result
-  |> result.map_error(log_and_discard_error)
-  |> result.then(fn(x) {
-    fun(x)
-    |> result.map_error(log_and_discard_error)
-  })
-}
-fn log_and_discard_error(err: err) -> Nil {
-  io.debug(err)
-  Nil
-}
-
 pub fn stop_warning() { io.debug("stop") }
+
+pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
+
+
+// TODO
+//   - replace for inline and change for current tests
+//     * consolidate imports
+//       * type/func aliases
+//     * if func exists replace
+//     * if func DNE append
+//   - write import test? (separate file writes)
+
+// if funcs exist
+//   replace
+// else
+//   append

@@ -1,9 +1,15 @@
 import gleam/list
 import gleam/string
 import gleam/json.{type Json}
+import gleam/result
 import gleam/regexp.{type Regexp}
 import decode.{type Decoder}
 import youid/uuid.{type Uuid}
+import gleam/io
+import glance
+
+
+import simplifile
 
 pub fn decode_type_field(
   variant variant: String,
@@ -114,4 +120,53 @@ fn step_snake_case(is_capital: Regexp, state: SC, char: String) -> SC {
       )
     }
   }
+}
+
+pub fn replace_function(full_src: String, func_name: String, func_src: String) -> String {
+  let assert Ok(module) = glance.module(full_src)
+
+  let assert Ok(span) =
+    module.functions
+    |> list.find_map(fn(f) {
+      case f.definition.name == func_name {
+        False -> Error(Nil)
+        True -> Ok(f.definition.location)
+      }
+    })
+
+  let eof = string.byte_size(full_src) - 1
+
+  let before = string.slice(full_src, 0, span.start - 1)
+  let after = string.slice(full_src, span.end + 1, eof)
+
+  [
+    before,
+    func_src,
+    after,
+  ]
+  |> string.join("\n")
+}
+
+pub fn rewrite_function_to_file(filepath: String, func_name: String, func_src: String) -> Result(Nil, Nil) {
+  use old_src <- then(simplifile.read(filepath))
+
+  let new_src = replace_function(old_src, func_name, func_src)
+
+  simplifile.write(filepath, new_src)
+}
+
+pub fn then(
+  result: Result(a, err1),
+  fun: fn(a) -> Result(b, err2),
+) -> Result(b, Nil) {
+  result
+  |> result.map_error(log_and_discard_error)
+  |> result.then(fn(x) {
+    fun(x)
+    |> result.map_error(log_and_discard_error)
+  })
+}
+fn log_and_discard_error(err: err) -> Nil {
+  io.debug(err)
+  Nil
 }

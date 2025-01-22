@@ -5,8 +5,8 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
-import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType}
-import deriv/types.{type Import, Import, type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type Function, Function}
+import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType, type Import, Import, UnqualifiedImport}
+import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type Function, Function}
 import deriv/util
 
 pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> Gen {
@@ -60,18 +60,28 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
         // import decode.{type Decoder}
         Import(
           module: "decode",
-          types: ["Decoder"],
-          constructors: [],
           alias: None,
+          unqualified_types: [
+            UnqualifiedImport(
+              name: "Decoder",
+              alias: None,
+            ),
+          ],
+          unqualified_values: [],
         ),
       ]),
       #("encode", [
         // import gleam/json.{type Json}
         Import(
           module: "gleam/json",
-          types: ["Json"],
-          constructors: [],
           alias: None,
+          unqualified_types: [
+            UnqualifiedImport(
+              name: "Json",
+              alias: None,
+            ),
+          ],
+          unqualified_values: [],
         ),
       ]),
       ]
@@ -94,9 +104,9 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
           [
             Import(
               module: "deriv/util",
-              types: [],
-              constructors: [],
               alias: None,
+              unqualified_types: [],
+              unqualified_values: [],
             )
           ]
         }
@@ -110,9 +120,9 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
           [
             Import(
               module: "gleam/list",
-              types: [],
-              constructors: [],
               alias: None,
+              unqualified_types: [],
+              unqualified_values: [],
             )
           ]
         }

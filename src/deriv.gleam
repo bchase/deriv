@@ -4,12 +4,12 @@ import gleam/int
 import gleam/result
 import gleam/list
 import gleam/string
-import glance.{type CustomType}
+import glance.{type CustomType, type Import, Import}
 import gleam/regexp
 import simplifile
 import shellout
 import tom
-import deriv/types.{type File, File, type Output, Output, type Write, Write, type GenFunc, type Import, Import, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpt}
+import deriv/types.{type File, File, type Output, Output, OutputFile, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpt}
 import deriv/parser
 import deriv/json as deriv_json
 import gleam/io
@@ -125,6 +125,10 @@ fn file_path_to_gleam_module_str(path: String) -> String {
   |> regexp.replace(each: trailing_dot_gleam, in: _, with: "")
 }
 
+fn gleam_module_str_to_file_path(module: String) -> String {
+  "src/" <> module <> ".gleam"
+}
+
 fn parse_types_and_derivations(file: File) -> List(#(CustomType, List(Derivation), Dict(String, List(DerivFieldOpt)))) {
   let assert Ok(parsed) = glance.module(file.src)
 
@@ -183,11 +187,12 @@ pub fn build_writes(xs: List(Gen)) -> List(Write) {
 pub fn build_same_file_writes(xs: List(Gen)) -> List(Write) {
   xs
   |> list.group(fn(gen) {
-    Output(module: gen.file.module, deriv: gen.deriv.name)
+    gen.file.module
   })
-  |> dict.map_values(fn(output, gens) {
-    let output_path = output_path(output)
-    let output_src = build_output_src(gens)
+  |> dict.map_values(fn(module, gens) {
+    let output_path = gleam_module_str_to_file_path(module)
+    let output = OutputFile(path: output_path)
+    let output_src = build_output_src(gens, output)
 
     Write(
       filepath: output_path,
@@ -205,7 +210,7 @@ pub fn build_different_file_writes(xs: List(Gen)) -> List(Write) {
   })
   |> dict.map_values(fn(output, gens) {
     let output_path = output_path(output)
-    let output_src = build_output_src(gens)
+    let output_src = build_output_src(gens, output)
 
     Write(
       filepath: output_path,
@@ -227,40 +232,79 @@ fn perform_file_writes(xs: List(Write)) -> Nil {
     //   }
     // }
 
-    let dir = string.replace(write.filepath, {write.output.deriv <> ".gleam"}, "")
-    let assert Ok(_) = simplifile.create_directory_all(dir)
+    case write.output {
+      Output(deriv:, ..) -> {
+        let dir = string.replace(write.filepath, {deriv <> ".gleam"}, "")
+        let assert Ok(_) = simplifile.create_directory_all(dir)
+
+        Nil
+      }
+
+      _ -> Nil
+    }
+
     let assert Ok(_) = simplifile.write(write.filepath, write.src)
   })
 }
 
 fn output_path(output: Output) -> String {
-  [
-    "src",
-    "deriv",
-    output.module,
-    output.deriv <> ".gleam",
-  ]
-  |> string.join("/")
+  case output {
+    Output(module:, deriv:) ->
+      [
+        "src",
+        "deriv",
+        module,
+        deriv <> ".gleam",
+      ]
+      |> string.join("/")
+
+    OutputFile(path:) ->
+      path
+  }
 }
 
-fn build_output_src(gens: List(Gen)) -> String {
-  let module_imports = build_module_imports(gens)
-  let deriv_imports =
-    gens
-    |> list.flat_map(fn(gen) { gen.imports })
-    |> imports_src
+fn build_output_src(gens: List(Gen), output: Output) -> String {
+  case output {
+    Output(..) -> {
+      let module_imports = build_module_imports(gens)
+      let deriv_imports =
+        gens
+        |> list.flat_map(fn(gen) { gen.imports })
+        |> imports_src
 
-  let defs = list.map(gens, fn(gen) { gen.src })
+      let defs = list.map(gens, fn(gen) { gen.src })
 
-  [
-    module_imports,
-    deriv_imports,
-  ]
-  |> list.filter(fn(str) { str != "" })
-  |> string.join("\n")
-  |> fn(imports) { [imports] }
-  |> list.append(defs)
-  |> string.join("\n\n")
+      [
+        module_imports,
+        deriv_imports,
+      ]
+      |> list.filter(fn(str) { str != "" })
+      |> string.join("\n")
+      |> fn(imports) { [imports] }
+      |> list.append(defs)
+      |> string.join("\n\n")
+    }
+
+    OutputFile(path:) -> {
+      let module_imports = build_module_imports(gens)
+      let deriv_imports =
+        gens
+        |> list.flat_map(fn(gen) { gen.imports })
+        |> imports_src
+
+      let defs = list.map(gens, fn(gen) { gen.src })
+
+      [
+        module_imports,
+        deriv_imports,
+      ]
+      |> list.filter(fn(str) { str != "" })
+      |> string.join("\n")
+      |> fn(imports) { [imports] }
+      |> list.append(defs)
+      |> string.join("\n\n")
+    }
+  }
 }
 
 fn build_module_imports(gens: List(Gen)) -> String {
@@ -293,47 +337,65 @@ fn consolidate_imports(all_imports: List(Import)) -> List(Import) {
           [] -> None
           [alias] -> Some(alias)
           _ -> panic as {
-            [
-              { "0 or 1 allowed, but for module `" <> module <> "` multiple module aliases found :" },
-              ..aliases // TODO trailing "," here blows up `glance` but not gleam compiler
-            ]
-            |> string.join(" ")
+            io.debug(aliases)
+            "0 or 1 aliases allowed, but for module `" <> module <> "` multiple aliases found (see above)"
           }
         }
       }
 
-    let types =
+    let unqualified_types =
       imports
-      |> list.flat_map(fn(i) { i.types })
+      |> list.flat_map(fn(i) { i.unqualified_types })
       |> list.unique
 
-    let constructors =
+    let unqualified_values =
       imports
-      |> list.flat_map(fn(i) { i.constructors })
+      |> list.flat_map(fn(i) { i.unqualified_values })
       |> list.unique
 
     Import(
       module:,
-      types:,
-      constructors:,
       alias:,
+      unqualified_types:,
+      unqualified_values:,
     )
   })
+}
+
+fn unqualified_import_str(uqi: glance.UnqualifiedImport,  is_type is_type: Bool) -> String {
+  let type_ =
+    case is_type {
+      True -> "type "
+      False -> ""
+    }
+
+  let alias =
+    case uqi.alias {
+      Some(alias) -> " as " <> alias
+      None -> ""
+    }
+
+  type_ <> uqi.name <> alias
 }
 
 fn import_src(i: Import) -> String {
   let alias =
     case i.alias {
+      Some(glance.Named(name)) -> "as " <> name
+      Some(glance.Discarded(name)) -> "as _" <> name
       None -> ""
-      Some(name) -> "as " <> name
     }
 
   let types =
-    i.types
-    |> list.map(fn(t) { "type " <> t })
+    i.unqualified_types
+    |> list.map(unqualified_import_str(_, is_type: True))
+
+  let funcs =
+    i.unqualified_values
+    |> list.map(unqualified_import_str(_, is_type: False))
 
   let types_and_constructors =
-    case list.append(types, i.constructors) {
+    case list.append(types, funcs) {
       [] -> ""
       xs -> {
         let str = string.join(xs, ", ")
