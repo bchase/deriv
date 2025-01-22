@@ -9,7 +9,7 @@ import gleam/regexp
 import simplifile
 import shellout
 import tom
-import deriv/types.{type File, File, type Output, Output, OutputFile, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpt}
+import deriv/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpt}
 import deriv/parser
 import deriv/json as deriv_json
 import gleam/io
@@ -191,7 +191,7 @@ pub fn build_same_file_writes(xs: List(Gen)) -> List(Write) {
   })
   |> dict.map_values(fn(module, gens) {
     let output_path = gleam_module_str_to_file_path(module)
-    let output = OutputFile(path: output_path)
+    let output = OutputInline(filepath: output_path)
     let output_src = build_output_src(gens, output)
 
     Write(
@@ -258,8 +258,8 @@ fn output_path(output: Output) -> String {
       ]
       |> string.join("/")
 
-    OutputFile(path:) ->
-      path
+    OutputInline(filepath:) ->
+      filepath
   }
 }
 
@@ -285,7 +285,7 @@ fn build_output_src(gens: List(Gen), output: Output) -> String {
       |> string.join("\n\n")
     }
 
-    OutputFile(path:) -> {
+    OutputInline(..) -> {
       let module_imports = build_module_imports(gens)
       let deriv_imports =
         gens

@@ -17,8 +17,8 @@ pub type Output {
     module: String,
     deriv: String,
   )
-  OutputFile(
-    path: String,
+  OutputInline(
+    filepath: String,
   )
 }
 
