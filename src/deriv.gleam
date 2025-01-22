@@ -321,7 +321,36 @@ fn build_module_imports(gens: List(Gen)) -> String {
   |> string.join("\n")
 }
 
-fn consolidate_imports(all_imports: List(Import)) -> List(Import) {
+pub fn consolidate_imports_for(src: String, add add_imports: List(Import)) -> String {
+  let assert Ok(module) = glance.module(src)
+
+  let curr_imports =
+    module.imports
+    |> list.map(fn(d) { d.definition })
+
+  let new_imports =
+    [ curr_imports, add_imports ]
+    |> list.flatten
+    |> consolidate_imports
+    |> list.map(import_src)
+    |> string.join("\n")
+
+  let src_without_imports =
+    src
+    |> string.split("\n")
+    |> list.reverse
+    |> list.take_while(fn(str) { !string.starts_with(str, "import") })
+    |> list.reverse
+    |> string.join("\n")
+
+  [
+    new_imports,
+    src_without_imports,
+  ]
+  |> string.join("\n")
+}
+
+pub fn consolidate_imports(all_imports: List(Import)) -> List(Import) {
   all_imports
   |> list.group(fn(i) { i.module })
   |> dict.to_list
@@ -360,6 +389,7 @@ fn consolidate_imports(all_imports: List(Import)) -> List(Import) {
       unqualified_values:,
     )
   })
+  |> list.sort(fn(a,b) { string.compare(a.module, b.module) })
 }
 
 fn unqualified_import_str(uqi: glance.UnqualifiedImport,  is_type is_type: Bool) -> String {
@@ -388,10 +418,12 @@ fn import_src(i: Import) -> String {
 
   let types =
     i.unqualified_types
+    |> list.sort(fn(a,b) { string.compare(a.name, b.name) })
     |> list.map(unqualified_import_str(_, is_type: True))
 
   let funcs =
     i.unqualified_values
+    |> list.sort(fn(a,b) { string.compare(a.name, b.name) })
     |> list.map(unqualified_import_str(_, is_type: False))
 
   let types_and_constructors =

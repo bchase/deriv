@@ -8,8 +8,8 @@ import deriv
 import deriv/util
 import gleam/io
 
-// import glance
-// import gleam/list
+import glance.{Import, UnqualifiedImport, Named}
+import gleam/list
 
 pub fn main() {
   gleeunit.main()
@@ -267,7 +267,7 @@ type Bar {
   |> should.equal(expected)
 }
 
-pub fn rewrite_function_to_file_test() {
+pub fn rewrite_function_to_file_when_function_exists_test() {
   let dir = "/tmp/gleam/deriv"
   let filepath = dir <> "/rewrite_function_to_file_test.gleam"
 
@@ -316,64 +316,126 @@ type Bar {
   |> should.equal(expected)
 }
 
-// pub fn consolidate_imports_test() {
-//   let src = string.trim("
-// import foo/bar
-// import baz
-// import deriv/util
+pub fn consolidate_imports_test() {
+  let src = string.trim("
+import foo/bar.{type Orig, Orig, orig, type Foo}
+import baz
+import deriv/util
 
-// fn foo(str: String) -> String {
-//   str
-// }
+fn foo(str: String) -> String {
+  str
+}
 
-// type Bar {
-//   Baz(
-//     boo: String,
-//   )
-// }")
+type Bar {
+  Baz(
+    boo: String,
+  )
+}")
 
-//   let expected = string.trim("
-// import baz
-// import foo/bar.{type Foo, Bar, foo} as foobar
-// import deriv/util
-// import deriv/foo
+  let expected_src = string.trim("
+import baz
+import deriv/foo
+import deriv/util
+import foo/bar.{type ABC as DEF, type Foo, type Orig, Bar, Boo as BOO, Orig, bar as xxx, foo, orig} as foobar
 
-// fn other(changed: Int) -> Bool {
-//   True
-// }
+fn foo(str: String) -> String {
+  str
+}
 
-// type Bar {
-//   Baz(
-//     boo: String,
-//   )
-// }")
+type Bar {
+  Baz(
+    boo: String,
+  )
+}")
 
-//   let imports = [
-//     Import(
-//       module: "deriv/foo",
-//       types: [],
-//       funcs: [],
-//       alias: None,
-//     ),
-//     Import(
-//       module: "foo/bar",
-//       types: [
-//         ImportV(name: "Foo", alias: None),
-//         ImportV(name: "ABC", alias: Some("DEF")),
-//       ],
-//       funcs: [
-//         ImportV(name: "Bar", alias: None),
-//         ImportV(name: "Boo", alias: Some("BOO")),
-//         ImportV(name: "foo", alias: None),
-//         ImportV(name: "bar", alias: Some("xxx")),
-//       ],
-//       alias: Some("foobar"),
-//     ),
-//   ]
+  let assert Ok(module) = glance.module(src)
 
-//   consolidate_imports_for(src, imports)
-//   |> should.equal(expected)
-// }
+  let curr_imports = [
+    Import("deriv/util", None, [], []),
+    Import("baz", None, [], []),
+    Import(
+      module: "foo/bar",
+      alias: None,
+      unqualified_types: [
+        UnqualifiedImport("Orig", None),
+        UnqualifiedImport("Foo", None),
+      ],
+      unqualified_values: [
+        UnqualifiedImport("Orig", None),
+        UnqualifiedImport("orig", None),
+      ],
+    ),
+  ]
+
+  curr_imports
+  |> should.equal(module.imports |> list.map(fn(d) { d.definition }))
+
+  let add_imports = [
+    Import(
+      module: "deriv/foo",
+      alias: None,
+      unqualified_types: [],
+      unqualified_values: [],
+    ),
+    Import(
+      module: "foo/bar",
+      alias: Some(Named("foobar")),
+      unqualified_types: [
+        UnqualifiedImport(name: "Foo", alias: None),
+        UnqualifiedImport(name: "ABC", alias: Some("DEF")),
+      ],
+      unqualified_values: [
+        UnqualifiedImport(name: "Bar", alias: None),
+        UnqualifiedImport(name: "Boo", alias: Some("BOO")),
+        UnqualifiedImport(name: "foo", alias: None),
+        UnqualifiedImport(name: "bar", alias: Some("xxx")),
+      ],
+    ),
+  ]
+
+  let expected_new_imports = [
+    Import("baz", None, [], []),
+    Import(
+      module: "deriv/foo",
+      alias: None,
+      unqualified_types: [],
+      unqualified_values: [],
+    ),
+    Import("deriv/util", None, [], []),
+    Import(
+      module: "foo/bar",
+      alias: Some(Named("foobar")),
+      unqualified_types: [
+        UnqualifiedImport(name: "Foo", alias: None),
+        UnqualifiedImport(name: "ABC", alias: Some("DEF")),
+        UnqualifiedImport(name: "Orig", alias: None),
+      ],
+      unqualified_values: [
+        UnqualifiedImport(name: "Bar", alias: None),
+        UnqualifiedImport(name: "Boo", alias: Some("BOO")),
+        UnqualifiedImport(name: "foo", alias: None),
+        UnqualifiedImport(name: "bar", alias: Some("xxx")),
+        UnqualifiedImport(name: "Orig", alias: None),
+        UnqualifiedImport(name: "orig", alias: None),
+      ],
+    ),
+  ]
+
+  deriv.consolidate_imports(list.flatten([curr_imports, add_imports]))
+  |> should.equal(expected_new_imports)
+
+  io.println("")
+  io.println("")
+  io.println("///// EXPECTED /////")
+  io.println(expected_src)
+  io.println("")
+  io.println("")
+  io.println("///// DERIV /////")
+  io.println(deriv.consolidate_imports_for(src, add: add_imports))
+
+  deriv.consolidate_imports_for(src, add: add_imports)
+  |> should.equal(expected_src)
+}
 
 // fn consolidate_imports_for(src: String, imports: List(Import)) -> String {
 //   let assert Ok(module) = glance.module(src)
@@ -472,8 +534,7 @@ pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
 // TODO
 //   - replace for inline and change for current tests
-//     * consolidate imports
-//       * type/func aliases
+//   X * consolidate imports
 //     * if func exists replace
 //     * if func DNE append
 //   - write import test? (separate file writes)
