@@ -263,7 +263,54 @@ type Bar {
   )
 }")
 
-  util.replace_function(src, "foo", new)
+  let assert Ok(module) = glance.module(src)
+
+  util.replace_function(module, src, func_name: "foo", func_src: new)
+  |> should.equal(expected)
+}
+
+pub fn rewrite_function_to_file_when_function_does_not_exist_test() {
+  let dir = "/tmp/gleam/deriv"
+  let filepath = dir <> "/rewrite_function_to_file_test.gleam"
+
+  let old_src = string.trim("
+import gleam/string
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}")
+
+  let new_foo_src = string.trim("
+fn other(changed: Int) -> Bool {
+  True
+}")
+
+  let expected = string.trim("
+import gleam/string
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}
+
+fn other(changed: Int) -> Bool {
+  True
+}")
+
+
+  let assert Ok(_) = simplifile.create_directory_all("/tmp/gleam/deriv")
+  let _ = simplifile.delete(filepath)
+  let assert Ok(_) = simplifile.write(filepath, old_src)
+
+  let assert Ok(_) = util.rewrite_functions_to_file(filepath, [#("foo", new_foo_src)])
+
+  let assert Ok(new_src) = simplifile.read(filepath)
+  let _ = simplifile.delete(filepath)
+
+  new_src
   |> should.equal(expected)
 }
 
@@ -307,7 +354,7 @@ type Bar {
   let _ = simplifile.delete(filepath)
   let assert Ok(_) = simplifile.write(filepath, old_src)
 
-  let assert Ok(_) = util.rewrite_function_to_file(filepath, "foo", new_foo_src)
+  let assert Ok(_) = util.rewrite_functions_to_file(filepath, [#("foo", new_foo_src)])
 
   let assert Ok(new_src) = simplifile.read(filepath)
   let _ = simplifile.delete(filepath)
@@ -530,16 +577,3 @@ type Bar {
 pub fn stop_warning() { io.debug("stop") }
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
-
-
-// TODO
-//   - replace for inline and change for current tests
-//   X * consolidate imports
-//     * if func exists replace
-//     * if func DNE append
-//   - write import test? (separate file writes)
-
-// if funcs exist
-//   replace
-// else
-//   append

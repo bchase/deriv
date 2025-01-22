@@ -122,9 +122,7 @@ fn step_snake_case(is_capital: Regexp, state: SC, char: String) -> SC {
   }
 }
 
-pub fn replace_function(full_src: String, func_name: String, func_src: String) -> String {
-  let assert Ok(module) = glance.module(full_src)
-
+pub fn replace_function(module: glance.Module, full_src: String, func_name func_name: String, func_src func_src: String) -> String {
   let assert Ok(span) =
     module.functions
     |> list.find_map(fn(f) {
@@ -147,12 +145,29 @@ pub fn replace_function(full_src: String, func_name: String, func_src: String) -
   |> string.join("\n")
 }
 
-pub fn rewrite_function_to_file(filepath: String, func_name: String, func_src: String) -> Result(Nil, Nil) {
+pub fn rewrite_functions_to_file(filepath: String, funcs: List(#(String, String))) -> Result(Nil, Nil) {
   use old_src <- then(simplifile.read(filepath))
 
-  let new_src = replace_function(old_src, func_name, func_src)
+  let assert Ok(module) = glance.module(old_src)
 
-  simplifile.write(filepath, new_src)
+  list.each(funcs, fn(x) {
+    let #(func_name, func_src) = x
+
+    let new_src =
+    case string.contains(old_src, "fn " <> func_name) {
+      True -> replace_function(module, old_src, func_name:, func_src:)
+      False ->
+        [
+          old_src,
+          func_src,
+        ]
+        |> string.join("\n\n")
+    }
+
+    simplifile.write(filepath, new_src)
+  })
+
+  Ok(Nil)
 }
 
 pub fn then(
