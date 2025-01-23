@@ -215,30 +215,16 @@ pub fn build_same_file_writes(xs: List(Gen)) -> List(Write) {
       |> list.flat_map(fn(gen) { gen.funcs })
       |> list.map(fn(func) { #(func.name, func.src) })
 
-    let module_imports = build_module_imports(gens, output)
-    let deriv_imports =
-      gens
-      |> list.flat_map(fn(gen) { gen.imports })
-      |> imports_src
+    let module_imports: List(Import) = build_module_imports(gens, output)
+    let deriv_imports: List(Import) = list.flat_map(gens, fn(gen) { gen.imports })
+    let all_imports: List(Import) = [module_imports, deriv_imports] |> list.flatten
 
-    let func_src = util.update_funcs(orig_src, funcs)
-
-    let join_str =
-      case string.starts_with(func_src, "import") {
-        True -> "\n"
-        False -> "\n\n"
-      }
+    let func_src_with_imports = util.update_funcs(orig_src, funcs)
 
     let output_src =
-      [
-        module_imports,
-        deriv_imports,
-      ]
-      |> list.filter(fn(str) { str != "" })
-      |> string.join("\n")
-      |> fn(imports) { [imports] }
-      |> list.append([func_src])
-      |> string.join(join_str)
+      func_src_with_imports
+      |> consolidate_imports_for(all_imports)
+      |> string.trim
 
     Write(
       filepath: output_path,
@@ -256,7 +242,10 @@ pub fn build_different_file_writes(xs: List(Gen)) -> List(Write) {
   })
   |> dict.map_values(fn(output, gens) {
     let output_path = output_path(output)
-    let output_src = build_output_src(gens, output)
+    let output_src =
+      gens
+      |> build_output_src(output)
+      |> string.trim
 
     Write(
       filepath: output_path,
@@ -270,14 +259,6 @@ pub fn build_different_file_writes(xs: List(Gen)) -> List(Write) {
 fn perform_file_writes(xs: List(Write)) -> Nil {
   xs
   |> list.each(fn(write) {
-    // case string.ends_with(write.filepath, "mvar/json.gleam") {
-    //   False -> Nil
-    //   True -> {
-    //     io.println("// " <> write.filepath)
-    //     io.println(write.src)
-    //   }
-    // }
-
     case write.output {
       Output(deriv:, ..) -> {
         let dir = string.replace(write.filepath, {deriv <> ".gleam"}, "")
@@ -313,71 +294,66 @@ fn build_output_src(gens: List(Gen), output: Output) -> String {
   case output {
     Output(..) -> {
       let module_imports = build_module_imports(gens, output)
-      let deriv_imports =
-        gens
-        |> list.flat_map(fn(gen) { gen.imports })
-        |> imports_src
+      let deriv_imports = list.flat_map(gens, fn(gen) { gen.imports })
 
       let defs = list.map(gens, fn(gen) { gen.src })
 
+      let func_src = string.join(defs, "\n\n")
+
+      let all_imports =
       [
         module_imports,
         deriv_imports,
       ]
-      |> list.filter(fn(str) { str != "" })
-      |> string.join("\n")
-      |> fn(imports) { [imports] }
-      |> list.append(defs)
-      |> string.join("\n\n")
+      |> list.flatten
+
+      consolidate_imports_for(func_src, all_imports)
     }
 
     OutputInline(..) -> {
-      let module_imports = build_module_imports(gens, output)
-      let deriv_imports =
-        gens
-        |> list.flat_map(fn(gen) { gen.imports })
-        |> imports_src
+      // TODO don't think this logic is ever run...
+      panic as "don't think this logic ever runs..."
+      // let module_imports = build_module_imports(gens, output)
+      // let deriv_imports = list.flat_map(gens, fn(gen) { gen.imports })
 
-      let defs = list.map(gens, fn(gen) { gen.src })
+      // let defs = list.map(gens, fn(gen) { gen.src })
 
-      [
-        module_imports,
-        deriv_imports,
-      ]
-      |> list.filter(fn(str) { str != "" })
-      |> string.join("\n")
-      |> fn(imports) { [imports] }
-      |> list.append(defs)
-      |> string.join("\n\n")
+      // [
+      //   module_imports,
+      //   deriv_imports,
+      // ]
+      // |> string.join("\n")
+      // |> fn(imports) { [imports] }
+      // |> list.append(defs)
+      // |> string.join("\n\n")
     }
   }
 }
 
-fn build_module_imports(gens: List(Gen), output: Output) -> String {
+fn build_module_imports(gens: List(Gen), _output: Output) -> List(Import) {
   let files =
     gens
     |> list.map(fn(g) { g.file })
     |> list.unique
 
-  list.map(files, fn(file) {
-    case file.module == output.module, file.idx {
-      True, _ ->
-        None
+  list.flat_map(files, fn(file) {
+    case file.idx {
+      Some(idx) ->
+        Import(
+          module: file.module,
+          alias: Some(glance.Named("m" <> int.to_string(idx))),
+          unqualified_types: [],
+          unqualified_values: [],
+        )
+        // "import MODULE as mINDEX"
+        // |> string.replace(each: "MODULE", with: file.module)
+        // |> string.replace(each: "INDEX", with: idx |> int.to_string)
+        |> fn(x) { [x] }
 
-      False, None ->
-        "import MODULE"
-        |> string.replace(each: "MODULE", with: file.module)
-        |> Some
-
-      False, Some(idx) ->
-        "import MODULE as mINDEX"
-        |> string.replace(each: "MODULE", with: file.module)
-        |> string.replace(each: "INDEX", with: idx |> int.to_string)
-        |> Some
+      None ->
+        []
     }
   })
-  |> option.values
-  |> string.join("\n")
 }
 
 pub fn consolidate_imports_for(src: String, add add_imports: List(Import)) -> String {
@@ -393,6 +369,7 @@ pub fn consolidate_imports_for(src: String, add add_imports: List(Import)) -> St
     |> consolidate_imports
     |> list.map(import_src)
     |> string.join("\n")
+    |> string.trim
 
   let src_without_imports =
     src
@@ -401,12 +378,13 @@ pub fn consolidate_imports_for(src: String, add add_imports: List(Import)) -> St
     |> list.take_while(fn(str) { !string.starts_with(str, "import") })
     |> list.reverse
     |> string.join("\n")
+    |> string.trim
 
   [
     new_imports,
     src_without_imports,
   ]
-  |> string.join("\n")
+  |> string.join("\n\n")
 }
 
 pub fn consolidate_imports(all_imports: List(Import)) -> List(Import) {

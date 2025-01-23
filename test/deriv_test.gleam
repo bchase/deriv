@@ -109,24 +109,14 @@ pub fn decoder_bar() -> Decoder(Bar) {
   let assert [write] =
     files
     |> deriv.gen_derivs
-    // |> function.tap(fn(x) {
-    //   io.debug(list.length(x))
-    // })
-    // |> io.debug
-    |> list.map(fn(x) {
-      // io.debug(x.meta)
-      // io.debug(x.src)
-      // case string.contains(x.src, "decoder_bar") {
-      //   True -> io.println(x.src)
-      //   False -> Nil
-      // }
-
-      x
-    })
     |> deriv.build_writes
 
-  write.filepath
-  |> should.equal("src/deriv/example/foo.gleam")
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs
+    |> deriv.build_writes
 
   // io.println(output)
   // io.println(write.src)
@@ -139,6 +129,9 @@ pub fn decoder_bar() -> Decoder(Bar) {
   io.println("")
   io.println("EXPECTED")
   io.println(output)
+
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
 
   write.src
   |> should.equal(output)
