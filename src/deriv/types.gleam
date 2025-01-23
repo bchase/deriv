@@ -8,7 +8,7 @@ pub type File {
   File(
     module: String,
     src: String,
-    idx: Int,
+    idx: Option(Int),
   )
 }
 
@@ -18,6 +18,7 @@ pub type Output {
     deriv: String,
   )
   OutputInline(
+    module: String,
     filepath: String,
   )
 }

@@ -12,6 +12,7 @@ import tom
 import deriv/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpt}
 import deriv/parser
 import deriv/json as deriv_json
+import deriv/util
 import gleam/io
 
 import decode as d
@@ -75,9 +76,16 @@ fn project_name() -> String {
 pub fn gen_derivs(files: List(File)) -> List(Gen) {
   let gen_funcs = all_gen_funcs |>  dict.from_list
 
+  let project_derivs_module_name = project_name() <> "/derivs"
+
   let type_inline_gens =
     files
+    |> list.filter(fn(file) {
+      file.module != project_derivs_module_name
+    })
     |> list.map(fn(file) {
+      let file = File(..file, idx: None)
+
       file
       |> parse_types_and_derivations
       |> list.flat_map(gen_type_derivs(_, file, gen_funcs))
@@ -86,8 +94,6 @@ pub fn gen_derivs(files: List(File)) -> List(Gen) {
     |> list.map(fn(gen) {
       Gen(..gen, meta: dict.from_list([#("source", "inline")]))
     })
-
-  let project_derivs_module_name = project_name() <> "/derivs"
 
   let derivs_file =
     list.find(files, fn(file) {
@@ -113,7 +119,7 @@ pub fn gen_derivs(files: List(File)) -> List(Gen) {
 fn read_file(filepath: String, idx: Int) -> File {
   let assert Ok(src) = simplifile.read(filepath)
   let module = file_path_to_gleam_module_str(filepath)
-  File(module: , src:, idx: idx+1)
+  File(module: , src:, idx: Some(idx+1))
 }
 
 fn file_path_to_gleam_module_str(path: String) -> String {
@@ -190,9 +196,49 @@ pub fn build_same_file_writes(xs: List(Gen)) -> List(Write) {
     gen.file.module
   })
   |> dict.map_values(fn(module, gens) {
+    let orig_src =
+      gens
+      |> list.first
+      |> result.map(fn(gen) { gen.file.src })
+      |> fn(r) {
+        case r {
+          Ok(src) -> src
+          Error(_) -> panic as { "`File.src` could not be found for `" <> module <> "`" }
+        }
+      }
+
     let output_path = gleam_module_str_to_file_path(module)
-    let output = OutputInline(filepath: output_path)
-    let output_src = build_output_src(gens, output)
+    let output = OutputInline(module: module, filepath: output_path)
+
+    let funcs =
+      gens
+      |> list.flat_map(fn(gen) { gen.funcs })
+      |> list.map(fn(func) { #(func.name, func.src) })
+
+    let module_imports = build_module_imports(gens, output)
+    let deriv_imports =
+      gens
+      |> list.flat_map(fn(gen) { gen.imports })
+      |> imports_src
+
+    let func_src = util.update_funcs(orig_src, funcs)
+
+    let join_str =
+      case string.starts_with(func_src, "import") {
+        True -> "\n"
+        False -> "\n\n"
+      }
+
+    let output_src =
+      [
+        module_imports,
+        deriv_imports,
+      ]
+      |> list.filter(fn(str) { str != "" })
+      |> string.join("\n")
+      |> fn(imports) { [imports] }
+      |> list.append([func_src])
+      |> string.join(join_str)
 
     Write(
       filepath: output_path,
@@ -258,7 +304,7 @@ fn output_path(output: Output) -> String {
       ]
       |> string.join("/")
 
-    OutputInline(filepath:) ->
+    OutputInline(filepath:, ..) ->
       filepath
   }
 }
@@ -266,7 +312,7 @@ fn output_path(output: Output) -> String {
 fn build_output_src(gens: List(Gen), output: Output) -> String {
   case output {
     Output(..) -> {
-      let module_imports = build_module_imports(gens)
+      let module_imports = build_module_imports(gens, output)
       let deriv_imports =
         gens
         |> list.flat_map(fn(gen) { gen.imports })
@@ -286,7 +332,7 @@ fn build_output_src(gens: List(Gen), output: Output) -> String {
     }
 
     OutputInline(..) -> {
-      let module_imports = build_module_imports(gens)
+      let module_imports = build_module_imports(gens, output)
       let deriv_imports =
         gens
         |> list.flat_map(fn(gen) { gen.imports })
@@ -307,17 +353,30 @@ fn build_output_src(gens: List(Gen), output: Output) -> String {
   }
 }
 
-fn build_module_imports(gens: List(Gen)) -> String {
+fn build_module_imports(gens: List(Gen), output: Output) -> String {
   let files =
     gens
     |> list.map(fn(g) { g.file })
     |> list.unique
 
   list.map(files, fn(file) {
-    "import MODULE as mINDEX"
-    |> string.replace(each: "MODULE", with: file.module)
-    |> string.replace(each: "INDEX", with: file.idx |> int.to_string)
+    case file.module == output.module, file.idx {
+      True, _ ->
+        None
+
+      False, None ->
+        "import MODULE"
+        |> string.replace(each: "MODULE", with: file.module)
+        |> Some
+
+      False, Some(idx) ->
+        "import MODULE as mINDEX"
+        |> string.replace(each: "MODULE", with: file.module)
+        |> string.replace(each: "INDEX", with: idx |> int.to_string)
+        |> Some
+    }
   })
+  |> option.values
   |> string.join("\n")
 }
 

@@ -22,35 +22,37 @@ pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(D
   let imports =
     gen_imports(opts, type_)
 
-  let other_src =
+  let other_funcs =
     opts
     |> list.map(dict.get(gen_funcs_for_opts, _))
     |> result.values
     |> list.flat_map(fn(f) { f(type_, field_opts, file)})
-    |> list.map(fn(f) { f.src })
-    |> string.join("\n\n")
 
-  let src =
+  let multi_variant_type_decoders_funcs =
     case type_.variants {
       [] ->
         panic as "`CustomType` has no `variants`"
 
       [_invariant] ->
-        [other_src]
+        []
 
-      _multi_variants -> {
-        let multi_variant_type_decoders_src =
-          decoder_func_for_multi_variant_type(type_, field_opts, file)
-
-        [
-          multi_variant_type_decoders_src,
-          other_src,
-        ]
-      }
+      _multi_variants ->
+        [decoder_func_for_multi_variant_type(type_, field_opts, file)]
     }
+
+  let funcs =
+    [
+      multi_variant_type_decoders_funcs,
+      other_funcs,
+    ]
+    |> list.flatten
+
+  let src =
+    funcs
+    |> list.map(fn(f) { f.src })
     |> string.join("\n\n")
 
-  Gen(file:, deriv:, imports:, funcs: [], src:, meta: dict.new())
+  Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
 }
 
 fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
@@ -248,8 +250,10 @@ fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivF
 
     let func_name = "encode_" <> util.snake_case(type_.name)
 
+    let qualified_type = qualified_type(type_, file)
+
     [
-      "pub fn " <> func_name <> "(value: m" <> int.to_string(file.idx) <> "." <>  type_.name <> ") -> Json {",
+      "pub fn " <> func_name <> "(value: " <> qualified_type <> ") -> Json {",
       "  json.object([",
            encode_lines |> list.map(util.indent(_, level: 2)) |> string.join("\n"),
       "  ])",
@@ -372,10 +376,13 @@ fn decoder_func_for_multi_variant_type(
   type_: CustomType,
   _all_field_opts: Dict(String, List(DerivFieldOpt)),
   file: File,
-) {
+) -> Function {
   let type_snake_case = util.snake_case(type_.name)
 
-  let func_def = "pub fn decoder_" <> type_snake_case <> "() -> Decoder(m" <> {int.to_string(file.idx)} <> "." <> type_.name <> ")"
+  let qualified_type = qualified_type(type_, file)
+
+  let func_name = "decoder_" <> type_snake_case
+  let func_def = "pub fn " <> func_name <> "() -> Decoder(" <> qualified_type <> ")"
 
   let variant_decoder_funcs_list_lines =
     type_.variants
@@ -387,14 +394,17 @@ fn decoder_func_for_multi_variant_type(
     })
     |> string.join("\n")
 
-  [
-    func_def <> " {",
-    "decode.one_of([" |> util.indent(level: 1),
-    variant_decoder_funcs_list_lines,
-    "])" |> util.indent(level: 1),
-    "}",
-  ]
-  |> string.join("\n")
+  let src =
+    [
+      func_def <> " {",
+      "decode.one_of([" |> util.indent(level: 1),
+      variant_decoder_funcs_list_lines,
+      "])" |> util.indent(level: 1),
+      "}",
+    ]
+    |> string.join("\n")
+
+  Function(name: func_name, src:)
 }
 
 type DecodeLines {
@@ -441,6 +451,13 @@ fn decode_line_field(field: JsonField, json_name: String) -> String {
   |> string.replace(each: "DECODER", with: decoder)
 }
 
+fn qualified_type(type_: CustomType, file: File) -> String {
+  case file.idx {
+    Some(idx) -> "m" <> {int.to_string(idx)} <> "." <> type_.name
+    None -> type_.name
+  }
+}
+
 fn decoder_func_src_(
   public: Bool,
   func_name: String,
@@ -477,7 +494,9 @@ fn decoder_func_src_(
       False -> ""
     }
 
-  let func_def = pub_ <> "fn " <> func_name <> "() -> Decoder(m" <> {int.to_string(file.idx)} <> "." <> type_.type_.name <> ")"
+  let qualified_type = qualified_type(type_.type_, file)
+
+  let func_def = pub_ <> "fn " <> func_name <> "() -> Decoder(" <> qualified_type <> ")"
 
   [
     func_def <> " {",
@@ -493,10 +512,18 @@ fn decode_success_line(type_: JsonType, file: File) -> String {
     |> list.map(fn(f) { f.name <> ":" })
     |> string.join(", ")
 
-  "mIDX.VAR(FIELDS)"
-  |> string.replace(each: "IDX", with: int.to_string(file.idx))
-  |> string.replace(each: "VAR", with: type_.variant.name)
-  |> string.replace(each: "FIELDS", with:field_name_args_str)
+  case file.idx {
+    Some(idx) ->
+      "mIDX.VAR(FIELDS)"
+      |> string.replace(each: "IDX", with: int.to_string(idx))
+      |> string.replace(each: "VAR", with: type_.variant.name)
+      |> string.replace(each: "FIELDS", with:field_name_args_str)
+
+    None ->
+      "VAR(FIELDS)"
+      |> string.replace(each: "VAR", with: type_.variant.name)
+      |> string.replace(each: "FIELDS", with:field_name_args_str)
+  }
 }
 
 fn json_field_name(field: JsonField, field_opts: List(DerivFieldOpt)) -> String {

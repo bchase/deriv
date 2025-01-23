@@ -1,4 +1,5 @@
 import gleam/option.{type Option, Some, None}
+import gleam/function
 import gleeunit
 import gleeunit/should
 import gleam/string
@@ -39,13 +40,30 @@ pub type Bar {
   |> string.trim
 
  let output = "
-import deriv/example/foo as m1
 import decode.{type Decoder}
 import deriv/util
 import gleam/json.{type Json}
 import gleam/list
+import youid/uuid.{type Uuid}
 
-pub fn decoder_foo() -> Decoder(m1.Foo) {
+pub type Foo {
+  Foo(
+    uuid: Uuid,
+    id: Int, //$ json(named(int_id))
+    name: String,
+    active: Bool,
+    ratio: Float,
+    words: List(String),
+  )
+} //$ derive json(decode,encode)
+
+pub type Bar {
+  Bar(
+    baz: Bool,
+  )
+} //$ derive json(decode)
+
+pub fn decoder_foo() -> Decoder(Foo) {
   decode.into({
     use uuid <- decode.parameter
     use id <- decode.parameter
@@ -54,7 +72,7 @@ pub fn decoder_foo() -> Decoder(m1.Foo) {
     use ratio <- decode.parameter
     use words <- decode.parameter
 
-    m1.Foo(uuid:, id:, name:, active:, ratio:, words:)
+    Foo(uuid:, id:, name:, active:, ratio:, words:)
   })
   |> decode.field(\"uuid\", util.decoder_uuid())
   |> decode.field(\"int_id\", decode.int)
@@ -64,7 +82,7 @@ pub fn decoder_foo() -> Decoder(m1.Foo) {
   |> decode.field(\"words\", decode.list(decode.string))
 }
 
-pub fn encode_foo(value: m1.Foo) -> Json {
+pub fn encode_foo(value: Foo) -> Json {
   json.object([
     #(\"uuid\", util.encode_uuid(value.uuid)),
     #(\"int_id\", json.int(value.id)),
@@ -75,22 +93,36 @@ pub fn encode_foo(value: m1.Foo) -> Json {
   ])
 }
 
-pub fn decoder_bar() -> Decoder(m1.Bar) {
+pub fn decoder_bar() -> Decoder(Bar) {
   decode.into({
     use baz <- decode.parameter
 
-    m1.Bar(baz:)
+    Bar(baz:)
   })
   |> decode.field(\"baz\", decode.bool)
 }
   "
   |> string.trim
 
-  let files = [ File(module: "deriv/example/foo", src: input, idx: 1) ]
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
 
   let assert [write] =
     files
     |> deriv.gen_derivs
+    // |> function.tap(fn(x) {
+    //   io.debug(list.length(x))
+    // })
+    // |> io.debug
+    |> list.map(fn(x) {
+      // io.debug(x.meta)
+      // io.debug(x.src)
+      // case string.contains(x.src, "decoder_bar") {
+      //   True -> io.println(x.src)
+      //   False -> Nil
+      // }
+
+      x
+    })
     |> deriv.build_writes
 
   write.filepath
@@ -101,9 +133,11 @@ pub fn decoder_bar() -> Decoder(m1.Bar) {
 
   io.println("")
   io.println("")
+  io.println("GENERATED")
   io.println(write.src)
   io.println("")
   io.println("")
+  io.println("EXPECTED")
   io.println(output)
 
   write.src
@@ -124,37 +158,45 @@ pub type T {
   |> string.trim
 
  let output = "
-import deriv/example/mvar as m1
 import decode.{type Decoder}
 
-pub fn decoder_t() -> Decoder(m1.T) {
+pub type T {
+  Var1(
+    var1: String,
+  )
+  Var2(
+    var2: Int,
+  )
+} //$ derive json(decode)
+
+pub fn decoder_t() -> Decoder(T) {
   decode.one_of([
     decoder_t_var1(),
     decoder_t_var2(),
   ])
 }
 
-fn decoder_t_var1() -> Decoder(m1.T) {
+fn decoder_t_var1() -> Decoder(T) {
   decode.into({
     use var1 <- decode.parameter
 
-    m1.Var1(var1:)
+    Var1(var1:)
   })
   |> decode.field(\"var1\", decode.string)
 }
 
-fn decoder_t_var2() -> Decoder(m1.T) {
+fn decoder_t_var2() -> Decoder(T) {
   decode.into({
     use var2 <- decode.parameter
 
-    m1.Var2(var2:)
+    Var2(var2:)
   })
   |> decode.field(\"var2\", decode.int)
 }
   "
   |> string.trim
 
-  let files = [ File(module: "deriv/example/mvar", src: input, idx: 1) ]
+  let files = [ File(module: "deriv/example/mvar", src: input, idx: Some(1)) ]
 
   let assert [write] =
     files
@@ -166,9 +208,11 @@ fn decoder_t_var2() -> Decoder(m1.T) {
 
   io.println("")
   io.println("")
+  io.println("GENERATED")
   io.println(write.src)
   io.println("")
   io.println("")
+  io.println("EXPECTED")
   io.println(output)
 
   write.src
@@ -186,20 +230,25 @@ pub type Maybe {
   |> string.trim
 
  let output = "
-import deriv/example/maybe as m1
 import decode.{type Decoder}
 import gleam/json.{type Json}
 
-pub fn decoder_maybe() -> Decoder(m1.Maybe) {
+pub type Maybe {
+  Maybe(
+    name: Option(String),
+  )
+} //$ derive json(decode,encode)
+
+pub fn decoder_maybe() -> Decoder(Maybe) {
   decode.into({
     use name <- decode.parameter
 
-    m1.Maybe(name:)
+    Maybe(name:)
   })
   |> decode.field(\"name\", decode.optional(decode.string))
 }
 
-pub fn encode_maybe(value: m1.Maybe) -> Json {
+pub fn encode_maybe(value: Maybe) -> Json {
   json.object([
     #(\"name\", json.nullable(value.name, json.string)),
   ])
@@ -207,7 +256,7 @@ pub fn encode_maybe(value: m1.Maybe) -> Json {
   "
   |> string.trim
 
-  let files = [ File(module: "deriv/example/maybe", src: input, idx: 1) ]
+  let files = [ File(module: "deriv/example/maybe", src: input, idx: Some(1)) ]
 
   let assert [write] =
     files
@@ -222,9 +271,11 @@ pub fn encode_maybe(value: m1.Maybe) -> Json {
 
   io.println("")
   io.println("")
+  io.println("GENERATED")
   io.println(write.src)
   io.println("")
   io.println("")
+  io.println("EXPECTED")
   io.println(output)
 
   write.src
@@ -266,100 +317,6 @@ type Bar {
   let assert Ok(module) = glance.module(src)
 
   util.replace_function(module, src, func_name: "foo", func_src: new)
-  |> should.equal(expected)
-}
-
-pub fn rewrite_function_to_file_when_function_does_not_exist_test() {
-  let dir = "/tmp/gleam/deriv"
-  let filepath = dir <> "/rewrite_function_to_file_test.gleam"
-
-  let old_src = string.trim("
-import gleam/string
-
-type Bar {
-  Baz(
-    boo: String,
-  )
-}")
-
-  let new_foo_src = string.trim("
-fn other(changed: Int) -> Bool {
-  True
-}")
-
-  let expected = string.trim("
-import gleam/string
-
-type Bar {
-  Baz(
-    boo: String,
-  )
-}
-
-fn other(changed: Int) -> Bool {
-  True
-}")
-
-
-  let assert Ok(_) = simplifile.create_directory_all("/tmp/gleam/deriv")
-  let _ = simplifile.delete(filepath)
-  let assert Ok(_) = simplifile.write(filepath, old_src)
-
-  let assert Ok(_) = util.rewrite_functions_to_file(filepath, [#("foo", new_foo_src)])
-
-  let assert Ok(new_src) = simplifile.read(filepath)
-  let _ = simplifile.delete(filepath)
-
-  new_src
-  |> should.equal(expected)
-}
-
-pub fn rewrite_function_to_file_when_function_exists_test() {
-  let dir = "/tmp/gleam/deriv"
-  let filepath = dir <> "/rewrite_function_to_file_test.gleam"
-
-  let old_src = string.trim("
-import gleam/string
-
-fn foo(str: String) -> String {
-  str
-}
-
-type Bar {
-  Baz(
-    boo: String,
-  )
-}")
-
-  let new_foo_src = string.trim("
-fn other(changed: Int) -> Bool {
-  True
-}")
-
-  let expected = string.trim("
-import gleam/string
-
-fn other(changed: Int) -> Bool {
-  True
-}
-
-type Bar {
-  Baz(
-    boo: String,
-  )
-}")
-
-
-  let assert Ok(_) = simplifile.create_directory_all("/tmp/gleam/deriv")
-  let _ = simplifile.delete(filepath)
-  let assert Ok(_) = simplifile.write(filepath, old_src)
-
-  let assert Ok(_) = util.rewrite_functions_to_file(filepath, [#("foo", new_foo_src)])
-
-  let assert Ok(new_src) = simplifile.read(filepath)
-  let _ = simplifile.delete(filepath)
-
-  new_src
   |> should.equal(expected)
 }
 
@@ -484,96 +441,100 @@ type Bar {
   |> should.equal(expected_src)
 }
 
-// fn consolidate_imports_for(src: String, imports: List(Import)) -> String {
-//   let assert Ok(module) = glance.module(src)
-
-//   module.imports
-//   |> list.map(to_deriv_imports)
-//   |> consolidate_imports(imports)
-
-//   todo
-// }
-
-// fn consolidate_imports(i1: List(Import), i2: List(Import)) -> List(Import) {
-//   todo
-// }
-
-// fn to_deriv_imports(i: glance.Definition(glance.Import)) -> Import {
-//   // glance.Import(
-//   //   module: "",
-//   //   alias: None,
-//   //   unqualified_types: [],
-//   //   unqualified_values: [],
-//   // )
-
-//   let types =
-//     i.definition.unqualified_types
-//     |> list.map(fn(t) {
-//       ImportV(name: t.name, alias: t.alias)
-//     })
-
-//   let funcs =
-//     i.definition.unqualified_values
-//     |> list.map(fn(t) {
-//       ImportV(name: t.name, alias: t.alias)
-//     })
-
-//   let alias =
-//     case i.definition.alias {
-//       Some(glance.Named(str)) -> Some(str)
-//       Some(glance.Discarded(str)) -> Some("_" <> str)
-//       None -> None
-//     }
-
-//   Import(
-//     module: i.definition.module,
-//     types: types,
-//     funcs: funcs,
-//     alias: alias,
-//   )
-// }
-
-// fn add_import_test() {
-//   let old_src = string.trim("")
-//   let new_src = string.trim("")
-//   let expected = string.trim("")
-
-//   expected
-//   |> should.equal(new_src)
-// }
-
-// fn prepend_import_to_file_test() {
-// }
-
-// fn add_import(full_src: String, import_: Import) -> String {
-// }
-
-// fn add_import(full_src: String, import_: Import) -> String {
-//   let assert Ok(module) = glance.module(full_src)
-
-//   // let assert Ok(span) =
-//   //   module.functions
-//   //   |> list.find_map(fn(f) {
-//   //     case f.definition.name == func_name {
-//   //       False -> Error(Nil)
-//   //       True -> Ok(f.definition.location)
-//   //     }
-//   //   })
-
-//   // let eof = string.byte_size(full_src) - 1
-
-//   // let before = string.slice(full_src, 0, span.start - 1)
-//   // let after = string.slice(full_src, span.end + 1, eof)
-
-//   // [
-//   //   before,
-//   //   func_src,
-//   //   after,
-//   // ]
-//   // |> string.join("\n")
-//   todo
-// }
-
 pub fn stop_warning() { io.debug("stop") }
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
+
+// pub fn rewrite_function_to_file_when_function_does_not_exist_test() {
+//   let dir = "/tmp/gleam/deriv"
+//   let filepath = dir <> "/rewrite_function_to_file_test.gleam"
+
+//   let old_src = string.trim("
+// import gleam/string
+
+// type Bar {
+//   Baz(
+//     boo: String,
+//   )
+// }")
+
+//   let new_foo_src = string.trim("
+// fn other(changed: Int) -> Bool {
+//   True
+// }")
+
+//   let expected = string.trim("
+// import gleam/string
+
+// type Bar {
+//   Baz(
+//     boo: String,
+//   )
+// }
+
+// fn other(changed: Int) -> Bool {
+//   True
+// }")
+
+
+//   let assert Ok(_) = simplifile.create_directory_all("/tmp/gleam/deriv")
+//   let _ = simplifile.delete(filepath)
+//   let assert Ok(_) = simplifile.write(filepath, old_src)
+
+//   let assert Ok(_) = util.rewrite_functions_to_file(filepath, [#("foo", new_foo_src)])
+
+//   let assert Ok(new_src) = simplifile.read(filepath)
+//   let _ = simplifile.delete(filepath)
+
+//   new_src
+//   |> should.equal(expected)
+// }
+
+// pub fn rewrite_function_to_file_when_function_exists_test() {
+//   let dir = "/tmp/gleam/deriv"
+//   let filepath = dir <> "/rewrite_function_to_file_test.gleam"
+
+//   let old_src = string.trim("
+// import gleam/string
+
+// fn foo(str: String) -> String {
+//   str
+// }
+
+// type Bar {
+//   Baz(
+//     boo: String,
+//   )
+// }")
+
+//   let new_foo_src = string.trim("
+// fn other(changed: Int) -> Bool {
+//   True
+// }")
+
+//   let expected = string.trim("
+// import gleam/string
+
+// fn other(changed: Int) -> Bool {
+//   True
+// }
+
+// type Bar {
+//   Baz(
+//     boo: String,
+//   )
+// }")
+
+
+//   let assert Ok(_) = simplifile.create_directory_all("/tmp/gleam/deriv")
+//   let _ = simplifile.delete(filepath)
+//   let assert Ok(_) = simplifile.write(filepath, old_src)
+
+//   let assert Ok(_) = util.rewrite_functions_to_file(filepath, [#("foo", new_foo_src)])
+
+//   let assert Ok(new_src) = simplifile.read(filepath)
+//   let _ = simplifile.delete(filepath)
+
+//   new_src
+//   |> should.equal(expected)
+// }

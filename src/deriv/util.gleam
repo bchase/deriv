@@ -145,29 +145,17 @@ pub fn replace_function(module: glance.Module, full_src: String, func_name func_
   |> string.join("\n")
 }
 
-pub fn rewrite_functions_to_file(filepath: String, funcs: List(#(String, String))) -> Result(Nil, Nil) {
-  use old_src <- then(simplifile.read(filepath))
+pub fn update_funcs(init_src: String, funcs: List(#(String, String))) -> String {
+  let assert Ok(module) = glance.module(init_src)
 
-  let assert Ok(module) = glance.module(old_src)
+  list.fold(funcs, init_src, fn(src, func) {
+    let #(func_name, func_src) = func
 
-  list.each(funcs, fn(x) {
-    let #(func_name, func_src) = x
-
-    let new_src =
-    case string.contains(old_src, "fn " <> func_name) {
-      True -> replace_function(module, old_src, func_name:, func_src:)
-      False ->
-        [
-          old_src,
-          func_src,
-        ]
-        |> string.join("\n\n")
+    case string.contains(src, "fn " <> func_name) {
+      True -> replace_function(module, src, func_name:, func_src:)
+      False -> src <> "\n\n" <> func_src
     }
-
-    simplifile.write(filepath, new_src)
   })
-
-  Ok(Nil)
 }
 
 pub fn then(
@@ -185,3 +173,28 @@ fn log_and_discard_error(err: err) -> Nil {
   io.debug(err)
   Nil
 }
+
+// pub fn rewrite_functions_to_file(filepath: String, funcs: List(#(String, String))) -> Result(Nil, Nil) {
+//   use old_src <- then(simplifile.read(filepath))
+
+//   let assert Ok(module) = glance.module(old_src)
+
+//   list.each(funcs, fn(x) {
+//     let #(func_name, func_src) = x
+
+//     let new_src =
+//     case string.contains(old_src, "fn " <> func_name) {
+//       True -> replace_function(module, old_src, func_name:, func_src:)
+//       False ->
+//         [
+//           old_src,
+//           func_src,
+//         ]
+//         |> string.join("\n\n")
+//     }
+
+//     simplifile.write(filepath, new_src)
+//   })
+
+//   Ok(Nil)
+// }
