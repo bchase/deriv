@@ -696,12 +696,14 @@ fn dummy_location() -> Span {
   Span(-1, -1)
 }
 
+pub fn decoder_func(
+  type_ type_: String,
+  variant variant: Option(String),
+  constr constr: String,
+) -> Definition(Function) {
+  let snake_case = util.snake_case(type_ <> option.unwrap(variant, ""))
 
-pub fn decoder_func() -> Definition(Function) {
-  let type_ = "Foo"
-  let constr = "Foo"
-
-  let name = "decoder_foo"
+  let name = "decoder_" <> snake_case
 
   let parameters: List(glance.FunctionParameter) = []
   let return: Option(Type) = Some(NamedType("Decoder", None, [NamedType(type_, None, [])]))

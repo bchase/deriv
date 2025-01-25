@@ -729,7 +729,7 @@ pub fn decoder_bar() -> Decoder(Bar) {
 
   // let assert Ok(dec) = x.functions |> list.find(fn(f) { f.definition.name == "decoder_foo" })
   // let dec = Function(..dec.definition, location: Span(-1, -1))
-  let gen = deriv_json.decoder_func()
+  let gen = deriv_json.decoder_func(type_: "Foo", variant: None, constr: "Foo")
   let gen_src =
     glance_printer.print(glance.Module([], [], [], [], [gen]))
     |> string.replace(each: "\"", with: "\\\"")
