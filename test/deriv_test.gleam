@@ -9,7 +9,8 @@ import deriv
 import deriv/util
 import gleam/io
 
-import glance.{Import, UnqualifiedImport, Named}
+import deriv/json as deriv_json
+import glance.{Import, UnqualifiedImport, Named, Span, Function}
 import gleam/list
 
 pub fn main() {
@@ -621,3 +622,137 @@ pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 //   new_src
 //   |> should.equal(expected)
 // }
+
+pub fn ast_test() {
+  let input = "
+import youid/uuid.{type Uuid}
+
+pub type Foo {
+  Foo(
+    uuid: Uuid,
+    id: Int, //$ json(named(int_id))
+    name: String,
+    active: Bool,
+    ratio: Float,
+    words: List(String),
+  )
+} //$ derive json(decode,encode)
+
+pub type Bar {
+  Bar(
+    baz: Bool,
+  )
+} //$ derive json(decode)
+  "
+  |> string.trim
+
+ let output = "
+import decode.{type Decoder}
+import deriv/util
+import gleam/json.{type Json}
+import gleam/list
+import youid/uuid.{type Uuid}
+
+pub type Foo {
+  Foo(
+    uuid: Uuid,
+    id: Int, //$ json(named(int_id))
+    name: String,
+    active: Bool,
+    ratio: Float,
+    words: List(String),
+  )
+} //$ derive json(decode,encode)
+
+pub type Bar {
+  Bar(
+    baz: Bool,
+  )
+} //$ derive json(decode)
+
+pub fn decoder_foo() -> Decoder(Foo) {
+  decode.into({
+    use uuid <- decode.parameter
+    use id <- decode.parameter
+    use name <- decode.parameter
+    use active <- decode.parameter
+    use ratio <- decode.parameter
+    use words <- decode.parameter
+
+    Foo(uuid:, id:, name:, active:, ratio:, words:)
+  })
+  |> decode.field(\"uuid\", util.decoder_uuid())
+  |> decode.field(\"int_id\", decode.int)
+  |> decode.field(\"name\", decode.string)
+  |> decode.field(\"active\", decode.bool)
+  |> decode.field(\"ratio\", decode.float)
+  |> decode.field(\"words\", decode.list(decode.string))
+}
+
+pub fn encode_foo(value: Foo) -> Json {
+  json.object([
+    #(\"uuid\", util.encode_uuid(value.uuid)),
+    #(\"int_id\", json.int(value.id)),
+    #(\"name\", json.string(value.name)),
+    #(\"active\", json.bool(value.active)),
+    #(\"ratio\", json.float(value.ratio)),
+    #(\"words\", json.preprocessed_array(list.map(value.words, json.string))),
+  ])
+}
+
+pub fn decoder_bar() -> Decoder(Bar) {
+  decode.into({
+    use baz <- decode.parameter
+
+    Bar(baz:)
+  })
+  |> decode.field(\"baz\", decode.bool)
+}
+  "
+  |> string.trim
+
+  let assert Ok(x) = glance.module(output)
+  io.debug(x)
+
+  let assert Ok(enc) = x.functions |> list.find(fn(f) { f.definition.name == "encode_foo" })
+  let enc = Function(..enc.definition, location: Span(-1, -1))
+  let gen = deriv_json.encode_func()
+  gen.definition |> should.equal(enc)
+
+  let assert Ok(dec) = x.functions |> list.find(fn(f) { f.definition.name == "decoder_foo" })
+  let dec = Function(..dec.definition, location: Span(-1, -1))
+  let gen = deriv_json.decoder_func()
+  gen.definition |> should.equal(dec)
+
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs
+    |> deriv.build_writes
+
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs
+    |> deriv.build_writes
+
+  // io.println(output)
+  // io.println(write.src)
+
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
+
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
+
+  write.src
+  |> should.equal(output)
+}

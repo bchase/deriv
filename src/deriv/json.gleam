@@ -5,8 +5,8 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
-import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType, type Import, Import, UnqualifiedImport}
-import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type Function, Function}
+import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Module, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type}
+import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen} as deriv
 import deriv/util
 
 pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> Gen {
@@ -181,7 +181,7 @@ type JsonField {
   )
 }
 
-fn gen_json_decoders(type_: CustomType, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(Function) {
+fn gen_json_decoders(type_: CustomType, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(deriv.Function) {
   to_json_types(type_)
   |> list.map(decoder_func_src(_, field_opts, file))
 }
@@ -197,7 +197,7 @@ fn encode_func_for_basic_type(type_: String) -> Result(String, Nil) {
   }
 }
 
-fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(Function) {
+fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(deriv.Function) {
   type_
   |> to_json_types
   |> list.map(fn(jt) {
@@ -272,7 +272,7 @@ fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivF
       "}",
     ]
     |> string.join("\n")
-    |> Function(name: func_name, src: _)
+    |> deriv.Function(name: func_name, src: _)
   })
 }
 
@@ -360,7 +360,7 @@ fn type_variant_snake_case_without_type(type_: JsonType) -> String {
   util.snake_case(type_.variant.name)
 }
 
-fn decoder_func_src(type_: JsonType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> Function {
+fn decoder_func_src(type_: JsonType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> deriv.Function {
   let func_name = decoder_func_name(type_)
 
   case type_.type_.variants {
@@ -384,14 +384,14 @@ fn decoder_func_src(type_: JsonType, all_field_opts: Dict(String, List(DerivFiel
         file,
       )
   }
-  |> Function(name: func_name, src: _)
+  |> deriv.Function(name: func_name, src: _)
 }
 
 fn decoder_func_for_multi_variant_type(
   type_: CustomType,
   _all_field_opts: Dict(String, List(DerivFieldOpt)),
   file: File,
-) -> Function {
+) -> deriv.Function {
   let type_snake_case = util.snake_case(type_.name)
 
   let qualified_type = qualified_type(type_, file)
@@ -419,7 +419,7 @@ fn decoder_func_for_multi_variant_type(
     ]
     |> string.join("\n")
 
-  Function(name: func_name, src:)
+  deriv.Function(name: func_name, src:)
 }
 
 type DecodeLines {
@@ -601,3 +601,169 @@ fn decoder_line(field_type: String) -> String {
 }
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
+
+
+pub fn encode_func() -> Definition(Function) {
+  let input_type = "Foo"
+
+  let name = "encode_foo"
+
+  let parameters = [FunctionParameter(None, Named("value"), Some(NamedType(input_type, None, [])))]
+  let return = Some(NamedType("Json", None, []))
+
+  let body = [
+    Expression(
+      Call(
+        function: FieldAccess(Variable("json"), "object"),
+        arguments: [
+          UnlabelledField(
+            List(
+              [
+                Tuple([
+                  String("uuid"),
+                  Call(
+                    function: FieldAccess(container: Variable("util"), label: "encode_uuid"),
+                    arguments: [UnlabelledField(FieldAccess(Variable("value"), "uuid"))],
+                  )
+                ]),
+
+                Tuple([
+                  String("int_id"),
+                  Call(
+                    function: FieldAccess(Variable("json"), "int"),
+                    arguments: [UnlabelledField(FieldAccess(Variable("value"), "id"))]
+                  ),
+                ]),
+
+                Tuple([
+                  String("name"),
+                  Call(
+                    function: FieldAccess(Variable("json"), "string"),
+                    arguments: [UnlabelledField(FieldAccess(Variable("value"), "name"))]
+                  )
+                ]),
+
+                Tuple([
+                  String("active"),
+                  Call(
+                    function: FieldAccess(Variable("json"), "bool"),
+                    arguments: [UnlabelledField(FieldAccess(Variable("value"), "active"))]
+                   )
+                ]),
+
+                Tuple([
+                  String("ratio"),
+                  Call(
+                    function: FieldAccess(Variable("json"), "float"),
+                    arguments: [UnlabelledField(FieldAccess(Variable("value"), "ratio"))]
+                  )
+                ]),
+
+                Tuple([
+                  String("words"),
+                  Call(
+                    function: FieldAccess(Variable("json"), "preprocessed_array"),
+                    arguments: [
+                    UnlabelledField(Call(FieldAccess(Variable("list"), "map"),
+                      [
+                        UnlabelledField(FieldAccess(Variable("value"), "words")),
+                        UnlabelledField(FieldAccess(Variable("json"), "string")),
+                      ]))
+                    ]
+                  )
+                ])
+              ], None
+            )
+          )
+        ]
+      )
+    )
+  ]
+
+  Definition([],
+    Function(
+      location: dummy_location(),
+      publicity: Public,
+      name:,
+      parameters:,
+      return:,
+      body:,
+    )
+  )
+}
+
+fn dummy_location() -> Span {
+  Span(-1, -1)
+}
+
+
+pub fn decoder_func() -> Definition(Function) {
+  let type_ = "Foo"
+
+  let name = "decoder_foo"
+
+  let parameters: List(glance.FunctionParameter) = []
+  let return: Option(Type) = Some(NamedType("Decoder", None, [NamedType(type_, None, [])]))
+
+  let decode_into_call: Expression =
+    Call(FieldAccess(Variable("decode"), "into"), [UnlabelledField(
+      Block([
+        Use([PatternVariable("uuid")], FieldAccess(Variable("decode"), "parameter")),
+        Use([PatternVariable("id")], FieldAccess(Variable("decode"), "parameter")),
+        Use([PatternVariable("name")], FieldAccess(Variable("decode"), "parameter")),
+        Use([PatternVariable("active")], FieldAccess(Variable("decode"), "parameter")),
+        Use([PatternVariable("ratio")], FieldAccess(Variable("decode"), "parameter")),
+        Use([PatternVariable("words")], FieldAccess(Variable("decode"), "parameter")),
+        Expression(Call(
+          function: Variable("Foo"),
+          arguments: [
+            ShorthandField("uuid"),
+            ShorthandField("id"),
+            ShorthandField("name"),
+            ShorthandField("active"),
+            ShorthandField("ratio"),
+            ShorthandField("words"),
+          ]
+        ))
+      ])
+    )])
+
+  let pipe_exprs: List(#(String, Expression)) =
+    [
+      #("uuid", Call(FieldAccess(Variable("util"), "decoder_uuid"), [])),
+      #("int_id", FieldAccess(Variable("decode"), "int")),
+      #("name", FieldAccess(Variable("decode"), "string")),
+      #("active", FieldAccess(Variable("decode"), "bool")),
+      #("ratio", FieldAccess(Variable("decode"), "float")),
+      #("words", Call(FieldAccess(Variable("decode"), "list"), [UnlabelledField(FieldAccess(Variable("decode"), "string"))])),
+
+      // TODO optional/nullable
+    ]
+
+  let body: List(Statement) =
+    list.fold(pipe_exprs, decode_into_call, fn(acc, x) {
+      let #(field, expr) = x
+
+      let call = Call(FieldAccess(Variable("decode"), "field"), [UnlabelledField(String(field)), UnlabelledField(expr)])
+
+      BinaryOperator(Pipe, acc, call)
+    })
+    |> fn(expr) { [Expression(expr)] }
+
+  Definition([],
+    Function(
+      location: dummy_location(),
+      publicity: Public,
+      name:,
+      parameters:,
+      return:,
+      body:,
+    )
+  )
+}
+
+pub fn foo() {
+  Module([], [], [], [], [
+  // funcs
+  ])
+}
