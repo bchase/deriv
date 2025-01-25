@@ -14,8 +14,8 @@ pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(D
 
   let gen_funcs_for_opts =
     [
-      // #("decode", gen_json_decoders),
-      // #("encode", gen_json_encoders),
+      #("decode", gen_json_decoders),
+      #("encode", gen_json_encoders),
     ]
     |> dict.from_list
 
@@ -183,104 +183,78 @@ type JsonType {
 //   )
 // }
 
-// fn gen_json_decoders(type_: CustomType, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(deriv.Function) {
-//   to_json_types(type_)
-//   |> list.map(decoder_func_src(_, field_opts, file))
-// }
+fn gen_json_decoders(type_: CustomType, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(deriv.Function) {
+  // to_json_types(type_)
+  // |> list.map(type_, decoder_func_src(_, field_opts, file))
+  decoder_func_src(type_, field_opts, file)
+}
 
-fn encode_func_for_basic_type(type_: String) -> Result(String, Nil) {
-  case type_ {
-    "Int" -> Ok("json.int")
-    "Float" -> Ok("json.float")
-    "String" -> Ok("json.string")
-    "Bool" -> Ok("json.bool")
-    "Uuid" -> Ok("util.encode_uuid")
-    _ -> Error(Nil)
+fn encode_func_str(type_: JType) -> String {
+  case type_.name, type_.parameters {
+    "Int", [] -> "json.int"
+    "Float", [] -> "json.float"
+    "String", [] -> "json.string"
+    "Bool", [] -> "json.bool"
+    "Uuid", [] -> "util.encode_uuid"
+    "Option", [param] -> {
+      let func = encode_func_str(JType(param.name, None, []))
+      "json.nullable(value.GLEAM, FUNC)"
+      |> string.replace(each: "FUNC", with: func)
+    }
+    "List", [param] -> {
+      let func = encode_func_str(JType(param.name, None, []))
+      "json.preprocessed_array(list.map(value.GLEAM, FUNC))"
+      |> string.replace(each: "FUNC", with: func)
+    }
+    type_name, [] ->
+      "encode_" <> util.snake_case(type_name) <> "(value.GLEAM)"
+    _, _ -> {
+      io.debug(type_)
+      panic as "Not yet implemented for type printed above"
+    }
   }
 }
 
-// fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(deriv.Function) {
-//   type_
-//   |> to_json_types
-//   |> list.map(fn(jt) {
-//     let encode_lines =
-//       jt.fields
-//       |> list.map(fn(f) {
-//         let field_opts =
-//           todo
-//           // all_field_opts
-//           // |> dict.get(f.name)
-//           // |> result.unwrap([])
+fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(deriv.Function) {
+  type_.variants
+  |> list.map(fn(variant) {
+    let encode_lines =
+      variant.fields
+      |> list.map(fn(f) {
+        let field = variant_field(f)
 
-//         let json_field_name = json_field_name(f, field_opts)
+        let field_opts =
+          all_field_opts
+          |> dict.get(field.name)
+          |> result.unwrap([])
 
-//         let encode_func =
-//           // f.type_
-//           todo
-//           |> encode_func_for_basic_type
-//           |> result.map(fn(func) { func <> "(value.GLEAM)" })
-//           |> result.map_error(fn(_) {
-//             // case f.type_ {
-//             case todo {
-//               "Option "<> type_ ->
-//                 case encode_func_for_basic_type(type_) {
-//                   Ok(func) ->
-//                     "json.nullable(value.GLEAM, FUNC)"
-//                     |> string.replace(each: "FUNC", with: func)
+        let json_field_name = json_field_name(field, field_opts)
 
-//                   Error(Nil) -> {
-//                     panic as "not fully implemented (call FUNC with VALUE)"
+        let ftype = jtype(field.type_)
 
-//                     // let func = util.snake_case(type_)
+        let encode_func = encode_func_str(ftype)
 
-//                     // "json.nullable(value.GLEAM, FUNC)"
-//                     // |> string.replace(each: "FUNC", with: func)
-//                   }
-//                 }
+        "#(\"JSON\", FUNC),"
+        |> string.replace(each: "JSON", with: json_field_name)
+        |> string.replace(each: "FUNC", with: encode_func)
+        |> string.replace(each: "GLEAM", with: field.name)
+      })
 
-//               "List "<> type_ ->
-//                 case encode_func_for_basic_type(type_) {
-//                   Ok(func) ->
-//                     "json.preprocessed_array(list.map(value.GLEAM, FUNC))"
-//                     |> string.replace(each: "FUNC", with: func)
+    let func_name = "encode_" <> util.snake_case(type_.name)
 
-//                   Error(Nil) -> {
-//                     panic as "not fully implemented (call FUNC with VALUE)"
+    let qualified_type = qualified_type(type_, file)
 
-//                     // let func = util.snake_case(type_)
-
-//                     // "json.preprocessed_array(list.map(value.GLEAM, FUNC))"
-//                     // |> string.replace(each: "FUNC", with: func)
-//                   }
-//                 }
-
-//               type_ -> "encode_" <> util.snake_case(type_) <> "(value.GLEAM)"
-//             }
-//           })
-//           |> result.unwrap_both
-
-//         "#(\"JSON\", FUNC),"
-//         |> string.replace(each: "JSON", with: json_field_name)
-//         |> string.replace(each: "FUNC", with: encode_func)
-//         // |> string.replace(each: "GLEAM", with: f.name)
-//         |> string.replace(each: "GLEAM", with: todo)
-//       })
-
-//     let func_name = "encode_" <> util.snake_case(type_.name)
-
-//     let qualified_type = qualified_type(type_, file)
-
-//     [
-//       "pub fn " <> func_name <> "(value: " <> qualified_type <> ") -> Json {",
-//       "  json.object([",
-//            encode_lines |> list.map(util.indent(_, level: 2)) |> string.join("\n"),
-//       "  ])",
-//       "}",
-//     ]
-//     |> string.join("\n")
-//     |> deriv.Function(name: func_name, src: _)
-//   })
-// }
+    [
+      "pub fn " <> func_name <> "(value: " <> qualified_type <> ") -> Json {",
+      "  json.object([",
+           encode_lines |> list.map(util.indent(_, level: 2)) |> string.join("\n"),
+      "  ])",
+      "}",
+    ]
+    |> string.join("\n")
+    |> deriv.Function(name: func_name, src: _)
+  })
+}
 
 // fn to_json_field(field: VariantField) -> Result(JsonField, VariantField) {
 //   case field {
@@ -442,11 +416,11 @@ fn decode_lines_for_fields(
 ) -> DecodeLines {
   variant.fields
   |> list.map(fn(field) {
-    let vfield = variant_field(field)
+    let field = variant_field(field)
 
     let field_opts =
       all_field_opts
-      |> dict.get(vfield.name)
+      |> dict.get(field.name)
       |> result.unwrap([])
 
     let json_field_name = json_field_name(field, field_opts)
@@ -463,14 +437,11 @@ fn decode_lines_for_fields(
   }
 }
 
-fn decode_line_param(field: VariantField) -> String {
-  let field = variant_field(field)
-
+fn decode_line_param(field: VarField) -> String {
   "use NAME <- decode.parameter"
   |> string.replace(each: "NAME", with: field.name)
 }
-fn decode_line_field(field: VariantField, json_name: String) -> String {
-  let field = variant_field(field)
+fn decode_line_field(field: VarField, json_name: String) -> String {
   let type_ = jtype(field.type_)
   let decoder = decoder_line(type_.name)
 
@@ -589,11 +560,11 @@ fn decode_success_line(variant: Variant, file: File) -> String {
   }
 }
 
-fn json_field_name(field: VariantField, field_opts: List(DerivFieldOpt)) -> String {
+fn json_field_name(field: VarField, field_opts: List(DerivFieldOpt)) -> String {
   field_opts
   |> list.find(fn(f) { f.deriv == "json" && f.key == "named" })
   |> fn(x) {
-    case x, variant_field(field) {
+    case x, field {
       Ok(field_opt), _ -> field_opt.val
       Error(_), field -> field.name
     }
