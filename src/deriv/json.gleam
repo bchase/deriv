@@ -699,52 +699,57 @@ fn dummy_location() -> Span {
 
 pub fn decoder_func() -> Definition(Function) {
   let type_ = "Foo"
+  let constr = "Foo"
 
   let name = "decoder_foo"
 
   let parameters: List(glance.FunctionParameter) = []
   let return: Option(Type) = Some(NamedType("Decoder", None, [NamedType(type_, None, [])]))
 
-  let decode_into_call: Expression =
-    Call(FieldAccess(Variable("decode"), "into"), [UnlabelledField(
-      Block([
-        Use([PatternVariable("uuid")], FieldAccess(Variable("decode"), "parameter")),
-        Use([PatternVariable("id")], FieldAccess(Variable("decode"), "parameter")),
-        Use([PatternVariable("name")], FieldAccess(Variable("decode"), "parameter")),
-        Use([PatternVariable("active")], FieldAccess(Variable("decode"), "parameter")),
-        Use([PatternVariable("ratio")], FieldAccess(Variable("decode"), "parameter")),
-        Use([PatternVariable("words")], FieldAccess(Variable("decode"), "parameter")),
-        Expression(Call(
-          function: Variable("Foo"),
-          arguments: [
-            ShorthandField("uuid"),
-            ShorthandField("id"),
-            ShorthandField("name"),
-            ShorthandField("active"),
-            ShorthandField("ratio"),
-            ShorthandField("words"),
-          ]
-        ))
-      ])
-    )])
-
-  let pipe_exprs: List(#(String, Expression)) =
+  let pipe_exprs: List(#(String, Option(String), Expression)) =
     [
-      #("uuid", Call(FieldAccess(Variable("util"), "decoder_uuid"), [])),
-      #("int_id", FieldAccess(Variable("decode"), "int")),
-      #("name", FieldAccess(Variable("decode"), "string")),
-      #("active", FieldAccess(Variable("decode"), "bool")),
-      #("ratio", FieldAccess(Variable("decode"), "float")),
-      #("words", Call(FieldAccess(Variable("decode"), "list"), [UnlabelledField(FieldAccess(Variable("decode"), "string"))])),
+      #("uuid", None, Call(FieldAccess(Variable("util"), "decoder_uuid"), [])),
+      #("id", Some("int_id"), FieldAccess(Variable("decode"), "int")),
+      #("name", None, FieldAccess(Variable("decode"), "string")),
+      #("active", None, FieldAccess(Variable("decode"), "bool")),
+      #("ratio", None, FieldAccess(Variable("decode"), "float")),
+      #("words", None, Call(FieldAccess(Variable("decode"), "list"), [UnlabelledField(FieldAccess(Variable("decode"), "string"))])),
 
       // TODO optional/nullable
     ]
 
+  let fields =
+    pipe_exprs
+    |> list.map(fn(x) {
+      let #(field, _, _) = x
+      field
+    })
+
+  let use_exprs =
+    fields
+    |> list.map(fn(field) {
+      Use([PatternVariable(field)], FieldAccess(Variable("decode"), "parameter"))
+    })
+
+  let constr_args = fields |> list.map(ShorthandField)
+
+  let decode_into_call: Expression =
+    Call(FieldAccess(Variable("decode"), "into"), [UnlabelledField(
+      Block(use_exprs |> list.append([
+        Expression(Call(
+          function: Variable(constr),
+          arguments: constr_args,
+        ))
+      ]))
+    )])
+
   let body: List(Statement) =
     list.fold(pipe_exprs, decode_into_call, fn(acc, x) {
-      let #(field, expr) = x
+      let #(field, json_field, expr) = x
 
-      let call = Call(FieldAccess(Variable("decode"), "field"), [UnlabelledField(String(field)), UnlabelledField(expr)])
+      let json_field = json_field |> option.unwrap(field)
+
+      let call = Call(FieldAccess(Variable("decode"), "field"), [UnlabelledField(String(json_field)), UnlabelledField(expr)])
 
       BinaryOperator(Pipe, acc, call)
     })
