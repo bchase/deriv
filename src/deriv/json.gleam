@@ -168,50 +168,43 @@ fn uses_list(type_: CustomType) -> Bool {
   })
 }
 
-type JsonType {
-  JsonType(
-    type_: CustomType,
-    variant: Variant,
-    fields: List(VariantField),
-  )
-}
-
-// type JsonField {
-//   JsonField(
-//     name: String,
-//     type_: VariantField,
-//   )
-// }
 
 fn gen_json_decoders(type_: CustomType, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(deriv.Function) {
-  // to_json_types(type_)
-  // |> list.map(type_, decoder_func_src(_, field_opts, file))
   decoder_func_src(type_, field_opts, file)
 }
 
 fn encode_func_str(type_: JType) -> String {
-  case type_.name, type_.parameters {
-    "Int", [] -> "json.int"
-    "Float", [] -> "json.float"
-    "String", [] -> "json.string"
-    "Bool", [] -> "json.bool"
-    "Uuid", [] -> "util.encode_uuid"
-    "Option", [param] -> {
-      let func = encode_func_str(JType(param.name, None, []))
-      "json.nullable(value.GLEAM, FUNC)"
-      |> string.replace(each: "FUNC", with: func)
+  encode_func_str_(type_, call_with_value: True)
+}
+fn encode_func_str_(type_: JType, call_with_value call_with_value: Bool) -> String {
+  let src =
+    case type_.name, type_.parameters {
+      "Int", [] -> "json.int"
+      "Float", [] -> "json.float"
+      "String", [] -> "json.string"
+      "Bool", [] -> "json.bool"
+      "Uuid", [] -> "util.encode_uuid"
+      "Option", [param] -> {
+        let func = encode_func_str_(JType(param.name, None, []), call_with_value: False)
+        "json.nullable(value.GLEAM, FUNC)"
+        |> string.replace(each: "FUNC", with: func)
+      }
+      "List", [param] -> {
+        let func = encode_func_str_(JType(param.name, None, []), call_with_value: False)
+        "json.preprocessed_array(list.map(value.GLEAM, FUNC))"
+        |> string.replace(each: "FUNC", with: func)
+      }
+      type_name, [] ->
+        "encode_" <> util.snake_case(type_name) <> "(value.GLEAM)"
+      _, _ -> {
+        io.debug(type_)
+        panic as "Not yet implemented for type printed above"
+      }
     }
-    "List", [param] -> {
-      let func = encode_func_str(JType(param.name, None, []))
-      "json.preprocessed_array(list.map(value.GLEAM, FUNC))"
-      |> string.replace(each: "FUNC", with: func)
-    }
-    type_name, [] ->
-      "encode_" <> util.snake_case(type_name) <> "(value.GLEAM)"
-    _, _ -> {
-      io.debug(type_)
-      panic as "Not yet implemented for type printed above"
-    }
+
+  case call_with_value && !string.contains(src, "GLEAM") {
+    True -> src <> "(value.GLEAM)"
+    False -> src
   }
 }
 
@@ -289,53 +282,30 @@ fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivF
 //   }
 // }
 
-fn to_json_types(type_: CustomType) -> List(JsonType) {
-  type_.variants
-  |> list.map(to_json_type(type_, _))
+fn decoder_func_name(type_: CustomType, variant: Variant) -> String {
+  "decoder_" <> type_variant_snake_case(type_, variant)
 }
 
-fn to_json_type(type_: CustomType, variant: Variant) -> JsonType {
-  // let xs = list.map(variant.fields, to_json_field)
-  // case result.all(variant.fields) {
-  case todo {
-    Ok(fields) ->
-      JsonType(type_:, variant:, fields:)
-
-    Error(field) -> {
-      io.debug(field)
-      panic as "Could not process the above field"
-    }
-  }
-}
-
-fn decoder_func_name(type_: CustomType) -> String {
-  "decoder_" <> type_variant_snake_case(type_)
-}
-
-fn type_variant_snake_case(type_: CustomType) -> String {
+fn type_variant_snake_case(type_: CustomType, variant: Variant) -> String {
   case type_.variants {
     [] ->
       panic as "`CustomType` has no `variants`"
 
-    [invariant] ->
-      case invariant.name == type_.name {
-        True -> util.snake_case(invariant.name)
-        False -> util.snake_case(type_.name) <> "_" <> util.snake_case(invariant.name)
-      }
+    [_invariant] ->
+      util.snake_case(variant.name)
 
     _multi_variant ->
-      // util.snake_case(type_.name) <> "_" <> util.snake_case(var.name)
-      todo as "each variant"
+      util.snake_case(type_.name) <> "_" <> util.snake_case(variant.name)
   }
 }
 
 fn decoder_func_src(type_: CustomType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(deriv.Function) {
-  let func_name = decoder_func_name(type_)
-
   case type_.variants {
     [] -> panic as "`CustomType` has no `variants`"
 
     [invariant] -> {
+      let func_name = decoder_func_name(type_, invariant)
+
       let src =
         decoder_func_src_(
           True,
@@ -352,6 +322,8 @@ fn decoder_func_src(type_: CustomType, all_field_opts: Dict(String, List(DerivFi
     multi_variants -> {
       multi_variants
       |> list.map(fn(variant) {
+        let func_name = decoder_func_name(type_, variant)
+
         let src =
           decoder_func_src_(
             False,
@@ -443,7 +415,7 @@ fn decode_line_param(field: VarField) -> String {
 }
 fn decode_line_field(field: VarField, json_name: String) -> String {
   let type_ = jtype(field.type_)
-  let decoder = decoder_line(type_.name)
+  let decoder = decoder_line(type_)
 
   "|> decode.field(\"NAME\", DECODER)"
   |> string.replace(each: "NAME", with: json_name)
@@ -582,40 +554,30 @@ fn decoder_func_for_basic_type(type_: String) -> Result(String, Nil) {
   }
 }
 
-fn decoder_line(field_type: String) -> String {
-  case field_type {
-    "Option " <> type_ ->
-      case decoder_func_for_basic_type(type_) { // TODO not needed now?
-        Ok(func) ->
-          "decode.optional(FUNC)"
-          |> string.replace(each: "FUNC", with: func)
+fn decoder_line(field_type: JType) -> String {
+  case field_type.name, field_type.parameters {
+    "Option", [param] -> {
+      let func = decoder_line(param)
 
-        Error(_) -> {
-          let func = decoder_line(type_)
+      "decode.optional(FUNC)"
+      |> string.replace(each: "FUNC", with: func)
+    }
+    "List", [param] -> {
+      let func = decoder_line(param)
 
-          "decode.optional(FUNC)"
-          |> string.replace(each: "FUNC", with: func)
-        }
-      }
-    "List " <> type_ ->
-      case decoder_func_for_basic_type(type_) { // TODO not needed now?
-        Ok(func) ->
-          "decode.list(FUNC)"
-          |> string.replace(each: "FUNC", with: func)
-
-        Error(_) -> {
-          let func = decoder_line(type_)
-
-          "decode.list(FUNC)"
-          |> string.replace(each: "FUNC", with: func)
-        }
-      }
-    "Int" -> "decode.int"
-    "Float" -> "decode.float"
-    "String" -> "decode.string"
-    "Bool" -> "decode.bool"
-    "Uuid" -> "util.decoder_uuid()"
-    type_ -> "decoder_" <> util.snake_case(type_) <> "()"
+      "decode.list(FUNC)"
+      |> string.replace(each: "FUNC", with: func)
+    }
+    "Int", [] -> "decode.int"
+    "Float", [] -> "decode.float"
+    "String", [] -> "decode.string"
+    "Bool", [] -> "decode.bool"
+    "Uuid", [] -> "util.decoder_uuid()"
+    type_, [] -> "decoder_" <> util.snake_case(field_type.name) <> "()"
+    _, _ -> {
+      io.debug(field_type)
+      panic as "Not yet implemented for type printed above"
+    }
   }
 }
 
