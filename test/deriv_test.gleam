@@ -275,6 +275,96 @@ pub fn encode_maybe(value: Maybe) -> Json {
   |> should.equal(output)
 }
 
+pub fn nested_type_test() {
+  let input = "
+pub type A {
+  A(
+    b: B,
+  )
+} //$ derive json(decode,encode)
+
+pub type B {
+  B(
+    x: String,
+  )
+} //$ derive json(decode,encode)
+  "
+  |> string.trim
+
+ let output = "
+import decode.{type Decoder}
+import gleam/json.{type Json}
+
+pub type A {
+  A(
+    b: B,
+  )
+} //$ derive json(decode,encode)
+
+pub type B {
+  B(
+    x: String,
+  )
+} //$ derive json(decode,encode)
+
+pub fn decoder_a() -> Decoder(A) {
+  decode.into({
+    use b <- decode.parameter
+
+    A(b:)
+  })
+  |> decode.field(\"b\", decoder_b())
+}
+
+pub fn encode_a(value: A) -> Json {
+  json.object([
+    #(\"b\", encode_b(value.b)),
+  ])
+}
+
+pub fn decoder_b() -> Decoder(B) {
+  decode.into({
+    use x <- decode.parameter
+
+    B(x:)
+  })
+  |> decode.field(\"x\", decode.string)
+}
+
+pub fn encode_b(value: B) -> Json {
+  json.object([
+    #(\"x\", json.string(value.x)),
+  ])
+}
+  "
+  |> string.trim
+
+  let files = [ File(module: "deriv/example/nested", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs
+    |> deriv.build_writes
+
+  write.filepath
+  |> should.equal("src/deriv/example/nested.gleam")
+
+  // io.println(output)
+  // io.println(write.src)
+
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
+
+  write.src
+  |> should.equal(output)
+}
+
 pub fn replace_function_test() {
   let src = string.trim("
 import gleam/string

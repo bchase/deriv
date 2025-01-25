@@ -15,9 +15,50 @@ import deriv/json as deriv_json
 import deriv/util
 import gleam/io
 
-import decode as d
-import gleam/json
-// import deriv/deriv/example/mvar/json as mvar
+// import decode.{type Decoder}
+// import gleam/json.{type Json}
+
+// pub type A {
+//   A(
+//     b: B,
+//   )
+// } //$ derive json(decode,encode)
+
+// pub type B {
+//   B(
+//     x: String,
+//   )
+// } //$ derive json(decode,encode)
+
+// pub fn decoder_a() -> Decoder(A) {
+//   decode.into({
+//     use b <- decode.parameter
+
+//     A(b:)
+//   })
+//   |> decode.field("b", decoder_b())
+// }
+
+// pub fn decoder_b() -> Decoder(B) {
+//   decode.into({
+//     use x <- decode.parameter
+
+//     B(x:)
+//   })
+//   |> decode.field("x", decode.string)
+// }
+
+// pub fn encode_a(value: A) -> Json {
+//   json.object([
+//     #("b", encode_b(value.b)),
+//   ])
+// }
+
+// pub fn encode_b(value: B) -> Json {
+//   json.object([
+//     #("x", json.string(value.x)),
+//   ])
+// }
 
 const all_gen_funcs: List(#(String, GenFunc)) =
   [

@@ -223,8 +223,14 @@ fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivF
                     "json.nullable(value.GLEAM, FUNC)"
                     |> string.replace(each: "FUNC", with: func)
 
-                  Error(Nil) ->
-                    panic as { "Unsupported field type for JSON decode: " <> f.type_ }
+                  Error(Nil) -> {
+                    panic as "not fully implemented (call FUNC with VALUE)"
+
+                    // let func = util.snake_case(type_)
+
+                    // "json.nullable(value.GLEAM, FUNC)"
+                    // |> string.replace(each: "FUNC", with: func)
+                  }
                 }
 
               "List "<> type_ ->
@@ -233,11 +239,17 @@ fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivF
                     "json.preprocessed_array(list.map(value.GLEAM, FUNC))"
                     |> string.replace(each: "FUNC", with: func)
 
-                  Error(Nil) ->
-                    panic as { "Unsupported field type for JSON decode: " <> f.type_ }
+                  Error(Nil) -> {
+                    panic as "not fully implemented (call FUNC with VALUE)"
+
+                    // let func = util.snake_case(type_)
+
+                    // "json.preprocessed_array(list.map(value.GLEAM, FUNC))"
+                    // |> string.replace(each: "FUNC", with: func)
+                  }
                 }
 
-              _ -> panic as { "Unsupported field type for JSON decode: " <> f.type_ }
+              type_ -> "encode_" <> util.snake_case(type_) <> "(value.GLEAM)"
             }
           })
           |> result.unwrap_both
@@ -266,6 +278,12 @@ fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivF
 
 fn to_json_field(field: VariantField) -> Result(JsonField, VariantField) {
   case field {
+    LabelledVariantField(NamedType("Option", _, [NamedType(type_, _, [])]), name) ->
+      Ok(JsonField(name:, type_: "Option " <> type_))
+
+    LabelledVariantField(NamedType("List", _, [NamedType(type_, _, [])]), name) ->
+      Ok(JsonField(name:, type_: "List " <> type_))
+
     LabelledVariantField(NamedType("Uuid", _, []), name) ->
       Ok(JsonField(name:, type_: "Uuid"))
 
@@ -281,11 +299,8 @@ fn to_json_field(field: VariantField) -> Result(JsonField, VariantField) {
     LabelledVariantField(NamedType("Bool", _, []), name) ->
       Ok(JsonField(name:, type_: "Bool"))
 
-    LabelledVariantField(NamedType("Option", _, [NamedType(type_, _, [])]), name) ->
-      Ok(JsonField(name:, type_: "Option " <> type_))
-
-    LabelledVariantField(NamedType("List", _, [NamedType(type_, _, [])]), name) ->
-      Ok(JsonField(name:, type_: "List " <> type_))
+    LabelledVariantField(NamedType(type_, _, []), name) ->
+      Ok(JsonField(name:, type_: type_))
 
     x -> {
       io.debug(x)
@@ -444,7 +459,7 @@ fn decode_line_param(field: JsonField) -> String {
   |> string.replace(each: "NAME", with: field.name)
 }
 fn decode_line_field(field: JsonField, json_name: String) -> String {
-  let decoder = decoder_line(field)
+  let decoder = decoder_line(field.type_)
 
   "|> decode.field(\"NAME\", DECODER)"
   |> string.replace(each: "NAME", with: json_name)
@@ -548,32 +563,40 @@ fn decoder_func_for_basic_type(type_: String) -> Result(String, Nil) {
   }
 }
 
-fn decoder_line(field: JsonField) -> String {
-  case field.type_ {
+fn decoder_line(field_type: String) -> String {
+  case field_type {
+    "Option " <> type_ ->
+      case decoder_func_for_basic_type(type_) { // TODO not needed now?
+        Ok(func) ->
+          "decode.optional(FUNC)"
+          |> string.replace(each: "FUNC", with: func)
+
+        Error(_) -> {
+          let func = decoder_line(type_)
+
+          "decode.optional(FUNC)"
+          |> string.replace(each: "FUNC", with: func)
+        }
+      }
+    "List " <> type_ ->
+      case decoder_func_for_basic_type(type_) { // TODO not needed now?
+        Ok(func) ->
+          "decode.list(FUNC)"
+          |> string.replace(each: "FUNC", with: func)
+
+        Error(_) -> {
+          let func = decoder_line(type_)
+
+          "decode.list(FUNC)"
+          |> string.replace(each: "FUNC", with: func)
+        }
+      }
     "Int" -> "decode.int"
     "Float" -> "decode.float"
     "String" -> "decode.string"
     "Bool" -> "decode.bool"
     "Uuid" -> "util.decoder_uuid()"
-    "Option " <> type_ ->
-      case decoder_func_for_basic_type(type_) {
-        Ok(func) ->
-          "decode.optional(FUNC)"
-          |> string.replace(each: "FUNC", with: func)
-
-        Error(_) ->
-          panic as { "Unsupported field type for JSON decode: " <> field.type_ }
-      }
-    "List " <> type_ ->
-      case decoder_func_for_basic_type(type_) {
-        Ok(func) ->
-          "decode.list(FUNC)"
-          |> string.replace(each: "FUNC", with: func)
-
-        Error(_) ->
-          panic as { "Unsupported field type for JSON decode: " <> field.type_ }
-      }
-    _ -> panic as { "Unsupported field type for JSON decode: " <> field.type_ }
+    type_ -> "decoder_" <> util.snake_case(type_) <> "()"
   }
 }
 
