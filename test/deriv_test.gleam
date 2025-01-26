@@ -625,6 +625,18 @@ pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 //   |> should.equal(expected)
 // }
 
+fn gleam_format(src: String) -> String {
+  let escaped_src =
+    src
+    |> string.replace(each: "\"", with: "\\\"")
+    |> string.replace(each: "'", with: "\\'")
+
+  let cmd = "echo \"" <> escaped_src <> "\" | gleam format --stdin"
+  let assert Ok(formatted_enc) = shellout.command(run: "sh", with: ["-c", cmd], in: ".", opt: [])
+
+  formatted_enc
+}
+
 pub fn ast_test() {
   let input = "
 import youid/uuid.{type Uuid}
@@ -714,12 +726,25 @@ pub fn decoder_bar() -> Decoder(Bar) {
   "
   |> string.trim
 
-  // let assert Ok(x) = glance.module(output)
+  let assert Ok(x) = glance.module(output)
+  let assert Ok(t) = list.find(x.custom_types, fn(t) { t.definition.name == "Foo" })
   // io.debug(x)
+  let assert [gen] = deriv_json.encode_type_func(t.definition)
+  let gen_src =
+    glance_printer.print(glance.Module([], [], [], [], [gen]))
+    |> string.replace(each: "\"", with: "\\\"")
+    |> string.replace(each: "'", with: "\\'")
+  let assert Ok(formatted_gen) = shellout.command(run: "sh", with: ["-c", "echo \"" <> gen_src <> "\" | gleam format --stdin"], in: ".", opt: [])
+  io.println("")
+  io.println("")
+  io.println("")
+  io.println(formatted_gen)
+
+  True |> should.equal(False)
 
   // let assert Ok(enc) = x.functions |> list.find(fn(f) { f.definition.name == "encode_foo" })
   // let enc = Function(..enc.definition, location: Span(-1, -1))
-  let gen = deriv_json.encode_func()
+  let gen = deriv_json.hardcode_encode_func()
   let gen_src =
     glance_printer.print(glance.Module([], [], [], [], [gen]))
     |> string.replace(each: "\"", with: "\\\"")

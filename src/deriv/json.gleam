@@ -237,15 +237,17 @@ fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivF
 
     let qualified_type = qualified_type(type_, file)
 
-    [
-      "pub fn " <> func_name <> "(value: " <> qualified_type <> ") -> Json {",
-      "  json.object([",
-           encode_lines |> list.map(util.indent(_, level: 2)) |> string.join("\n"),
-      "  ])",
-      "}",
-    ]
-    |> string.join("\n")
-    |> deriv.Function(name: func_name, src: _)
+    let src =
+      [
+        "pub fn " <> func_name <> "(value: " <> qualified_type <> ") -> Json {",
+        "  json.object([",
+             encode_lines |> list.map(util.indent(_, level: 2)) |> string.join("\n"),
+        "  ])",
+        "}",
+      ]
+      |> string.join("\n")
+
+    deriv.Function(name: func_name, src:)
   })
 }
 
@@ -543,17 +545,6 @@ fn json_field_name(field: VarField, field_opts: List(DerivFieldOpt)) -> String {
   }
 }
 
-fn decoder_func_for_basic_type(type_: String) -> Result(String, Nil) {
-  case type_ {
-    "Int" -> Ok("decode.int")
-    "Float" -> Ok("decode.float")
-    "String" -> Ok("decode.string")
-    "Bool" -> Ok("decode.bool")
-    "Uuid" -> Ok("util.decoder_uuid()")
-    _ -> Error(Nil)
-  }
-}
-
 fn decoder_line(field_type: JType) -> String {
   case field_type.name, field_type.parameters {
     "Option", [param] -> {
@@ -573,7 +564,7 @@ fn decoder_line(field_type: JType) -> String {
     "String", [] -> "decode.string"
     "Bool", [] -> "decode.bool"
     "Uuid", [] -> "util.decoder_uuid()"
-    type_, [] -> "decoder_" <> util.snake_case(field_type.name) <> "()"
+    _type, [] -> "decoder_" <> util.snake_case(field_type.name) <> "()"
     _, _ -> {
       io.debug(field_type)
       panic as "Not yet implemented for type printed above"
@@ -583,8 +574,131 @@ fn decoder_line(field_type: JType) -> String {
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
+fn unparameterized_type_encode_expr(type_name: String) -> Expression {
+  case type_name {
+    "Int" -> FieldAccess(Variable("json"), "int")
+    "Float" -> FieldAccess(Variable("json"), "float")
+    "String" -> FieldAccess(Variable("json"), "string")
+    "Bool" -> FieldAccess(Variable("json"), "bool")
+    "Uuid" -> FieldAccess(Variable("util"), "encode_uuid")
+    _ -> FieldAccess(Variable("util"), "encode_" <> util.snake_case(type_name))
+  }
+}
 
-pub fn encode_func() -> Definition(Function) {
+fn encode_field(field: VarField) -> Expression {
+  let ftype = jtype(field.type_)
+
+  case ftype.parameters {
+    [] ->
+      unparameterized_type_encode_expr(field.name)
+
+    [JType(name: param_type_name, module: None, parameters: [])] ->
+      case ftype.name {
+        "Option" -> {
+          let param_type_encoder = unparameterized_type_encode_expr(param_type_name)
+
+          Call(
+            function: FieldAccess(Variable("json"), "nullable"),
+            arguments: [
+              UnlabelledField(FieldAccess(Variable("value"), field.name)),
+              UnlabelledField(param_type_encoder),
+            ]
+          )
+        }
+        "List" -> {
+          let param_type_encoder = unparameterized_type_encode_expr(param_type_name)
+
+          Call(
+            function: FieldAccess(Variable("json"), "preprocessed_array"),
+            arguments: [
+              UnlabelledField(Call(FieldAccess(Variable("list"), "map"),
+                [
+                  UnlabelledField(FieldAccess(Variable("value"), field.name)),
+                  UnlabelledField(param_type_encoder),
+                ])
+              ),
+            ]
+          )
+        }
+        _ -> {
+          io.debug(ftype)
+          panic as "Not yet implemented for type printed above"
+        }
+      }
+
+    _ -> {
+      io.debug(ftype)
+      panic as "Not yet implemented for type printed above"
+    }
+  }
+}
+
+fn encode_variant_func(
+  type_: CustomType,
+  variant: Variant,
+  type_name_in_func_name type_name_in_func_name: Bool,
+  all_field_opts all_field_opts: Dict(String, List(DerivFieldOpt)),
+) -> Definition(Function) {
+  let encode_lines =
+    variant.fields
+    |> list.map(fn(field) {
+      let field = variant_field(field)
+
+      let field_opts =
+        all_field_opts
+        |> dict.get(field.name)
+        |> result.unwrap([])
+
+      let json_field = json_field_name(field, field_opts)
+
+      let encode_expr = encode_field(field)
+
+      Tuple([String(json_field), encode_expr])
+    })
+
+  let body = [
+    Expression(
+      Call(
+        function: FieldAccess(Variable("json"), "object"),
+        arguments: [ UnlabelledField(List(encode_lines, None)) ],
+      )
+    )
+  ]
+
+  let name =
+    case type_name_in_func_name {
+      True -> "encode_" <> util.snake_case(type_.name) <> "_" <> util.snake_case(variant.name)
+      False -> "encode_" <> util.snake_case(variant.name)
+    }
+
+  let parameters = [FunctionParameter(None, Named("value"), Some(NamedType(type_.name, None, [])))]
+  let return = Some(NamedType("Json", None, []))
+
+  Definition([],
+    Function(
+      location: dummy_location(),
+      publicity: Public,
+      name:,
+      parameters:,
+      return:,
+      body:,
+    )
+  )
+}
+
+pub fn encode_type_func(
+  type_: CustomType,
+) -> List(Definition(Function)) {
+  // TODO mvar `one_of` over each variant
+
+  // TODO
+  let all_field_opts = dict.new()
+
+  type_.variants
+  |> list.map(encode_variant_func(type_, _, type_name_in_func_name: False, all_field_opts:))
+}
+
+pub fn hardcode_encode_func() -> Definition(Function) {
   let input_type = "Foo"
 
   let name = "encode_foo"
