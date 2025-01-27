@@ -5,11 +5,10 @@ import gleam/result
 import gleam/regexp.{type Regexp}
 import decode.{type Decoder}
 import youid/uuid.{type Uuid}
+import glance.{type Definition, type Function, Module, Definition, Function}
+import glance_printer
+import shellout
 import gleam/io
-import glance
-
-
-import simplifile
 
 pub fn decode_type_field(
   variant variant: String,
@@ -123,9 +122,17 @@ fn step_snake_case(is_capital: Regexp, state: SC, char: String) -> SC {
 }
 
 pub fn replace_function(module: glance.Module, full_src: String, func_name func_name: String, func_src func_src: String) -> String {
+  io.println("")
+  io.println("")
+  io.println("")
+  io.println(func_name)
+  io.println("REPLACE")
+  io.println(full_src)
   let assert Ok(span) =
     module.functions
+    |> io.debug
     |> list.find_map(fn(f) {
+      io.debug(f)
       case f.definition.name == func_name {
         False -> Error(Nil)
         True -> Ok(f.definition.location)
@@ -198,3 +205,26 @@ fn log_and_discard_error(err: err) -> Nil {
 
 //   Ok(Nil)
 // }
+
+pub fn func_name(func: Definition(Function)) -> String {
+  let Definition(_, Function(name:, ..)) = func
+  name
+}
+
+pub fn func_str(func: Definition(Function)) -> String {
+  Module([], [], [], [], [func])
+  |> glance_printer.print
+  |> gleam_format
+}
+
+pub fn gleam_format(src: String) -> String {
+  let escaped_src =
+    src
+    |> string.replace(each: "\"", with: "\\\"")
+    |> string.replace(each: "'", with: "\\'")
+
+  let cmd = "echo \"" <> escaped_src <> "\" | gleam format --stdin"
+  let assert Ok(formatted_enc) = shellout.command(run: "sh", with: ["-c", cmd], in: ".", opt: [])
+
+  formatted_enc
+}

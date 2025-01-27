@@ -254,7 +254,7 @@ pub fn build_same_file_writes(xs: List(Gen)) -> List(Write) {
     let funcs =
       gens
       |> list.flat_map(fn(gen) { gen.funcs })
-      |> list.map(fn(func) { #(func.name, func.src) })
+      |> list.map(fn(func) { #(util.func_name(func), util.func_str(func)) })
 
     let module_imports: List(Import) = build_module_imports(gens, output)
     let deriv_imports: List(Import) = list.flat_map(gens, fn(gen) { gen.imports })

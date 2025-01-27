@@ -5,16 +5,20 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
-import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Module, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type}
+import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Module, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Private, Clause, Case, PatternAssignment, PatternConstructor}
+import glance_printer
+import shellout
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen} as deriv
 import deriv/util
+
+import gleam/json.{type Json}
 
 pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> Gen {
   let opts = deriv.opts
 
   let gen_funcs_for_opts =
     [
-      #("decode", gen_json_decoders),
+      // #("decode", gen_json_decoders),
       #("encode", gen_json_encoders),
     ]
     |> dict.from_list
@@ -28,28 +32,28 @@ pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(D
     |> result.values
     |> list.flat_map(fn(f) { f(type_, field_opts, file)})
 
-  let multi_variant_type_decoders_funcs =
-    case type_.variants {
-      [] ->
-        panic as "`CustomType` has no `variants`"
+  // let multi_variant_type_decoders_funcs =
+  //   case type_.variants {
+  //     [] ->
+  //       panic as "`CustomType` has no `variants`"
 
-      [_invariant] ->
-        []
+  //     [_invariant] ->
+  //       []
 
-      _multi_variants ->
-        [decoder_func_for_multi_variant_type(type_, field_opts, file)]
-    }
+  //     _multi_variants ->
+  //       [decoder_func_for_multi_variant_type(type_, field_opts, file)]
+  //   }
 
   let funcs =
     [
-      multi_variant_type_decoders_funcs,
+      // multi_variant_type_decoders_funcs,
       other_funcs,
     ]
     |> list.flatten
 
   let src =
     funcs
-    |> list.map(fn(f) { f.src })
+    |> list.map(util.func_str)
     |> string.join("\n\n")
 
   Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
@@ -208,47 +212,10 @@ fn encode_func_str_(type_: JType, call_with_value call_with_value: Bool) -> Stri
   }
 }
 
-fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(deriv.Function) {
-  type_.variants
-  |> list.map(fn(variant) {
-    let encode_lines =
-      variant.fields
-      |> list.map(fn(f) {
-        let field = variant_field(f)
-
-        let field_opts =
-          all_field_opts
-          |> dict.get(field.name)
-          |> result.unwrap([])
-
-        let json_field_name = json_field_name(field, field_opts)
-
-        let ftype = jtype(field.type_)
-
-        let encode_func = encode_func_str(ftype)
-
-        "#(\"JSON\", FUNC),"
-        |> string.replace(each: "JSON", with: json_field_name)
-        |> string.replace(each: "FUNC", with: encode_func)
-        |> string.replace(each: "GLEAM", with: field.name)
-      })
-
-    let func_name = "encode_" <> util.snake_case(type_.name)
-
-    let qualified_type = qualified_type(type_, file)
-
-    let src =
-      [
-        "pub fn " <> func_name <> "(value: " <> qualified_type <> ") -> Json {",
-        "  json.object([",
-             encode_lines |> list.map(util.indent(_, level: 2)) |> string.join("\n"),
-        "  ])",
-        "}",
-      ]
-      |> string.join("\n")
-
-    deriv.Function(name: func_name, src:)
-  })
+fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(Definition(Function)) {
+  // TODO qualify imports using `file` (`idx`)
+  encode_type_func(type_, all_field_opts)
+  |> fn(func) { [ func ] }
 }
 
 // fn to_json_field(field: VariantField) -> Result(JsonField, VariantField) {
@@ -318,7 +285,8 @@ fn decoder_func_src(type_: CustomType, all_field_opts: Dict(String, List(DerivFi
           file,
         )
 
-      [ deriv.Function(name: func_name, src:) ]
+      // [ deriv.Function(name: func_name, src:) ]
+      todo
     }
 
     multi_variants -> {
@@ -336,7 +304,8 @@ fn decoder_func_src(type_: CustomType, all_field_opts: Dict(String, List(DerivFi
             file,
           )
 
-        deriv.Function(name: func_name, src:)
+        // deriv.Function(name: func_name, src:)
+        todo
       })
     }
   }
@@ -374,7 +343,9 @@ fn decoder_func_for_multi_variant_type(
     ]
     |> string.join("\n")
 
-  deriv.Function(name: func_name, src:)
+  // deriv.Function(name: func_name, src:)
+
+  todo
 }
 
 type DecodeLines {
@@ -574,14 +545,20 @@ fn decoder_line(field_type: JType) -> String {
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
-fn unparameterized_type_encode_expr(type_name: String) -> Expression {
-  case type_name {
-    "Int" -> FieldAccess(Variable("json"), "int")
-    "Float" -> FieldAccess(Variable("json"), "float")
-    "String" -> FieldAccess(Variable("json"), "string")
-    "Bool" -> FieldAccess(Variable("json"), "bool")
-    "Uuid" -> FieldAccess(Variable("util"), "encode_uuid")
-    _ -> FieldAccess(Variable("util"), "encode_" <> util.snake_case(type_name))
+fn unparameterized_type_encode_expr(type_name: String, wrap wrap: Option(fn(Expression) -> Expression)) -> Expression {
+  let expr =
+    case type_name {
+      "Int" -> FieldAccess(Variable("json"), "int")
+      "Float" -> FieldAccess(Variable("json"), "float")
+      "String" -> FieldAccess(Variable("json"), "string")
+      "Bool" -> FieldAccess(Variable("json"), "bool")
+      "Uuid" -> FieldAccess(Variable("util"), "encode_uuid")
+      _ -> FieldAccess(Variable("util"), "encode_" <> util.snake_case(type_name))
+    }
+
+  case wrap {
+    None -> expr
+    Some(f) -> f(expr)
   }
 }
 
@@ -590,12 +567,19 @@ fn encode_field(field: VarField) -> Expression {
 
   case ftype.parameters {
     [] ->
-      unparameterized_type_encode_expr(field.name)
+      unparameterized_type_encode_expr(ftype.name, Some(fn(func_expr) {
+        Call(
+          function: func_expr,
+          arguments: [
+            UnlabelledField(FieldAccess(Variable("value"), field.name)),
+          ]
+        )
+      }))
 
     [JType(name: param_type_name, module: None, parameters: [])] ->
       case ftype.name {
         "Option" -> {
-          let param_type_encoder = unparameterized_type_encode_expr(param_type_name)
+          let param_type_encoder = unparameterized_type_encode_expr(param_type_name, None)
 
           Call(
             function: FieldAccess(Variable("json"), "nullable"),
@@ -606,7 +590,7 @@ fn encode_field(field: VarField) -> Expression {
           )
         }
         "List" -> {
-          let param_type_encoder = unparameterized_type_encode_expr(param_type_name)
+          let param_type_encoder = unparameterized_type_encode_expr(param_type_name, None)
 
           Call(
             function: FieldAccess(Variable("json"), "preprocessed_array"),
@@ -633,12 +617,10 @@ fn encode_field(field: VarField) -> Expression {
   }
 }
 
-fn encode_variant_func(
-  type_: CustomType,
+fn encode_variant_json_object_expr(
   variant: Variant,
-  type_name_in_func_name type_name_in_func_name: Bool,
   all_field_opts all_field_opts: Dict(String, List(DerivFieldOpt)),
-) -> Definition(Function) {
+) -> Expression {
   let encode_lines =
     variant.fields
     |> list.map(fn(field) {
@@ -656,23 +638,40 @@ fn encode_variant_func(
       Tuple([String(json_field), encode_expr])
     })
 
-  let body = [
-    Expression(
-      Call(
-        function: FieldAccess(Variable("json"), "object"),
-        arguments: [ UnlabelledField(List(encode_lines, None)) ],
-      )
-    )
-  ]
+  Call(
+    function: FieldAccess(Variable("json"), "object"),
+    arguments: [ UnlabelledField(List(encode_lines, None)) ],
+  )
+}
 
-  let name =
-    case type_name_in_func_name {
-      True -> "encode_" <> util.snake_case(type_.name) <> "_" <> util.snake_case(variant.name)
-      False -> "encode_" <> util.snake_case(variant.name)
-    }
+fn encode_type_func(
+  type_: CustomType,
+  all_field_opts all_field_opts: Dict(String, List(DerivFieldOpt)),
+) -> Definition(Function) {
+  let name = "encode_" <> util.snake_case(type_.name)
 
   let parameters = [FunctionParameter(None, Named("value"), Some(NamedType(type_.name, None, [])))]
   let return = Some(NamedType("Json", None, []))
+
+  let encode_variant_clause_exprs =
+    type_.variants
+    |> list.map(fn(variant) {
+      let encode_json_object_expr = encode_variant_json_object_expr(variant, all_field_opts)
+
+      Clause([[PatternAssignment(PatternConstructor(None, variant.name, [], True), "value")]], None,
+        encode_json_object_expr
+      )
+    })
+
+  let body =
+  // [ Expression(encode_variant_json_object_expr(variant, all_field_opts)) ]
+    Expression(
+      Case(
+        [Variable("value")],
+        encode_variant_clause_exprs,
+      )
+    )
+    |> fn(expr) { [ expr ] }
 
   Definition([],
     Function(
@@ -686,16 +685,68 @@ fn encode_variant_func(
   )
 }
 
-pub fn encode_type_func(
-  type_: CustomType,
-) -> List(Definition(Function)) {
-  // TODO mvar `one_of` over each variant
 
-  // TODO
-  let all_field_opts = dict.new()
+pub type T {
+  X(foo: String)
+  Y(bar: Int)
+}
 
-  type_.variants
-  |> list.map(encode_variant_func(type_, _, type_name_in_func_name: False, all_field_opts:))
+fn encode_t(value: T) -> Json {
+  case value {
+    X(..) as value ->
+      json.object([
+        #("foo", json.string(value.foo)),
+      ])
+
+    Y(..) as value ->
+      json.object([
+        #("bar", json.int(value.bar)),
+      ])
+  }
+}
+
+fn foo() {
+  Definition([],
+    Function(
+      location: Span(967, 1203),
+      name: "encode_t",
+      publicity: Private,
+      parameters: [FunctionParameter(None, Named("value"), Some(NamedType("T", None, [])))],
+      return: Some(NamedType("Json", None, [])),
+      body: [
+        Expression(
+          Case(
+            [Variable("value")],
+            [
+              Clause([[PatternAssignment(PatternConstructor(None, "X", [], True), "value")]], None,
+                Call(FieldAccess(Variable("json"), "object"), [UnlabelledField(List([Tuple([String("foo"), Call(FieldAccess(Variable("json"), "string"), [UnlabelledField(FieldAccess(Variable("value"), "foo"))])])], None))])
+              ),
+              Clause([[PatternAssignment(PatternConstructor(None, "Y", [], True), "value")]], None,
+                Call(FieldAccess(Variable("json"), "object"), [UnlabelledField(List([Tuple([String("bar"), Call(FieldAccess(Variable("json"), "int"), [UnlabelledField(FieldAccess(Variable("value"), "bar"))])])], None))])
+              ),
+            ]
+          )
+        )
+      ],
+    )
+  )
+}
+// fn encode_t_(value: T) -> Json {
+//   case value {
+//     X(foo:) ->
+//       json.object([
+//         #("foo", json.string(foo)),
+//       ])
+
+//     Y(bar:) ->
+//       json.object([
+//         #("bar", json.int(bar)),
+//       ])
+//   }
+// }
+
+fn multi_variant_type_encoder(type_: CustomType) -> Definition(Function) {
+
 }
 
 pub fn hardcode_encode_func() -> Definition(Function) {
@@ -791,7 +842,7 @@ fn dummy_location() -> Span {
   Span(-1, -1)
 }
 
-pub fn decoder_func(
+fn decoder_variant_func(
   type_ type_: String,
   variant variant: Option(String),
   constr constr: String,
@@ -862,10 +913,4 @@ pub fn decoder_func(
       body:,
     )
   )
-}
-
-pub fn foo() {
-  Module([], [], [], [], [
-  // funcs
-  ])
 }
