@@ -141,30 +141,6 @@ pub fn main() {
 // }
 
 pub fn json_multi_variant_type_test() {
-  let input = "
-pub type T {
-  X(foo: String)
-  Y(bar: Int)
-} //$ derive json(encode)
-  "
-  |> string.trim
-
- let output = "
-import gleam/json.{type Json}
-
-pub type T {
-  X(foo: String)
-  Y(bar: Int)
-} //$ derive json(encode)
-
-pub fn encode_t(value: T) -> Json {
-  case value {
-    X(..) as value -> json.object([#(\"foo\", json.string(value.foo))])
-    Y(..) as value -> json.object([#(\"bar\", json.int(value.bar))])
-  }
-}
-  "
-  |> string.trim
   // let input = "
 // pub type T {
   // X(foo: String)
@@ -174,39 +150,14 @@ pub fn encode_t(value: T) -> Json {
   // |> string.trim
 
  // let output = "
-// import decode.{type Decoder}
+// import gleam/json.{type Json}
 
 // pub type T {
   // X(foo: String)
   // Y(bar: Int)
 // } //$ derive json(decode,encode)
 
-// pub fn decoder_t() -> Decoder(T) {
-  // decode.one_of([
-  //   decoder_t_x(),
-  //   decoder_t_y(),
-  // ])
-// }
-
-// fn decoder_t_x() -> Decoder(T) {
-  // decode.into({
-  //   use foo <- decode.parameter
-
-  //   X(foo:)
-  // })
-  // |> decode.field(\"foo\", decode.string)
-// }
-
-// fn decoder_t_y() -> Decoder(T) {
-  // decode.into({
-  //   use bar <- decode.parameter
-
-  //   Y(bar:)
-  // })
-  // |> decode.field(\"bar\", decode.int)
-// }
-
-// fn encode_t(value: T) -> Json {
+// pub fn encode_t(value: T) -> Json {
   // case value {
   //   X(..) as value -> json.object([#(\"foo\", json.string(value.foo))])
   //   Y(..) as value -> json.object([#(\"bar\", json.int(value.bar))])
@@ -214,6 +165,54 @@ pub fn encode_t(value: T) -> Json {
 // }
   // "
   // |> string.trim
+  let input = "
+pub type T {
+  X(foo: String)
+  Y(bar: Int)
+} //$ derive json(decode,encode)
+  "
+  |> string.trim
+
+ let output = "
+import decode.{type Decoder}
+import gleam/json.{type Json}
+
+pub type T {
+  X(foo: String)
+  Y(bar: Int)
+} //$ derive json(decode,encode)
+
+pub fn decoder_t() -> Decoder(T) {
+  decode.one_of([decoder_t_x(), decoder_t_y()])
+}
+
+
+pub fn decoder_t_x() -> Decoder(T) {
+  decode.into({
+    use foo <- decode.parameter
+    X(foo:)
+  })
+  |> decode.field(\"foo\", decode.string)
+}
+
+
+pub fn decoder_t_y() -> Decoder(T) {
+  decode.into({
+    use bar <- decode.parameter
+    Y(bar:)
+  })
+  |> decode.field(\"bar\", decode.int)
+}
+
+
+pub fn encode_t(value: T) -> Json {
+  case value {
+    X(..) as value -> json.object([#(\"foo\", json.string(value.foo))])
+    Y(..) as value -> json.object([#(\"bar\", json.int(value.bar))])
+  }
+}
+  "
+  |> string.trim
 
   let files = [ File(module: "deriv/example/mvar", src: input, idx: Some(1)) ]
 

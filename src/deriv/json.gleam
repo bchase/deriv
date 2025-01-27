@@ -18,7 +18,7 @@ pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(D
 
   let gen_funcs_for_opts =
     [
-      // #("decode", gen_json_decoders),
+      #("decode", gen_json_decoders),
       #("encode", gen_json_encoders),
     ]
     |> dict.from_list
@@ -26,30 +26,11 @@ pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(D
   let imports =
     gen_imports(opts, type_)
 
-  let other_funcs =
+  let funcs =
     opts
     |> list.map(dict.get(gen_funcs_for_opts, _))
     |> result.values
     |> list.flat_map(fn(f) { f(type_, field_opts, file)})
-
-  // let multi_variant_type_decoders_funcs =
-  //   case type_.variants {
-  //     [] ->
-  //       panic as "`CustomType` has no `variants`"
-
-  //     [_invariant] ->
-  //       []
-
-  //     _multi_variants ->
-  //       [decoder_func_for_multi_variant_type(type_, field_opts, file)]
-  //   }
-
-  let funcs =
-    [
-      // multi_variant_type_decoders_funcs,
-      other_funcs,
-    ]
-    |> list.flatten
 
   let src =
     funcs
@@ -173,8 +154,13 @@ fn uses_list(type_: CustomType) -> Bool {
 }
 
 
-fn gen_json_decoders(type_: CustomType, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> List(deriv.Function) {
-  decoder_func_src(type_, field_opts, file)
+fn gen_json_decoders(
+  type_: CustomType,
+  field_opts: Dict(String, List(DerivFieldOpt)),
+  file: File,
+) -> List(Definition(Function)) {
+  // decoder_func_src(type_, field_opts, file)
+  decoder_type_func(type_)
 }
 
 fn encode_func_str(type_: JType) -> String {
@@ -842,29 +828,88 @@ fn dummy_location() -> Span {
   Span(-1, -1)
 }
 
-fn decoder_variant_func(
-  type_ type_: String,
-  variant variant: Option(String),
-  constr constr: String,
-) -> Definition(Function) {
-  let snake_case = util.snake_case(type_ <> option.unwrap(variant, ""))
+fn decoder_type_func(
+  type_: CustomType
+) -> List(Definition(Function)) {
+  let variant_funcs =
+    type_.variants
+    |> list.map(decoder_type_variant_func(type_, _, ))
 
-  let name = "decoder_" <> snake_case
+  let decoder_call_exprs =
+    variant_funcs
+    |> list.map(fn(func) {
+      Call(Variable(util.func_name(func)), [])
+    })
+
+  let body =
+    [
+      Expression(Call(FieldAccess(Variable("decode"), "one_of"), [
+        UnlabelledField(List(decoder_call_exprs, None))
+      ]))
+    ]
+
+  let type_func =
+    Definition([], Function(
+      location: dummy_location(),
+      publicity: Public,
+      name: "decoder_" <> util.snake_case(type_.name),
+      parameters: [],
+      return: Some(NamedType("Decoder", None, [NamedType(type_.name, None, [])])),
+      body: body,
+    ))
+
+  list.append([type_func], variant_funcs)
+}
+
+fn decoder_type_variant_func_name(type_: CustomType, variant: Variant) -> String {
+  "decoder_" <> util.snake_case(type_.name) <> "_" <> util.snake_case(variant.name)
+}
+
+fn decode_field_expr(
+  field: VariantField
+) -> #(String, Option(String), Expression) {
+  let field = variant_field(field)
+
+  let t = jtype(field.type_)
+
+  let expr =
+    case t.name, t.parameters {
+      "Int", [] -> FieldAccess(Variable("decode"), "int")
+      "Float", [] -> FieldAccess(Variable("decode"), "float")
+      "String", [] -> FieldAccess(Variable("decode"), "string")
+      "Bool", [] -> FieldAccess(Variable("decode"), "bool")
+      "Uuid", [] -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
+      // "List", _ -> ... Call(FieldAccess(Variable("decode"), "list"), [UnlabelledField(FieldAccess(Variable("decode"), "string"))])
+      _, _ -> panic as "unimplemented"
+    }
+
+  let json_field_name = Some(field.name) // TODO
+
+  #(field.name, json_field_name, expr)
+}
+
+fn decoder_type_variant_func(
+  type_: CustomType,
+  variant: Variant,
+) -> Definition(Function) {
+  let name = decoder_type_variant_func_name(type_, variant)
 
   let parameters: List(glance.FunctionParameter) = []
-  let return: Option(Type) = Some(NamedType("Decoder", None, [NamedType(type_, None, [])]))
+  let return: Option(Type) = Some(NamedType("Decoder", None, [NamedType(type_.name, None, [])]))
 
   let pipe_exprs: List(#(String, Option(String), Expression)) =
-    [
-      #("uuid", None, Call(FieldAccess(Variable("util"), "decoder_uuid"), [])),
-      #("id", Some("int_id"), FieldAccess(Variable("decode"), "int")),
-      #("name", None, FieldAccess(Variable("decode"), "string")),
-      #("active", None, FieldAccess(Variable("decode"), "bool")),
-      #("ratio", None, FieldAccess(Variable("decode"), "float")),
-      #("words", None, Call(FieldAccess(Variable("decode"), "list"), [UnlabelledField(FieldAccess(Variable("decode"), "string"))])),
+    variant.fields
+    |> list.map(decode_field_expr)
+    // [
+    //   #("uuid", None, Call(FieldAccess(Variable("util"), "decoder_uuid"), [])),
+    //   #("id", Some("int_id"), FieldAccess(Variable("decode"), "int")),
+    //   #("name", None, FieldAccess(Variable("decode"), "string")),
+    //   #("active", None, FieldAccess(Variable("decode"), "bool")),
+    //   #("ratio", None, FieldAccess(Variable("decode"), "float")),
+    //   #("words", None, Call(FieldAccess(Variable("decode"), "list"), [UnlabelledField(FieldAccess(Variable("decode"), "string"))])),
 
-      // TODO optional/nullable
-    ]
+    //   // TODO optional/nullable
+    // ]
 
   let fields =
     pipe_exprs
@@ -885,7 +930,7 @@ fn decoder_variant_func(
     Call(FieldAccess(Variable("decode"), "into"), [UnlabelledField(
       Block(use_exprs |> list.append([
         Expression(Call(
-          function: Variable(constr),
+          function: Variable(variant.name),
           arguments: constr_args,
         ))
       ]))
