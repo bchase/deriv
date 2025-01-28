@@ -1,3 +1,4 @@
+import gleam/regexp
 import gleam/option.{type Option, Some, None}
 import gleam/function
 import gleeunit
@@ -19,210 +20,122 @@ pub fn main() {
   gleeunit.main()
 }
 
-// pub fn json_test() {
-//   let input = "
-// import youid/uuid.{type Uuid}
-
-// pub type Foo {
-//   Foo(
-//     uuid: Uuid,
-//     id: Int, //$ json(named(int_id))
-//     name: String,
-//     active: Bool,
-//     ratio: Float,
-//     words: List(String),
-//   )
-// } //$ derive json(decode,encode)
-
-// pub type Bar {
-//   Bar(
-//     baz: Bool,
-//   )
-// } //$ derive json(decode)
-//   "
-//   |> string.trim
-
-//  let output = "
-// import decode.{type Decoder}
-// import deriv/util
-// import gleam/json.{type Json}
-// import gleam/list
-// import youid/uuid.{type Uuid}
-
-// pub type Foo {
-//   Foo(
-//     uuid: Uuid,
-//     id: Int, //$ json(named(int_id))
-//     name: String,
-//     active: Bool,
-//     ratio: Float,
-//     words: List(String),
-//   )
-// } //$ derive json(decode,encode)
-
-// pub type Bar {
-//   Bar(
-//     baz: Bool,
-//   )
-// } //$ derive json(decode)
-
-// pub fn decoder_foo() -> Decoder(Foo) {
-//   decode.into({
-//     use uuid <- decode.parameter
-//     use id <- decode.parameter
-//     use name <- decode.parameter
-//     use active <- decode.parameter
-//     use ratio <- decode.parameter
-//     use words <- decode.parameter
-
-//     Foo(uuid:, id:, name:, active:, ratio:, words:)
-//   })
-//   |> decode.field(\"uuid\", util.decoder_uuid())
-//   |> decode.field(\"int_id\", decode.int)
-//   |> decode.field(\"name\", decode.string)
-//   |> decode.field(\"active\", decode.bool)
-//   |> decode.field(\"ratio\", decode.float)
-//   |> decode.field(\"words\", decode.list(decode.string))
-// }
-
-// pub fn encode_foo(value: Foo) -> Json {
-//   json.object([
-//     #(\"uuid\", util.encode_uuid(value.uuid)),
-//     #(\"int_id\", json.int(value.id)),
-//     #(\"name\", json.string(value.name)),
-//     #(\"active\", json.bool(value.active)),
-//     #(\"ratio\", json.float(value.ratio)),
-//     #(\"words\", json.preprocessed_array(list.map(value.words, json.string))),
-//   ])
-// }
-
-// pub fn decoder_bar() -> Decoder(Bar) {
-//   decode.into({
-//     use baz <- decode.parameter
-
-//     Bar(baz:)
-//   })
-//   |> decode.field(\"baz\", decode.bool)
-// }
-//   "
-//   |> string.trim
-
-//   let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
-
-//   let assert [write] =
-//     files
-//     |> deriv.gen_derivs
-//     |> deriv.build_writes
-
-//   let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
-
-//   let assert [write] =
-//     files
-//     |> deriv.gen_derivs
-//     |> deriv.build_writes
-
-//   // io.println(output)
-//   // io.println(write.src)
-
-//   io.println("")
-//   io.println("")
-//   io.println("GENERATED")
-//   io.println(write.src)
-//   io.println("")
-//   io.println("")
-//   io.println("EXPECTED")
-//   io.println(output)
-
-//   write.filepath
-//   |> should.equal("src/deriv/example/foo.gleam")
-
-//   write.src
-//   |> should.equal(output)
-// }
-
-pub fn json_multi_variant_type_test() {
-  // let input = "
-// pub type T {
-  // X(foo: String)
-  // Y(bar: Int)
-// } //$ derive json(decode,encode)
-  // "
-  // |> string.trim
-
- // let output = "
-// import gleam/json.{type Json}
-
-// pub type T {
-  // X(foo: String)
-  // Y(bar: Int)
-// } //$ derive json(decode,encode)
-
-// pub fn encode_t(value: T) -> Json {
-  // case value {
-  //   X(..) as value -> json.object([#(\"foo\", json.string(value.foo))])
-  //   Y(..) as value -> json.object([#(\"bar\", json.int(value.bar))])
-  // }
-// }
-  // "
-  // |> string.trim
+pub fn json_test() {
   let input = "
-pub type T {
-  X(foo: String)
-  Y(bar: Int)
+import youid/uuid.{type Uuid}
+
+pub type Foo {
+  Foo(
+    uuid: Uuid,
+    id: Int, //$ json(named(int_id))
+    name: String,
+    active: Bool,
+    ratio: Float,
+    words: List(String),
+  )
 } //$ derive json(decode,encode)
+
+pub type Bar {
+  Bar(
+    baz: Bool,
+  )
+} //$ derive json(decode)
   "
   |> string.trim
 
  let output = "
 import decode.{type Decoder}
+import deriv/util
 import gleam/json.{type Json}
+import gleam/list
+import youid/uuid.{type Uuid}
 
-pub type T {
-  X(foo: String)
-  Y(bar: Int)
+pub type Foo {
+  Foo(
+    uuid: Uuid,
+    id: Int, //$ json(named(int_id))
+    name: String,
+    active: Bool,
+    ratio: Float,
+    words: List(String),
+  )
 } //$ derive json(decode,encode)
 
-pub fn decoder_t() -> Decoder(T) {
-  decode.one_of([decoder_t_x(), decoder_t_y()])
+pub type Bar {
+  Bar(
+    baz: Bool,
+  )
+} //$ derive json(decode)
+
+pub fn decoder_foo() -> Decoder(Foo) {
+  decode.one_of([decoder_foo_foo()])
 }
 
-
-pub fn decoder_t_x() -> Decoder(T) {
+pub fn decoder_foo_foo() -> Decoder(Foo) {
   decode.into({
-    use foo <- decode.parameter
-    X(foo:)
+    use uuid <- decode.parameter
+    use id <- decode.parameter
+    use name <- decode.parameter
+    use active <- decode.parameter
+    use ratio <- decode.parameter
+    use words <- decode.parameter
+    Foo(uuid:, id:, name:, active:, ratio:, words:)
   })
-  |> decode.field(\"foo\", decode.string)
+  |> decode.field(\"uuid\", util.decoder_uuid())
+  |> decode.field(\"id\", decode.int)
+  |> decode.field(\"name\", decode.string)
+  |> decode.field(\"active\", decode.bool)
+  |> decode.field(\"ratio\", decode.float)
+  |> decode.field(\"words\", decode.list(decode.string))
 }
 
-
-pub fn decoder_t_y() -> Decoder(T) {
-  decode.into({
-    use bar <- decode.parameter
-    Y(bar:)
-  })
-  |> decode.field(\"bar\", decode.int)
-}
-
-
-pub fn encode_t(value: T) -> Json {
+pub fn encode_foo(value: Foo) -> Json {
   case value {
-    X(..) as value -> json.object([#(\"foo\", json.string(value.foo))])
-    Y(..) as value -> json.object([#(\"bar\", json.int(value.bar))])
+    Foo(..) as value ->
+      json.object([
+        #(\"uuid\", util.encode_uuid(value.uuid)),
+        #(\"int_id\", json.int(value.id)),
+        #(\"name\", json.string(value.name)),
+        #(\"active\", json.bool(value.active)),
+        #(\"ratio\", json.float(value.ratio)),
+        #(\"words\", json.preprocessed_array(list.map(value.words, json.string))),
+      ])
   }
+}
+
+pub fn decoder_bar() -> Decoder(Bar) {
+  decode.one_of([decoder_bar_bar()])
+}
+
+pub fn decoder_bar_bar() -> Decoder(Bar) {
+  decode.into({
+    use baz <- decode.parameter
+    Bar(baz:)
+  })
+  |> decode.field(\"baz\", decode.bool)
 }
   "
   |> string.trim
 
-  let files = [ File(module: "deriv/example/mvar", src: input, idx: Some(1)) ]
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
 
   let assert [write] =
     files
     |> deriv.gen_derivs
     |> deriv.build_writes
 
-  write.filepath
-  |> should.equal("src/deriv/example/mvar.gleam")
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let writes =
+    files
+    |> deriv.gen_derivs
+    |> deriv.build_writes
+
+  let assert [write] =
+    writes
+
+  io.println(output)
+  io.println(write.src)
 
   io.println("")
   io.println("")
@@ -233,9 +146,109 @@ pub fn encode_t(value: T) -> Json {
   io.println("EXPECTED")
   io.println(output)
 
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
+
   write.src
   |> should.equal(output)
 }
+
+// pub fn json_multi_variant_type_test() {
+//   // let input = "
+// // pub type T {
+//   // X(foo: String)
+//   // Y(bar: Int)
+// // } //$ derive json(decode,encode)
+//   // "
+//   // |> string.trim
+
+//  // let output = "
+// // import gleam/json.{type Json}
+
+// // pub type T {
+//   // X(foo: String)
+//   // Y(bar: Int)
+// // } //$ derive json(decode,encode)
+
+// // pub fn encode_t(value: T) -> Json {
+//   // case value {
+//   //   X(..) as value -> json.object([#(\"foo\", json.string(value.foo))])
+//   //   Y(..) as value -> json.object([#(\"bar\", json.int(value.bar))])
+//   // }
+// // }
+//   // "
+//   // |> string.trim
+//   let input = "
+// pub type T {
+//   X(foo: String)
+//   Y(bar: Int)
+// } //$ derive json(decode,encode)
+//   "
+//   |> string.trim
+
+//  let output = "
+// import decode.{type Decoder}
+// import gleam/json.{type Json}
+
+// pub type T {
+//   X(foo: String)
+//   Y(bar: Int)
+// } //$ derive json(decode,encode)
+
+// pub fn decoder_t() -> Decoder(T) {
+//   decode.one_of([decoder_t_x(), decoder_t_y()])
+// }
+
+
+// pub fn decoder_t_x() -> Decoder(T) {
+//   decode.into({
+//     use foo <- decode.parameter
+//     X(foo:)
+//   })
+//   |> decode.field(\"foo\", decode.string)
+// }
+
+
+// pub fn decoder_t_y() -> Decoder(T) {
+//   decode.into({
+//     use bar <- decode.parameter
+//     Y(bar:)
+//   })
+//   |> decode.field(\"bar\", decode.int)
+// }
+
+
+// pub fn encode_t(value: T) -> Json {
+//   case value {
+//     X(..) as value -> json.object([#(\"foo\", json.string(value.foo))])
+//     Y(..) as value -> json.object([#(\"bar\", json.int(value.bar))])
+//   }
+// }
+//   "
+//   |> string.trim
+
+//   let files = [ File(module: "deriv/example/mvar", src: input, idx: Some(1)) ]
+
+//   let assert [write] =
+//     files
+//     |> deriv.gen_derivs
+//     |> deriv.build_writes
+
+//   write.filepath
+//   |> should.equal("src/deriv/example/mvar.gleam")
+
+//   io.println("")
+//   io.println("")
+//   io.println("GENERATED")
+//   io.println(write.src)
+//   io.println("")
+//   io.println("")
+//   io.println("EXPECTED")
+//   io.println(output)
+
+//   write.src
+//   |> should.equal(output)
+// }
 
 // pub fn json_optional_field_test() {
 //   let input = "

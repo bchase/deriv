@@ -873,14 +873,37 @@ fn decode_field_expr(
   let t = jtype(field.type_)
 
   let expr =
-    case t.name, t.parameters {
-      "Int", [] -> FieldAccess(Variable("decode"), "int")
-      "Float", [] -> FieldAccess(Variable("decode"), "float")
-      "String", [] -> FieldAccess(Variable("decode"), "string")
-      "Bool", [] -> FieldAccess(Variable("decode"), "bool")
-      "Uuid", [] -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
-      // "List", _ -> ... Call(FieldAccess(Variable("decode"), "list"), [UnlabelledField(FieldAccess(Variable("decode"), "string"))])
-      _, _ -> panic as "unimplemented"
+    case t.parameters {
+      [] -> unparameterized_type_decode_expr(t.name)
+      [JType(parameters: [], ..) as param] ->
+        case t.name {
+          "List" -> {
+            let inner =
+              param.name
+              |> unparameterized_type_decode_expr
+              |> UnlabelledField
+
+            Call(FieldAccess(Variable("decode"), "list"), [inner])
+          }
+
+          "Option" -> {
+            let inner =
+              param.name
+              |> unparameterized_type_decode_expr
+              |> UnlabelledField
+
+            Call(FieldAccess(Variable("decode"), "optional"), [inner])
+          }
+
+          _ -> {
+            io.debug(field)
+            panic as "unimplemented"
+          }
+        }
+      _ -> {
+        io.debug(field)
+        panic as "unimplemented"
+      }
     }
 
   let json_field_name = Some(field.name) // TODO
@@ -958,4 +981,17 @@ fn decoder_type_variant_func(
       body:,
     )
   )
+}
+
+fn unparameterized_type_decode_expr(
+  type_name: String,
+) -> Expression {
+  case type_name {
+    "Int" -> FieldAccess(Variable("decode"), "int")
+    "Float" -> FieldAccess(Variable("decode"), "float")
+    "String" -> FieldAccess(Variable("decode"), "string")
+    "Bool" -> FieldAccess(Variable("decode"), "bool")
+    "Uuid" -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
+    _ -> panic as "unimplemented"
+  }
 }
