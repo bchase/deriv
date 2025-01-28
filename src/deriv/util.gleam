@@ -127,7 +127,7 @@ pub fn replace_function(full_src: String, func_name func_name: String, func_src 
 
   let assert [before, after] =
     regexp.split(re, full_src)
-    |> list.filter(fn(str) { str != "pub " })
+    |> list.filter(fn(str) { str != "pub " && str != "" })
 
   let new_before = string.trim_end(before)
 
