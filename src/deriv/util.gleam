@@ -121,45 +121,47 @@ fn step_snake_case(is_capital: Regexp, state: SC, char: String) -> SC {
   }
 }
 
-pub fn replace_function(module: glance.Module, full_src: String, func_name func_name: String, func_src func_src: String) -> String {
-  io.println("")
-  io.println("")
-  io.println("")
-  io.println(func_name)
-  io.println("REPLACE")
-  io.println(full_src)
-  let assert Ok(span) =
-    module.functions
-    |> io.debug
-    |> list.find_map(fn(f) {
-      io.debug(f)
-      case f.definition.name == func_name {
-        False -> Error(Nil)
-        True -> Ok(f.definition.location)
+pub fn replace_function(full_src: String, func_name func_name: String, func_src func_src: String) -> String {
+  let re_str = "^(pub )?fn " <> func_name <> "[(].*"
+  let assert Ok(re) = regexp.compile(re_str, regexp.Options(case_insensitive: False, multi_line: True))
+
+  let assert [before, after] =
+    regexp.split(re, full_src)
+    |> list.filter(fn(str) { str != "pub " })
+
+  let new_before = string.trim_end(before)
+
+  let new_after = drop_lines_up_to_and_including_lone_closing_brace(after)
+
+  [ new_before, func_src, new_after ]
+  |> string.join("\n\n")
+}
+
+fn drop_lines_up_to_and_including_lone_closing_brace(str) {
+  str
+  |> string.split("\n")
+  |> list.drop_while(fn(line) { line != "}" })
+  |> fn(lines) {
+    lines
+    |> list.last
+    |> result.map(string.trim)
+    |> fn(line) {
+      case line {
+        Ok("}") -> lines |> list.drop(1)
+        _ -> lines
       }
-    })
-
-  let eof = string.byte_size(full_src) - 1
-
-  let before = string.slice(full_src, 0, span.start - 1)
-  let after = string.slice(full_src, span.end + 1, eof)
-
-  [
-    before,
-    func_src,
-    after,
-  ]
+    }
+  }
   |> string.join("\n")
+  |> string.trim_start
 }
 
 pub fn update_funcs(init_src: String, funcs: List(#(String, String))) -> String {
-  let assert Ok(module) = glance.module(init_src)
-
   list.fold(funcs, init_src, fn(src, func) {
     let #(func_name, func_src) = func
 
     case string.contains(src, "fn " <> func_name) {
-      True -> replace_function(module, src, func_name:, func_src:)
+      True ->  replace_function(src, func_name:, func_src:)
       False -> src <> "\n\n" <> func_src
     }
   })
