@@ -142,9 +142,9 @@ fn drop_lines_up_to_and_including_lone_closing_brace(str) {
   |> string.split("\n")
   |> list.drop_while(fn(line) { line != "}" })
   |> fn(lines) {
+
     lines
-    |> list.last
-    |> result.map(string.trim)
+    |> list.first
     |> fn(line) {
       case line {
         Ok("}") -> lines |> list.drop(1)
