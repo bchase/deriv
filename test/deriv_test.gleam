@@ -10,6 +10,10 @@ import gleam/io
 
 import glance.{Import, UnqualifiedImport, Named}
 
+pub fn suppress_io_warnings() { io.debug(Nil) }
+
+pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
+
 pub fn main() {
   gleeunit.main()
 }
@@ -193,7 +197,6 @@ pub fn decoder_t() -> Decoder(T) {
   decode.one_of([decoder_t_x(), decoder_t_y()])
 }
 
-
 pub fn decoder_t_x() -> Decoder(T) {
   decode.into({
     use foo <- decode.parameter
@@ -202,7 +205,6 @@ pub fn decoder_t_x() -> Decoder(T) {
   |> decode.field(\"foo\", decode.string)
 }
 
-
 pub fn decoder_t_y() -> Decoder(T) {
   decode.into({
     use bar <- decode.parameter
@@ -210,7 +212,6 @@ pub fn decoder_t_y() -> Decoder(T) {
   })
   |> decode.field(\"bar\", decode.int)
 }
-
 
 pub fn encode_t(value: T) -> Json {
   case value {
@@ -268,7 +269,6 @@ pub fn decoder_maybe() -> Decoder(Maybe) {
   decode.one_of([decoder_maybe_maybe()])
 }
 
-
 pub fn decoder_maybe_maybe() -> Decoder(Maybe) {
   decode.into({
     use name <- decode.parameter
@@ -276,7 +276,6 @@ pub fn decoder_maybe_maybe() -> Decoder(Maybe) {
   })
   |> decode.field(\"name\", decode.optional(decode.string))
 }
-
 
 pub fn encode_maybe(value: Maybe) -> Json {
   case value {
@@ -349,7 +348,6 @@ pub fn decoder_a() -> Decoder(A) {
   decode.one_of([decoder_a_a()])
 }
 
-
 pub fn decoder_a_a() -> Decoder(A) {
   decode.into({
     use b <- decode.parameter
@@ -358,18 +356,15 @@ pub fn decoder_a_a() -> Decoder(A) {
   |> decode.field(\"b\", util.decoder_b())
 }
 
-
 pub fn encode_a(value: A) -> Json {
   case value {
     A(..) as value -> json.object([#(\"b\", util.encode_b(value.b))])
   }
 }
 
-
 pub fn decoder_b() -> Decoder(B) {
   decode.one_of([decoder_b_b()])
 }
-
 
 pub fn decoder_b_b() -> Decoder(B) {
   decode.into({
@@ -378,7 +373,6 @@ pub fn decoder_b_b() -> Decoder(B) {
   })
   |> decode.field(\"x\", decode.string)
 }
-
 
 pub fn encode_b(value: B) -> Json {
   case value {
@@ -570,7 +564,3 @@ type Bar {
   deriv.consolidate_imports_for(src, add: add_imports)
   |> should.equal(expected_src)
 }
-
-pub fn stop_warning() { io.debug("stop") }
-
-pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }

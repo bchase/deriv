@@ -162,7 +162,15 @@ pub fn update_funcs(init_src: String, funcs: List(#(String, String))) -> String 
 
     case string.contains(src, "fn " <> func_name) {
       True ->  replace_function(src, func_name:, func_src:)
-      False -> src <> "\n\n" <> func_src
+      False -> {
+        let newlines =
+          case string.ends_with(src, "\n") {
+            True -> "\n"
+            False -> "\n\n"
+          }
+
+        src <> newlines <> func_src
+      }
     }
   })
 }

@@ -398,7 +398,15 @@ fn build_module_imports(gens: List(Gen), _output: Output) -> List(Import) {
 }
 
 pub fn consolidate_imports_for(src: String, add add_imports: List(Import)) -> String {
-  let assert Ok(module) = glance.module(src)
+  let assert Ok(module) =
+    case glance.module(src) {
+      Error(err) -> {
+        io.debug(err)
+        io.println(src)
+        panic as "Failed to parse the above source with `glance.module`"
+      }
+      ok -> ok
+    }
 
   let curr_imports =
     module.imports
