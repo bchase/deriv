@@ -526,13 +526,6 @@ fn import_src(i: Import) -> String {
   |> string.join(" ")
 }
 
-fn imports_src(imports: List(Import)) -> String {
-  imports
-  |> consolidate_imports
-  |> list.map(import_src)
-  |> string.join("\n")
-}
-
 pub fn stop_warning() { io.debug("") }
 
 
