@@ -152,10 +152,9 @@ fn uses_list(type_: CustomType) -> Bool {
 fn gen_json_decoders(
   type_: CustomType,
   field_opts: Dict(String, List(DerivFieldOpt)),
-  file: File,
+  _file: File,
 ) -> List(Definition(Function)) {
-  // decoder_func_src(type_, field_opts, file)
-  decoder_type_func(type_)
+  decoder_type_func(type_, field_opts)
 }
 
 fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivFieldOpt)), _file: File) -> List(Definition(Function)) {
@@ -380,11 +379,12 @@ fn dummy_location() -> Span {
 }
 
 fn decoder_type_func(
-  type_: CustomType
+  type_: CustomType,
+  all_field_opts: Dict(String, List(DerivFieldOpt)),
 ) -> List(Definition(Function)) {
   let variant_funcs =
     type_.variants
-    |> list.map(decoder_type_variant_func(type_, _, ))
+    |> list.map(decoder_type_variant_func(type_, _, all_field_opts))
 
   let decoder_call_exprs =
     variant_funcs
@@ -417,7 +417,8 @@ fn decoder_type_variant_func_name(type_: CustomType, variant: Variant) -> String
 }
 
 fn decode_field_expr(
-  field: VariantField
+  field: VariantField,
+  all_field_opts: Dict(String, List(DerivFieldOpt)),
 ) -> #(String, Option(String), Expression) {
   let field = variant_field(field)
 
@@ -457,7 +458,11 @@ fn decode_field_expr(
       }
     }
 
-  let json_field_name = Some(field.name) // TODO
+  let json_field_name =
+    all_field_opts
+    |> dict.get(field.name)
+    |> result.map(json_field_name(field, _))
+    |> option.from_result
 
   #(field.name, json_field_name, expr)
 }
@@ -465,6 +470,7 @@ fn decode_field_expr(
 fn decoder_type_variant_func(
   type_: CustomType,
   variant: Variant,
+  all_field_opts: Dict(String, List(DerivFieldOpt)),
 ) -> Definition(Function) {
   let name = decoder_type_variant_func_name(type_, variant)
 
@@ -473,7 +479,7 @@ fn decoder_type_variant_func(
 
   let pipe_exprs: List(#(String, Option(String), Expression)) =
     variant.fields
-    |> list.map(decode_field_expr)
+    |> list.map(decode_field_expr(_, all_field_opts))
 
   let fields =
     pipe_exprs
