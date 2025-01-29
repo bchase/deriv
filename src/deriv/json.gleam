@@ -992,6 +992,6 @@ fn unparameterized_type_decode_expr(
     "String" -> FieldAccess(Variable("decode"), "string")
     "Bool" -> FieldAccess(Variable("decode"), "bool")
     "Uuid" -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
-    _ -> panic as "unimplemented"
+    _ -> Call(FieldAccess(Variable("util"), "decoder_" <> util.snake_case(type_name)), [])
   }
 }
