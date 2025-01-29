@@ -242,7 +242,7 @@ fn unparameterized_type_encode_expr(type_name: String, wrap wrap: Option(fn(Expr
       "String" -> FieldAccess(Variable("json"), "string")
       "Bool" -> FieldAccess(Variable("json"), "bool")
       "Uuid" -> FieldAccess(Variable("util"), "encode_uuid")
-      _ -> FieldAccess(Variable("util"), "encode_" <> util.snake_case(type_name))
+      _ -> Variable("encode_" <> util.snake_case(type_name))
     }
 
   case wrap {
@@ -539,6 +539,6 @@ fn unparameterized_type_decode_expr(
     "String" -> FieldAccess(Variable("decode"), "string")
     "Bool" -> FieldAccess(Variable("decode"), "bool")
     "Uuid" -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
-    _ -> Call(FieldAccess(Variable("util"), "decoder_" <> util.snake_case(type_name)), [])
+    _ -> Call(Variable("decoder_" <> util.snake_case(type_name)), [])
   }
 }

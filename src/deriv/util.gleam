@@ -160,7 +160,11 @@ pub fn update_funcs(init_src: String, funcs: List(#(String, String))) -> String 
   list.fold(funcs, init_src, fn(src, func) {
     let #(func_name, func_src) = func
 
-    case string.contains(src, "fn " <> func_name) {
+    let re_str = "^(pub )?fn " <> func_name <> "[(].*"
+    let assert Ok(re) = regexp.compile(re_str, regexp.Options(case_insensitive: False, multi_line: True))
+
+    // case string.contains(src, "fn " <> func_name) {
+    case regexp.check(re, src) {
       True ->  replace_function(src, func_name:, func_src:)
       False -> {
         let newlines =

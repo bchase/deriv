@@ -353,12 +353,12 @@ pub fn decoder_a_a() -> Decoder(A) {
     use b <- decode.parameter
     A(b:)
   })
-  |> decode.field(\"b\", util.decoder_b())
+  |> decode.field(\"b\", decoder_b())
 }
 
 pub fn encode_a(value: A) -> Json {
   case value {
-    A(..) as value -> json.object([#(\"b\", util.encode_b(value.b))])
+    A(..) as value -> json.object([#(\"b\", encode_b(value.b))])
   }
 }
 

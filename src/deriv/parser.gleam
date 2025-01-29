@@ -11,87 +11,94 @@ import glance.{type CustomType}
 import deriv/types.{type Derivation, Derivation, type DerivFieldOpt, DerivFieldOpt}
 
 pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType, List(Derivation), Dict(String, List(DerivFieldOpt))), Nil) {
-  let lines_from_type_start_to_eof =
-    src
-    |> string.split("\n")
-    |> list.drop_while(fn(line) {
-      !string.contains(line, "type " <> type_.name)
-    })
+  let assert Ok(type_line_re) = regexp.compile("^(pub )?type\\s+?" <> type_.name <> "\\s*?[{]", regexp.Options(case_insensitive: False, multi_line: True))
 
-  let lines_from_type_start_except_last =
-    lines_from_type_start_to_eof
-    |> list.take_while(fn(line) {
-      !string.starts_with(line, "}")
-    })
+  case regexp.check(type_line_re, src) {
+    False -> Error(Nil)
+    True -> {
+      let lines_from_type_start_to_eof =
+        src
+        |> string.split("\n")
+        |> list.drop_while(fn(line) {
+          !regexp.check(type_line_re, line)
+        })
 
-  let assert Ok(line_last_for_type) =
-    lines_from_type_start_to_eof
-    |> list.drop(list.length(lines_from_type_start_except_last))
-    |> list.take(1)
-    |> list.first
+      let lines_from_type_start_except_last =
+        lines_from_type_start_to_eof
+        |> list.take_while(fn(line) {
+          !string.starts_with(line, "}")
+        })
 
-  let assert Ok(re) = regexp.from_string(
-    "^\\s*([_a-z0-9]+)\\s*[:]\\s*(.+)[,]?\\s*[/][/][$]\\s*(.+)$"
-  )
+      let assert Ok(line_last_for_type) =
+        lines_from_type_start_to_eof
+        |> list.drop(list.length(lines_from_type_start_except_last))
+        |> list.take(1)
+        |> list.first
 
-  let deriv_field_opts =
-    lines_from_type_start_except_last
-    |> list.map(fn(line) {
-      case regexp.scan(re, line) {
-        [Match(_txt, [Some(field_name), Some(_type), Some(magic_comment)])] -> {
-          case parse_deriv_field_opt(magic_comment) {
-            Error(_) -> Error(Nil)
-            Ok(opt) ->
-              Ok(#(field_name, [opt]))
+      let assert Ok(re) = regexp.from_string(
+        "^\\s*([_a-z0-9]+)\\s*[:]\\s*(.+)[,]?\\s*[/][/][$]\\s*(.+)$"
+      )
+
+      let deriv_field_opts =
+        lines_from_type_start_except_last
+        |> list.map(fn(line) {
+          case regexp.scan(re, line) {
+            [Match(_txt, [Some(field_name), Some(_type), Some(magic_comment)])] -> {
+              case parse_deriv_field_opt(magic_comment) {
+                Error(_) -> Error(Nil)
+                Ok(opt) ->
+                  Ok(#(field_name, [opt]))
+              }
+            }
+
+            _ ->
+              Error(Nil)
           }
-        }
+        })
+        |> result.values
+        |> dict.from_list
+        // |> io.debug
+        // // dict.from_list([#("name", [DerivFieldOpt("json", Some("encode"), "foo", "bar")])])
 
-        _ ->
-          Error(Nil)
+      // // TODO field magic comments
+      // let lines_for_type_def =
+      //   list.append(
+      //     lines_from_type_start_except_last,
+      //     [line_last_for_type],
+      //   )
+      // io.println(lines_for_type_def |> string.join("\n"))
+
+      case string.split(line_last_for_type, "//$") {
+        [_, mc] ->
+          parse_derivations(mc)
+          |> result.map(fn(ds) {
+            #(type_, ds, deriv_field_opts)
+          })
+
+        _ -> Error(Nil)
       }
-    })
-    |> result.values
-    |> dict.from_list
-    // |> io.debug
-    // // dict.from_list([#("name", [DerivFieldOpt("json", Some("encode"), "foo", "bar")])])
-
-  // // TODO field magic comments
-  // let lines_for_type_def =
-  //   list.append(
-  //     lines_from_type_start_except_last,
-  //     [line_last_for_type],
-  //   )
-  // io.println(lines_for_type_def |> string.join("\n"))
-
-  case string.split(line_last_for_type, "//$") {
-    [_, mc] ->
-      parse_derivations(mc)
-      |> result.map(fn(ds) {
-        #(type_, ds, deriv_field_opts)
-      })
-
-    _ -> Error(Nil)
+    }
   }
 }
-pub fn parse_import_with_derivations(import_: glance.Import, src: String) -> Result(#(glance.Import, List(Derivation)), Nil) {
-  let magic_comment =
-    src
-    |> string.split("\n")
-    |> list.find(fn(line) {
-      string.starts_with(line, "import ") &&
-        string.contains(line, import_.module)
-    })
-    |> result.map(string.split(_, "//$"))
-
-  case magic_comment {
-    Ok([_, mc]) ->
-      parse_derivations(mc)
-      |> result.map(fn(ds) {
-        #(import_, ds)
+  pub fn parse_import_with_derivations(import_: glance.Import, src: String) -> Result(#(glance.Import, List(Derivation)), Nil) {
+    let magic_comment =
+      src
+      |> string.split("\n")
+      |> list.find(fn(line) {
+        string.starts_with(line, "import ") &&
+          string.contains(line, import_.module)
       })
+      |> result.map(string.split(_, "//$"))
 
-    _ -> Error(Nil)
-  }
+    case magic_comment {
+      Ok([_, mc]) ->
+        parse_derivations(mc)
+        |> result.map(fn(ds) {
+          #(import_, ds)
+        })
+
+      _ -> Error(Nil)
+    }
 }
 
 fn parse_derivations(raw: String) -> Result(List(Derivation), Nil) {
