@@ -35,70 +35,61 @@ pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(C
         |> list.take(1)
         |> list.first
 
-      let assert Ok(re) = regexp.from_string(
-        "^\\s*([_a-z0-9]+)\\s*[:]\\s*(.+)[,]?\\s*[/][/][$]\\s*(.+)$"
-      )
+      let lines =
+        [
+          lines_from_type_start_except_last,
+          [line_last_for_type],
+        ]
+        |> list.flatten
+
+      let derivs =
+        parse_derivations_from_inside_type_def_lines(lines)
 
       let deriv_field_opts =
-        lines_from_type_start_except_last
-        |> list.map(fn(line) {
-          case regexp.scan(re, line) {
-            [Match(_txt, [Some(field_name), Some(_type), Some(magic_comment)])] -> {
-              case parse_deriv_field_opt(magic_comment) {
-                Error(_) -> Error(Nil)
-                Ok(opt) ->
-                  Ok(#(field_name, [opt]))
-              }
-            }
+        parse_all_deriv_field_opts(lines)
 
-            _ ->
-              Error(Nil)
-          }
-        })
-        |> result.values
-        |> dict.from_list
-        // |> io.debug
-        // // dict.from_list([#("name", [DerivFieldOpt("json", Some("encode"), "foo", "bar")])])
-
-      // // TODO field magic comments
-      // let lines_for_type_def =
-      //   list.append(
-      //     lines_from_type_start_except_last,
-      //     [line_last_for_type],
-      //   )
-      // io.println(lines_for_type_def |> string.join("\n"))
-
-      case string.split(line_last_for_type, "//$") {
-        [_, mc] ->
-          parse_derivations(mc)
-          |> result.map(fn(ds) {
-            #(type_, ds, deriv_field_opts)
-          })
-
-        _ -> Error(Nil)
+      case derivs {
+        [] -> Error(Nil)
+        ds -> Ok(#(type_, ds, deriv_field_opts))
       }
     }
   }
 }
-  pub fn parse_import_with_derivations(import_: glance.Import, src: String) -> Result(#(glance.Import, List(Derivation)), Nil) {
-    let magic_comment =
-      src
-      |> string.split("\n")
-      |> list.find(fn(line) {
-        string.starts_with(line, "import ") &&
-          string.contains(line, import_.module)
-      })
-      |> result.map(string.split(_, "//$"))
 
-    case magic_comment {
-      Ok([_, mc]) ->
+fn parse_derivations_from_inside_type_def_lines(lines: List(String)) -> List(Derivation) {
+  lines
+  |> list.map(fn(line) {
+    case string.split(line, "//$") {
+      [_, mc] ->
         parse_derivations(mc)
-        |> result.map(fn(ds) {
-          #(import_, ds)
-        })
+        |> result.unwrap([])
 
-      _ -> Error(Nil)
+      _ ->
+        []
     }
+  })
+  |> list.flatten
+}
+
+pub fn parse_import_with_derivations(import_: glance.Import, src: String) -> Result(#(glance.Import, List(Derivation)), Nil) {
+  let magic_comment =
+    src
+    |> string.split("\n")
+    |> list.find(fn(line) {
+      string.starts_with(line, "import ") &&
+        string.contains(line, import_.module)
+    })
+    |> result.map(string.split(_, "//$"))
+
+  case magic_comment {
+    Ok([_, mc]) ->
+      parse_derivations(mc)
+      |> result.map(fn(ds) {
+        #(import_, ds)
+      })
+
+    _ -> Error(Nil)
+  }
 }
 
 fn parse_derivations(raw: String) -> Result(List(Derivation), Nil) {
@@ -138,7 +129,33 @@ type Token {
   Str(String)
 }
 
-fn parse_deriv_field_opt(str: String) -> Result(DerivFieldOpt, Nil) {
+
+fn parse_all_deriv_field_opts(lines: List(String)) -> Dict(String, List(DerivFieldOpt)) {
+  let assert Ok(deriv_re) =
+    "^\\s*([_a-z0-9]+)\\s*[:]\\s*(.+)[,]?\\s*[/][/][$]\\s*(.+)$"
+    |> regexp.from_string
+
+  lines
+  |> list.map(fn(line) {
+    case regexp.scan(deriv_re, line) {
+      [Match(_txt, [Some(field_name), Some(_type), Some(magic_comment)])] -> {
+        case parse_deriv_field_opts(magic_comment) {
+          Error(_) ->
+            Error(Nil)
+          Ok(opts) ->
+            Ok(#(field_name, opts))
+        }
+      }
+
+      _ ->
+        Error(Nil)
+    }
+  })
+  |> result.values
+  |> dict.from_list
+}
+
+fn parse_deriv_field_opts(str: String) -> Result(List(DerivFieldOpt), Nil) {
   let lexer =
     lexer.simple([
       lexer.token("(", LParen),
@@ -197,6 +214,7 @@ fn parse_deriv_field_opt(str: String) -> Result(DerivFieldOpt, Nil) {
       ]
       |> list.find_map(fn(parser) {
         nibble.run(tokens, parser)
+        |> result.map(fn(x) { [x] })
       })
       |> result.map_error(fn(_) { Nil })
     }
