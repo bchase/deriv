@@ -2,7 +2,7 @@ import gleam/option.{type Option}
 import gleam/dict.{type Dict}
 import glance.{type CustomType, type Import, type Definition}
 
-pub type GenFunc = fn(CustomType, Derivation, Dict(String, List(DerivFieldOpt)), File) -> Gen
+pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File) -> Gen
 
 pub type File {
   File(
@@ -57,6 +57,14 @@ pub type Derivation {
   )
 }
 
+pub type DerivField {
+  DerivField(
+    type_: String,
+    variant: String,
+    field: String,
+  )
+}
+
 pub type DerivFieldOpt {
   DerivFieldOpt(
     deriv: String,
@@ -65,4 +73,6 @@ pub type DerivFieldOpt {
     val: String,
   )
 }
+
+pub type DerivFieldOpts = Dict(DerivField, List(DerivFieldOpt))
 

@@ -1,3 +1,4 @@
+import gleam/dict
 import gleam/list
 import gleam/string
 import gleam/json.{type Json}
@@ -5,10 +6,11 @@ import gleam/result
 import gleam/regexp.{type Regexp}
 import decode.{type Decoder}
 import youid/uuid.{type Uuid}
-import glance.{type Definition, type Function, Module, Definition, Function}
+import glance.{type Definition, type Function, Module, Definition, Function, type CustomType, type Variant}
 import glance_printer
 import shellout
 import birl.{type Time}
+import deriv/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField}
 import gleam/io
 
 pub fn decode_type_field(
@@ -299,4 +301,23 @@ fn decoder_birl_int_to_time(
     |> func
     |> decode.into
   })
+}
+
+// TODO more `internal` than `util`...
+pub fn get_field_opts(
+  all_field_opts: DerivFieldOpts,
+  type_: CustomType,
+  variant: Variant,
+  field: String,
+) -> List(DerivFieldOpt) {
+  let key =
+    DerivField(
+      type_: type_.name,
+      variant: variant.name,
+      field:,
+    )
+
+  all_field_opts
+  |> dict.get(key)
+  |> result.unwrap([])
 }

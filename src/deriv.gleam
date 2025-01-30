@@ -9,7 +9,7 @@ import gleam/regexp
 import simplifile
 import shellout
 import tom
-import deriv/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpt}
+import deriv/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpts}
 import deriv/parser
 import deriv/json as deriv_json
 import deriv/util
@@ -176,7 +176,7 @@ fn gleam_module_str_to_file_path(module: String) -> String {
   "src/" <> module <> ".gleam"
 }
 
-fn parse_types_and_derivations(file: File) -> List(#(CustomType, List(Derivation), Dict(String, List(DerivFieldOpt)))) {
+fn parse_types_and_derivations(file: File) -> List(#(CustomType, List(Derivation), DerivFieldOpts)) {
   let assert Ok(parsed) = glance.module(file.src)
 
   parsed.custom_types
@@ -186,7 +186,7 @@ fn parse_types_and_derivations(file: File) -> List(#(CustomType, List(Derivation
 }
 
 fn gen_type_derivs(
-  x: #(CustomType, List(Derivation), Dict(String, List(DerivFieldOpt))),
+  x: #(CustomType, List(Derivation), DerivFieldOpts),
   file: File,
   gen_funcs: Dict(String, GenFunc),
 ) -> List(Gen) {
@@ -561,7 +561,7 @@ fn derivs_file_import_gens(
   })
 }
 
-fn load_types_from_file(import_: glance.Import, derivs: List(Derivation), all_files: List(File)) -> #(File, List(#(CustomType, List(Derivation), Dict(String, List(DerivFieldOpt))))) {
+fn load_types_from_file(import_: glance.Import, derivs: List(Derivation), all_files: List(File)) -> #(File, List(#(CustomType, List(Derivation), DerivFieldOpts))) {
   let assert Ok(file) = list.find(all_files, fn(f) { f.module == import_.module })
   let assert Ok(module) = glance.module(file.src)
 

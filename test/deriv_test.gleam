@@ -4,7 +4,7 @@ import gleam/list
 import gleeunit
 import gleeunit/should
 import gleam/string
-import deriv/types.{type File, File, DerivFieldOpt}
+import deriv/types.{type File, File, DerivFieldOpt, DerivField}
 import deriv/parser
 import deriv
 import deriv/util
@@ -122,6 +122,14 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
   let assert [write] =
     files
     |> deriv.gen_derivs
+    // |> fn(x) {
+    //   list.each(x, fn(y) {
+    //     y.deriv.
+    //     |> io.debug
+    //   })
+
+    //   x
+    // }
     |> deriv.build_writes
 
   let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
@@ -336,11 +344,14 @@ pub type T {
   deriv.opts
   |> should.equal(["decode"])
 
-  [
-    #("foo", [DerivFieldOpt(deriv: "json", opt: None, key: "foo", val: "bar")]),
-  ]
-  |> dict.from_list
-  |> should.equal(field_opts)
+  let expected =
+    [
+      #(DerivField(type_: "T", variant: "A", field: "foo"), [DerivFieldOpt(deriv: "json", opt: None, key: "foo", val: "bar")]),
+    ]
+    |> dict.from_list
+
+  field_opts
+  |> should.equal(expected)
 }
 
 pub fn nested_type_test() {

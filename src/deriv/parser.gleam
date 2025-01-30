@@ -1,5 +1,5 @@
 import gleam/option.{Some, None}
-import gleam/dict.{type Dict}
+import gleam/dict
 import gleam/result
 import gleam/list
 import gleam/string
@@ -8,9 +8,9 @@ import gleam/regexp.{Match}
 import nibble.{do, return}
 import nibble/lexer
 import glance.{type CustomType}
-import deriv/types.{type Derivation, Derivation, type DerivFieldOpt, DerivFieldOpt}
+import deriv/types.{type Derivation, Derivation, DerivField, type DerivFieldOpt, DerivFieldOpt, type DerivFieldOpts}
 
-pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType, List(Derivation), Dict(String, List(DerivFieldOpt))), Nil) {
+pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType, List(Derivation), DerivFieldOpts), Nil) {
   let assert Ok(type_line_re) = regexp.compile("^(pub )?type\\s+?" <> type_.name <> "\\s*?[{]", regexp.Options(case_insensitive: False, multi_line: True))
 
   case regexp.check(type_line_re, src) {
@@ -125,14 +125,19 @@ fn parse_derivations(raw: String) -> Result(List(Derivation), Nil) {
 
 type DerivFieldOptsAcc {
   DerivFieldOptsAcc(
-    constr: Result(String, Nil),
+    type_: Result(String, Nil),
+    variant: Result(String, Nil),
     field: Result(String, Nil),
-    opts: Dict(#(String, String), List(DerivFieldOpt)),
+    opts: DerivFieldOpts,
   )
 }
 
-fn parse_all_deriv_field_opts(lines: List(String)) -> Dict(String, List(DerivFieldOpt)) {
-  let assert Ok(constr_re) =
+fn parse_all_deriv_field_opts(lines: List(String)) -> DerivFieldOpts {
+  let assert Ok(type_re) =
+    "^\\s*(pub\\s+)?type\\s+([A-Z]\\w*)\\s*[{]"
+    |> regexp.from_string
+
+  let assert Ok(variant_re) =
     "^\\s*([A-Z]\\w*)\\s*[(]"
     |> regexp.from_string
 
@@ -141,10 +146,16 @@ fn parse_all_deriv_field_opts(lines: List(String)) -> Dict(String, List(DerivFie
     |> regexp.from_string
 
   lines
-  |> list.fold(DerivFieldOptsAcc(Error(Nil), Error(Nil), dict.new()), fn(acc, line) {
-    let constr =
-      case regexp.scan(constr_re, line) {
-        [Match(_txt, [Some(constr)])] -> Ok(constr)
+  |> list.fold(DerivFieldOptsAcc(Error(Nil), Error(Nil), Error(Nil), dict.new()), fn(acc, line) {
+    let type_ =
+      case regexp.scan(type_re, line) {
+        [Match(_txt, [_, Some(type_)])] -> Ok(type_)
+        _ -> Error(Nil)
+      }
+
+    let variant =
+      case regexp.scan(variant_re, line) {
+        [Match(_txt, [Some(variant)])] -> Ok(variant)
         _ -> Error(Nil)
       }
 
@@ -155,8 +166,14 @@ fn parse_all_deriv_field_opts(lines: List(String)) -> Dict(String, List(DerivFie
       }
 
     let acc =
-      case constr {
-        Ok(_) -> DerivFieldOptsAcc(..acc, constr:)
+      case type_ {
+        Ok(_) -> DerivFieldOptsAcc(..acc, type_:)
+        _ -> acc
+      }
+
+    let acc =
+      case variant {
+        Ok(_) -> DerivFieldOptsAcc(..acc, variant:)
         _ -> acc
       }
 
@@ -166,14 +183,16 @@ fn parse_all_deriv_field_opts(lines: List(String)) -> Dict(String, List(DerivFie
         _ -> acc
       }
 
-    case acc.constr, acc.field {
-      Ok(constr), Ok(field) ->
+    case acc.type_, acc.variant, acc.field {
+      Ok(type_), Ok(variant), Ok(field) ->
         case parse_deriv_field_opts(line) {
           [] -> acc
           new_opts -> {
+            let key = DerivField(type_:, variant:, field:)
+
             let opts =
               acc.opts
-              |> dict.upsert(#(constr, field), fn(opts) {
+              |> dict.upsert(key, fn(opts) {
                 opts
                 |> option.unwrap([])
                 |> list.append(new_opts)
@@ -181,20 +200,13 @@ fn parse_all_deriv_field_opts(lines: List(String)) -> Dict(String, List(DerivFie
 
             DerivFieldOptsAcc(..acc, opts:)
           }
-
         }
 
-      _, _ -> acc
+      _, _, _ -> acc
     }
   })
   |> fn(acc) {
     acc.opts
-    |> dict.to_list
-    |> list.map(fn(x) {
-      let #(#(_constr, field), opts) = x
-      #(field, opts)
-    })
-    |> dict.from_list
   }
 }
 

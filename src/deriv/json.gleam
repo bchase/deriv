@@ -1,14 +1,14 @@
 import gleam/option.{type Option, Some, None}
-import gleam/dict.{type Dict}
+import gleam/dict
 import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
 import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor}
-import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen}
+import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, DerivField, type DerivFieldOpts}
 import deriv/util
 
-pub fn gen(type_: CustomType, deriv: Derivation, field_opts: Dict(String, List(DerivFieldOpt)), file: File) -> Gen {
+pub fn gen(type_: CustomType, deriv: Derivation, field_opts: DerivFieldOpts, file: File) -> Gen {
   let opts = deriv.opts
 
   let gen_funcs_for_opts =
@@ -151,13 +151,17 @@ fn uses_list(type_: CustomType) -> Bool {
 
 fn gen_json_decoders(
   type_: CustomType,
-  field_opts: Dict(String, List(DerivFieldOpt)),
+  field_opts: DerivFieldOpts,
   _file: File,
 ) -> List(Definition(Function)) {
   decoder_type_func(type_, field_opts)
 }
 
-fn gen_json_encoders(type_: CustomType, all_field_opts: Dict(String, List(DerivFieldOpt)), _file: File) -> List(Definition(Function)) {
+fn gen_json_encoders(
+  type_: CustomType,
+  all_field_opts: DerivFieldOpts,
+  _file: File,
+) -> List(Definition(Function)) {
   // TODO qualify imports using `file` (`idx`)
   encode_type_func(type_, all_field_opts)
   |> fn(func) { [ func ] }
@@ -307,8 +311,9 @@ fn encode_field(field: VarField) -> Expression {
 }
 
 fn encode_variant_json_object_expr(
+  type_: CustomType,
   variant: Variant,
-  all_field_opts all_field_opts: Dict(String, List(DerivFieldOpt)),
+  all_field_opts all_field_opts: DerivFieldOpts,
 ) -> Expression {
   let encode_lines =
     variant.fields
@@ -317,8 +322,11 @@ fn encode_variant_json_object_expr(
 
       let field_opts =
         all_field_opts
-        |> dict.get(field.name)
-        |> result.unwrap([])
+        |> util.get_field_opts(
+          type_,
+          variant,
+          field.name,
+        )
 
       let json_field = json_field_name(field, field_opts)
 
@@ -335,7 +343,7 @@ fn encode_variant_json_object_expr(
 
 fn encode_type_func(
   type_: CustomType,
-  all_field_opts all_field_opts: Dict(String, List(DerivFieldOpt)),
+  all_field_opts all_field_opts: DerivFieldOpts,
 ) -> Definition(Function) {
   let name = "encode_" <> util.snake_case(type_.name)
 
@@ -345,7 +353,7 @@ fn encode_type_func(
   let encode_variant_clause_exprs =
     type_.variants
     |> list.map(fn(variant) {
-      let encode_json_object_expr = encode_variant_json_object_expr(variant, all_field_opts)
+      let encode_json_object_expr = encode_variant_json_object_expr(type_, variant, all_field_opts)
 
       Clause([[PatternAssignment(PatternConstructor(None, variant.name, [], True), "value")]], None,
         encode_json_object_expr
@@ -380,7 +388,7 @@ fn dummy_location() -> Span {
 
 fn decoder_type_func(
   type_: CustomType,
-  all_field_opts: Dict(String, List(DerivFieldOpt)),
+  all_field_opts: DerivFieldOpts,
 ) -> List(Definition(Function)) {
   let variant_funcs =
     type_.variants
@@ -417,8 +425,10 @@ fn decoder_type_variant_func_name(type_: CustomType, variant: Variant) -> String
 }
 
 fn decode_field_expr(
+  type_: CustomType,
+  variant: Variant,
   field: VariantField,
-  all_field_opts: Dict(String, List(DerivFieldOpt)),
+  all_field_opts: DerivFieldOpts,
 ) -> #(String, Option(String), Expression) {
   let field = variant_field(field)
 
@@ -460,17 +470,20 @@ fn decode_field_expr(
 
   let json_field_name =
     all_field_opts
-    |> dict.get(field.name)
-    |> result.map(json_field_name(field, _))
-    |> option.from_result
+    |> util.get_field_opts(
+      type_,
+      variant,
+      field.name,
+    )
+    |> json_field_name(field, _)
 
-  #(field.name, json_field_name, expr)
+  #(field.name, Some(json_field_name), expr) // TODO always `Some`
 }
 
 fn decoder_type_variant_func(
   type_: CustomType,
   variant: Variant,
-  all_field_opts: Dict(String, List(DerivFieldOpt)),
+  all_field_opts: DerivFieldOpts,
 ) -> Definition(Function) {
   let name = decoder_type_variant_func_name(type_, variant)
 
@@ -479,7 +492,7 @@ fn decoder_type_variant_func(
 
   let pipe_exprs: List(#(String, Option(String), Expression)) =
     variant.fields
-    |> list.map(decode_field_expr(_, all_field_opts))
+    |> list.map(decode_field_expr(type_, variant, _, all_field_opts))
 
   let fields =
     pipe_exprs
