@@ -209,33 +209,6 @@ fn json_field_name(field: VarField, field_opts: List(DerivFieldOpt)) -> String {
   }
 }
 
-fn decoder_line(field_type: JType) -> String {
-  case field_type.name, field_type.parameters {
-    "Option", [param] -> {
-      let func = decoder_line(param)
-
-      "decode.optional(FUNC)"
-      |> string.replace(each: "FUNC", with: func)
-    }
-    "List", [param] -> {
-      let func = decoder_line(param)
-
-      "decode.list(FUNC)"
-      |> string.replace(each: "FUNC", with: func)
-    }
-    "Int", [] -> "decode.int"
-    "Float", [] -> "decode.float"
-    "String", [] -> "decode.string"
-    "Bool", [] -> "decode.bool"
-    "Uuid", [] -> "util.decoder_uuid()"
-    _type, [] -> "decoder_" <> util.snake_case(field_type.name) <> "()"
-    _, _ -> {
-      io.debug(field_type)
-      panic as "Not yet implemented for type printed above"
-    }
-  }
-}
-
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
 fn unparameterized_type_encode_expr(type_name: String, wrap wrap: Option(fn(Expression) -> Expression)) -> Expression {
