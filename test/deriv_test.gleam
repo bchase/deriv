@@ -142,9 +142,6 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
   let assert [write] =
     writes
 
-  io.println(output)
-  io.println(write.src)
-
   io.println("")
   io.println("")
   io.println("GENERATED")
