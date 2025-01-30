@@ -8,6 +8,7 @@ import youid/uuid.{type Uuid}
 import glance.{type Definition, type Function, Module, Definition, Function}
 import glance_printer
 import shellout
+import birl.{type Time}
 import gleam/io
 
 pub fn decode_type_field(
@@ -241,4 +242,61 @@ pub fn gleam_format(src: String) -> String {
   let assert Ok(formatted_enc) = shellout.command(run: "sh", with: ["-c", cmd], in: ".", opt: [])
 
   formatted_enc
+}
+
+pub fn decoder_birl_parse() -> Decoder(Time) {
+  decoder_birl_string_to_result(
+    func_name: "parse",
+    func: birl.parse,
+  )
+}
+
+pub fn decoder_birl_from_naive() -> Decoder(Time) {
+  decoder_birl_string_to_result(
+    func_name: "from_naive",
+    func: birl.from_naive,
+  )
+}
+
+pub fn decoder_birl_from_http() -> Decoder(Time) {
+  decoder_birl_string_to_result(
+    func_name: "from_http",
+    func: birl.from_http,
+  )
+}
+
+pub fn decoder_birl_from_unix() -> Decoder(Time) {
+  decoder_birl_int_to_time(birl.from_unix)
+}
+
+pub fn decoder_birl_from_unix_milli() -> Decoder(Time) {
+  decoder_birl_int_to_time(birl.from_unix_milli)
+}
+
+pub fn decoder_birl_from_unix_micro() -> Decoder(Time) {
+  decoder_birl_int_to_time(birl.from_unix_micro)
+}
+
+fn decoder_birl_string_to_result(
+  func func: fn(String) -> Result(Time, Nil),
+  func_name func_name : String,
+) -> Decoder(Time) {
+  decode.string
+  |> decode.then(fn(str) {
+    case func(str) {
+      Ok(time) -> decode.into(time)
+      Error(_) -> decode.fail("Failed to `" <> func_name <> "`: " <> str)
+    }
+  })
+}
+
+fn decoder_birl_int_to_time(
+  func: fn(Int) -> Time,
+) -> Decoder(Time) {
+  decode.int
+  |> decode.then(fn(int) {
+    int
+    |> func
+    |> decode.into
+  })
 }
