@@ -6,7 +6,7 @@ import gleam/string
 import gleam/io
 import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor}
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts}
-import deriv/util
+import deriv/util.{BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
 pub fn gen(type_: CustomType, deriv: Derivation, field_opts: DerivFieldOpts, file: File) -> Gen {
   let opts = deriv.opts
@@ -564,7 +564,7 @@ fn birl_time_decode_expr(
   field: String,
   all_field_opts: DerivFieldOpts,
 ) -> Expression {
-  birl_time_kind(type_, variant, field, all_field_opts)
+  util.birl_time_kind(type_, variant, field, all_field_opts)
   |> fn(kind) {
     case kind {
       BirlTimeISO8601 -> "decoder_birl_parse"
@@ -586,7 +586,7 @@ fn birl_time_encode_expr(
   field: String,
   all_field_opts: DerivFieldOpts,
 ) -> Expression {
-  birl_time_kind(type_, variant, field, all_field_opts)
+  util.birl_time_kind(type_, variant, field, all_field_opts)
   |> fn(kind) {
     case kind {
       BirlTimeISO8601 -> "encode_birl_to_iso8601"
@@ -599,46 +599,5 @@ fn birl_time_encode_expr(
   }
   |> fn(func) {
     FieldAccess(Variable("util"), func)
-  }
-}
-
-// TODO mv
-type BirlTimeKind {
-  BirlTimeISO8601
-  BirlTimeNaive
-  BirlTimeHTTP
-  BirlTimeUnix
-  BirlTimeUnixMilli
-  BirlTimeUnixMicro
-}
-
-fn birl_time_kind(
-  type_: CustomType,
-  variant: Variant,
-  field: String,
-  all_field_opts: DerivFieldOpts,
-) -> BirlTimeKind {
-  case util.get_field_opts(all_field_opts, type_, variant, field) {
-    [] -> BirlTimeISO8601 // TODO warning to specify
-    opts ->
-      opts
-      |> list.find_map(fn(opt) {
-        case opt.deriv == "json" && opt.key == "birl" {
-          True -> Ok(opt.val)
-          False -> Error(Nil)
-        }
-      })
-      |> result.unwrap("iso8601")
-      |> fn(val) {
-        case val {
-          "iso8601" -> BirlTimeISO8601
-          "naive" -> BirlTimeNaive
-          "http" -> BirlTimeHTTP
-          "unix" -> BirlTimeUnix
-          "unix_milli" -> BirlTimeUnixMilli
-          "unix_micro" -> BirlTimeUnixMicro
-          _ -> panic as { "Not a supported `json(birl(VALUE))`: " <> val }
-        }
-      }
   }
 }

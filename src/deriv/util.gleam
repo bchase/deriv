@@ -293,7 +293,7 @@ pub fn encode_birl_to_naive(time: Time) -> Json {
 
 pub fn encode_birl_to_http(time: Time) -> Json {
   time
-  |> birl.to_http
+  |> birl.to_naive
   |> json.string
 }
 
@@ -356,4 +356,44 @@ pub fn get_field_opts(
   all_field_opts
   |> dict.get(key)
   |> result.unwrap([])
+}
+
+pub type BirlTimeKind {
+  BirlTimeISO8601
+  BirlTimeNaive
+  BirlTimeHTTP
+  BirlTimeUnix
+  BirlTimeUnixMilli
+  BirlTimeUnixMicro
+}
+
+pub fn birl_time_kind(
+  type_: CustomType,
+  variant: Variant,
+  field: String,
+  all_field_opts: DerivFieldOpts,
+) -> BirlTimeKind {
+  case get_field_opts(all_field_opts, type_, variant, field) {
+    [] -> BirlTimeISO8601 // TODO warning to specify
+    opts ->
+      opts
+      |> list.find_map(fn(opt) {
+        case opt.deriv == "json" && opt.key == "birl" {
+          True -> Ok(opt.val)
+          False -> Error(Nil)
+        }
+      })
+      |> result.unwrap("iso8601")
+      |> fn(val) {
+        case val {
+          "iso8601" -> BirlTimeISO8601
+          "naive" -> BirlTimeNaive
+          "http" -> BirlTimeHTTP
+          "unix" -> BirlTimeUnix
+          "unix_milli" -> BirlTimeUnixMilli
+          "unix_micro" -> BirlTimeUnixMicro
+          _ -> panic as { "Not a supported `json(birl(VALUE))`: " <> val }
+        }
+      }
+  }
 }
