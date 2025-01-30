@@ -42,15 +42,13 @@ pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(C
         ]
         |> list.flatten
 
-      let derivs =
-        parse_derivations_from_inside_type_def_lines(lines)
-
-      let deriv_field_opts =
-        parse_all_deriv_field_opts(lines)
-
-      case derivs {
+      case parse_derivations_from_inside_type_def_lines(lines) {
         [] -> Error(Nil)
-        ds -> Ok(#(type_, ds, deriv_field_opts))
+        derivs -> {
+          let deriv_field_opts = parse_all_deriv_field_opts(lines)
+
+          Ok(#(type_, derivs, deriv_field_opts))
+        }
       }
     }
   }
