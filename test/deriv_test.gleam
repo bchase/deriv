@@ -1,9 +1,11 @@
 import gleam/option.{type Option, Some, None}
+import gleam/dict
 import gleam/list
 import gleeunit
 import gleeunit/should
 import gleam/string
-import deriv/types.{type File, File}
+import deriv/types.{type File, File, DerivFieldOpt}
+import deriv/parser
 import deriv
 import deriv/util
 import gleam/io
@@ -310,6 +312,35 @@ pub fn encode_maybe(value: Maybe) -> Json {
 
   write.src
   |> should.equal(output)
+}
+
+pub fn gleam_format_magic_comment_parsing_test() {
+  // //$ json(baz(boo))
+  let src = "
+pub type T {
+  //$ derive json(decode)
+  A(
+    foo: String,
+    //$ json(foo(bar))
+  )
+}
+  "
+  |> string.trim
+
+  let assert Ok(glance.Module(custom_types: [type_], ..)) = glance.module(src)
+
+  let assert Ok(#(_type, [deriv], field_opts)) = parser.parse_type_with_derivations(type_.definition, src)
+
+  deriv.name
+  |> should.equal("json")
+  deriv.opts
+  |> should.equal(["decode"])
+
+  [
+    #("foo", [DerivFieldOpt(deriv: "json", opt: None, key: "foo", val: "bar")]),
+  ]
+  |> dict.from_list
+  |> should.equal(field_opts)
 }
 
 pub fn nested_type_test() {

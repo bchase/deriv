@@ -123,39 +123,100 @@ fn parse_derivations(raw: String) -> Result(List(Derivation), Nil) {
   }
 }
 
+type DerivFieldOptsAcc {
+  DerivFieldOptsAcc(
+    constr: Result(String, Nil),
+    field: Result(String, Nil),
+    opts: Dict(#(String, String), List(DerivFieldOpt)),
+  )
+}
+
+fn parse_all_deriv_field_opts(lines: List(String)) -> Dict(String, List(DerivFieldOpt)) {
+  let assert Ok(constr_re) =
+    "^\\s*([A-Z]\\w*)\\s*[(]"
+    |> regexp.from_string
+
+  let assert Ok(field_re) =
+    "^\\s*([a-z]\\w*)\\s*[:]"
+    |> regexp.from_string
+
+  lines
+  |> list.fold(DerivFieldOptsAcc(Error(Nil), Error(Nil), dict.new()), fn(acc, line) {
+    let constr =
+      case regexp.scan(constr_re, line) {
+        [Match(_txt, [Some(constr)])] -> Ok(constr)
+        _ -> Error(Nil)
+      }
+
+    let field =
+      case regexp.scan(field_re, line) {
+        [Match(_txt, [Some(field)])] -> Ok(field)
+        _ -> Error(Nil)
+      }
+
+    let acc =
+      case constr {
+        Ok(_) -> DerivFieldOptsAcc(..acc, constr:)
+        _ -> acc
+      }
+
+    let acc =
+      case field {
+        Ok(_) -> DerivFieldOptsAcc(..acc, field:)
+        _ -> acc
+      }
+
+    case acc.constr, acc.field {
+      Ok(constr), Ok(field) ->
+        case parse_deriv_field_opts(line) {
+          [] -> acc
+          new_opts -> {
+            let opts =
+              acc.opts
+              |> dict.upsert(#(constr, field), fn(opts) {
+                opts
+                |> option.unwrap([])
+                |> list.append(new_opts)
+              })
+
+            DerivFieldOptsAcc(..acc, opts:)
+          }
+
+        }
+
+      _, _ -> acc
+    }
+  })
+  |> fn(acc) {
+    acc.opts
+    |> dict.to_list
+    |> list.map(fn(x) {
+      let #(#(_constr, field), opts) = x
+      #(field, opts)
+    })
+    |> dict.from_list
+  }
+}
+
 type Token {
   LParen
   RParen
   Str(String)
 }
 
+fn parse_deriv_field_opts(str: String) -> List(DerivFieldOpt) {
+  let assert Ok(re) = regexp.from_string("\\s*[/][/][$]\\s*")
 
-fn parse_all_deriv_field_opts(lines: List(String)) -> Dict(String, List(DerivFieldOpt)) {
-  let assert Ok(deriv_re) =
-    "^\\s*([_a-z0-9]+)\\s*[:]\\s*(.+)[,]?\\s*[/][/][$]\\s*(.+)$"
-    |> regexp.from_string
+  case regexp.split(re, str) {
+    [_, magic_comment] ->
+      parse_deriv_field_opts_(magic_comment)
 
-  lines
-  |> list.map(fn(line) {
-    case regexp.scan(deriv_re, line) {
-      [Match(_txt, [Some(field_name), Some(_type), Some(magic_comment)])] -> {
-        case parse_deriv_field_opts(magic_comment) {
-          Error(_) ->
-            Error(Nil)
-          Ok(opts) ->
-            Ok(#(field_name, opts))
-        }
-      }
-
-      _ ->
-        Error(Nil)
-    }
-  })
-  |> result.values
-  |> dict.from_list
+    _ ->
+      []
+  }
 }
 
-fn parse_deriv_field_opts(str: String) -> Result(List(DerivFieldOpt), Nil) {
+fn parse_deriv_field_opts_(str: String) -> List(DerivFieldOpt) {
   let lexer =
     lexer.simple([
       lexer.token("(", LParen),
@@ -219,4 +280,5 @@ fn parse_deriv_field_opts(str: String) -> Result(List(DerivFieldOpt), Nil) {
       |> result.map_error(fn(_) { Nil })
     }
   }
+  |> result.unwrap([])
 }
