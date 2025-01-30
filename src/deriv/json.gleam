@@ -6,7 +6,7 @@ import gleam/string
 import gleam/io
 import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor}
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts}
-import deriv/util.{BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
+import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
 pub fn gen(type_: CustomType, deriv: Derivation, field_opts: DerivFieldOpts, file: File) -> Gen {
   let opts = deriv.opts
@@ -224,10 +224,7 @@ pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
 fn unparameterized_type_encode_expr(
   type_name: String,
-  type_: CustomType,
-  variant: Variant,
-  field: String,
-  all_field_opts: DerivFieldOpts,
+  birl_time_kind: BirlTimeKind,
   wrap wrap: Option(fn(Expression) -> Expression)
   ) -> Expression {
   let expr =
@@ -237,7 +234,7 @@ fn unparameterized_type_encode_expr(
       "String" -> FieldAccess(Variable("json"), "string")
       "Bool" -> FieldAccess(Variable("json"), "bool")
       "Uuid" -> FieldAccess(Variable("util"), "encode_uuid")
-      "Time" -> birl_time_encode_expr(type_, variant, field, all_field_opts)
+      "Time" -> birl_time_encode_expr(birl_time_kind)
       _ -> Variable("encode_" <> util.snake_case(type_name))
     }
 
@@ -255,9 +252,11 @@ fn encode_field(
 ) -> Expression {
   let ftype = jtype(field.type_)
 
+  let birl_time_kind = util.birl_time_kind(type_, variant, field.name, all_field_opts)
+
   case ftype.parameters {
     [] ->
-      unparameterized_type_encode_expr(ftype.name, type_, variant, field.name, all_field_opts, Some(fn(func_expr) {
+      unparameterized_type_encode_expr(ftype.name, birl_time_kind, Some(fn(func_expr) {
         Call(
           function: func_expr,
           arguments: [
@@ -269,7 +268,7 @@ fn encode_field(
     [JType(name: param_type_name, module: None, parameters: [])] ->
       case ftype.name {
         "Option" -> {
-          let param_type_encoder = unparameterized_type_encode_expr(param_type_name, type_, variant, field.name, all_field_opts, None)
+          let param_type_encoder = unparameterized_type_encode_expr(param_type_name, birl_time_kind, None)
 
           Call(
             function: FieldAccess(Variable("json"), "nullable"),
@@ -280,7 +279,7 @@ fn encode_field(
           )
         }
         "List" -> {
-          let param_type_encoder = unparameterized_type_encode_expr(param_type_name, type_, variant, field.name, all_field_opts, None)
+          let param_type_encoder = unparameterized_type_encode_expr(param_type_name, birl_time_kind, None)
 
           Call(
             function: FieldAccess(Variable("json"), "preprocessed_array"),
@@ -431,15 +430,17 @@ fn decode_field_expr(
 
   let t = jtype(field.type_)
 
+  let birl_time_kind = util.birl_time_kind(type_, variant, field.name, all_field_opts)
+
   let expr =
     case t.parameters {
-      [] -> unparameterized_type_decode_expr(t.name, type_, variant, field.name, all_field_opts)
+      [] -> unparameterized_type_decode_expr(t.name, birl_time_kind)
       [JType(parameters: [], ..) as param] ->
         case t.name {
           "List" -> {
             let inner =
               param.name
-              |> unparameterized_type_decode_expr(type_, variant, field.name, all_field_opts)
+              |> unparameterized_type_decode_expr(birl_time_kind)
               |> UnlabelledField
 
             Call(FieldAccess(Variable("decode"), "list"), [inner])
@@ -448,7 +449,7 @@ fn decode_field_expr(
           "Option" -> {
             let inner =
               param.name
-              |> unparameterized_type_decode_expr(type_, variant, field.name, all_field_opts)
+              |> unparameterized_type_decode_expr(birl_time_kind)
               |> UnlabelledField
 
             Call(FieldAccess(Variable("decode"), "optional"), [inner])
@@ -542,10 +543,7 @@ fn decoder_type_variant_func(
 
 fn unparameterized_type_decode_expr(
   type_name: String,
-  type_: CustomType,
-  variant: Variant,
-  field: String,
-  all_field_opts: DerivFieldOpts,
+  birl_time_kind: BirlTimeKind,
 ) -> Expression {
   case type_name {
     "Int" -> FieldAccess(Variable("decode"), "int")
@@ -553,18 +551,15 @@ fn unparameterized_type_decode_expr(
     "String" -> FieldAccess(Variable("decode"), "string")
     "Bool" -> FieldAccess(Variable("decode"), "bool")
     "Uuid" -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
-    "Time" -> birl_time_decode_expr(type_, variant, field, all_field_opts)
+    "Time" -> birl_time_decode_expr(birl_time_kind)
     _ -> Call(Variable("decoder_" <> util.snake_case(type_name)), [])
   }
 }
 
 fn birl_time_decode_expr(
-  type_: CustomType,
-  variant: Variant,
-  field: String,
-  all_field_opts: DerivFieldOpts,
+  birl_time_kind: BirlTimeKind,
 ) -> Expression {
-  util.birl_time_kind(type_, variant, field, all_field_opts)
+  birl_time_kind
   |> fn(kind) {
     case kind {
       BirlTimeISO8601 -> "decoder_birl_parse"
@@ -581,12 +576,9 @@ fn birl_time_decode_expr(
 }
 
 fn birl_time_encode_expr(
-  type_: CustomType,
-  variant: Variant,
-  field: String,
-  all_field_opts: DerivFieldOpts,
+  birl_time_kind: BirlTimeKind,
 ) -> Expression {
-  util.birl_time_kind(type_, variant, field, all_field_opts)
+  birl_time_kind
   |> fn(kind) {
     case kind {
       BirlTimeISO8601 -> "encode_birl_to_iso8601"
