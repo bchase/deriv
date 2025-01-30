@@ -279,6 +279,42 @@ pub fn decoder_birl_from_unix_micro() -> Decoder(Time) {
   decoder_birl_int_to_time(birl.from_unix_micro)
 }
 
+pub fn encode_birl_to_iso8601(time: Time) -> Json {
+  time
+  |> birl.to_iso8601
+  |> json.string
+}
+
+pub fn encode_birl_to_naive(time: Time) -> Json {
+  time
+  |> birl.to_naive
+  |> json.string
+}
+
+pub fn encode_birl_to_http(time: Time) -> Json {
+  time
+  |> birl.to_http
+  |> json.string
+}
+
+pub fn encode_birl_to_unix(time: Time) -> Json {
+  time
+  |> birl.to_unix
+  |> json.int
+}
+
+pub fn encode_birl_to_unix_milli(time: Time) -> Json {
+  time
+  |> birl.to_unix_milli
+  |> json.int
+}
+
+pub fn encode_birl_to_unix_micro(time: Time) -> Json {
+  time
+  |> birl.to_unix_micro
+  |> json.int
+}
+
 fn decoder_birl_string_to_result(
   func func: fn(String) -> Result(Time, Nil),
   func_name func_name : String,
