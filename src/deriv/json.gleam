@@ -4,7 +4,7 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
-import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor}
+import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter}
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts}
 import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
@@ -299,6 +299,29 @@ fn encode_field(
         }
       }
 
+    [
+      JType(name: key_param_type_name, module: None, parameters: []),
+      JType(name: val_param_type_name, module: None, parameters: []),
+    ] ->
+      case ftype.name, key_param_type_name {
+        "Dict", "String" -> {
+          let val_param_type_encoder = unparameterized_type_encode_expr(val_param_type_name, birl_time_kind, None)
+
+          Call(
+            function: FieldAccess(Variable("json"), "dict"),
+            arguments: [
+              UnlabelledField(FieldAccess(Variable("value"), field.name)),
+              UnlabelledField(Fn([FnParameter(Named("str"), None)], None, [Expression(Variable("str"))])),
+              UnlabelledField(val_param_type_encoder),
+            ]
+          )
+        }
+        _, _ -> {
+          io.debug(ftype)
+          panic as "Not yet implemented for type printed above"
+        }
+      }
+
     _ -> {
       io.debug(ftype)
       panic as "Not yet implemented for type printed above"
@@ -456,6 +479,28 @@ fn decode_field_expr(
           }
 
           _ -> {
+            io.debug(field)
+            panic as "unimplemented"
+          }
+        }
+      [
+        JType(parameters: [], ..) as key_param,
+        JType(parameters: [], ..) as val_param,
+      ] ->
+        case t.name, key_param.name {
+          "Dict", "String" -> {
+            let val_decode_expr = unparameterized_type_decode_expr(val_param.name, birl_time_kind)
+
+            Call(
+              function: FieldAccess(Variable("decode"), "dict"),
+              arguments: [
+                UnlabelledField(FieldAccess(Variable("decode"), "string")),
+                UnlabelledField(val_decode_expr),
+              ]
+            )
+          }
+
+          _, _ -> {
             io.debug(field)
             panic as "unimplemented"
           }

@@ -705,3 +705,78 @@ pub fn encode_date_time_examples(value: DateTimeExamples) -> Json {
   write.src
   |> should.equal(output)
 }
+
+pub fn dict_fields_json_test() {
+  let input = string.trim("
+pub type DictFieldType {
+  DictFieldType(
+    dict: Dict(String, Int),
+  )
+} //$ derive json(decode,encode)
+")
+
+  let output = string.trim("
+import decode.{type Decoder}
+import gleam/json.{type Json}
+
+pub type DictFieldType {
+  DictFieldType(
+    dict: Dict(String, Int),
+  )
+} //$ derive json(decode,encode)
+
+pub fn decoder_dict_field_type() -> Decoder(DictFieldType) {
+  decode.one_of([decoder_dict_field_type_dict_field_type()])
+}
+
+pub fn decoder_dict_field_type_dict_field_type() -> Decoder(DictFieldType) {
+  decode.into({
+    use dict <- decode.parameter
+    DictFieldType(dict:)
+  })
+  |> decode.field(\"dict\", decode.dict(decode.string, decode.int))
+}
+
+pub fn encode_dict_field_type(value: DictFieldType) -> Json {
+  case value {
+    DictFieldType(..) as value ->
+      json.object([#(\"dict\", json.dict(value.dict, fn(str) { str }, json.int))])
+  }
+}
+")
+
+  // let assert Ok(module) = glance.module(output)
+  // io.debug(module)
+
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs
+    |> deriv.build_writes
+
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let writes =
+    files
+    |> deriv.gen_derivs
+    |> deriv.build_writes
+
+  let assert [write] =
+    writes
+
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
+
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
+
+  write.src
+  |> should.equal(output)
+}
