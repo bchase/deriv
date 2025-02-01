@@ -339,19 +339,14 @@ fn encode_variant_json_object_expr(
     |> list.map(fn(field) {
       let field = variant_field(field)
 
-      let field_opts =
+      let json_field_name =
         all_field_opts
-        |> util.get_field_opts(
-          type_,
-          variant,
-          field.name,
-        )
-
-      let json_field = json_field_name(field, field_opts)
+        |> util.get_field_opts(type_, variant, field.name)
+        |> json_field_name(field, _)
 
       let encode_expr = encode_field(type_, variant, field, all_field_opts)
 
-      Tuple([String(json_field), encode_expr])
+      Tuple([String(json_field_name), encode_expr])
     })
 
   Call(
@@ -513,11 +508,7 @@ fn decode_field_expr(
 
   let json_field_name =
     all_field_opts
-    |> util.get_field_opts(
-      type_,
-      variant,
-      field.name,
-    )
+    |> util.get_field_opts(type_, variant, field.name)
     |> json_field_name(field, _)
 
   #(field.name, Some(json_field_name), expr) // TODO always `Some`
@@ -568,7 +559,25 @@ fn decoder_type_variant_func(
 
       let json_field = json_field |> option.unwrap(field)
 
-      let call = Call(FieldAccess(Variable("decode"), "field"), [UnlabelledField(String(json_field)), UnlabelledField(expr)])
+      let call =
+        case string.split(json_field, ".") {
+          [] -> panic
+          [json_field] ->
+            Call(FieldAccess(Variable("decode"), "field"), [UnlabelledField(String(json_field)), UnlabelledField(expr)])
+          json_fields -> {
+            let json_fields =
+              json_fields
+              |> list.map(fn(str) { String(str) })
+
+            Call(
+              function: FieldAccess(Variable("decode"), "at"),
+              arguments: [
+                UnlabelledField(List(json_fields, None)),
+                UnlabelledField(expr),
+              ]
+            )
+          }
+        }
 
       BinaryOperator(Pipe, acc, call)
     })
