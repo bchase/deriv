@@ -319,6 +319,7 @@ pub type T {
   A(
     foo: String,
     //$ json(foo(bar))
+    //$ json(baz(boo))
   )
 }
   "
@@ -335,7 +336,10 @@ pub type T {
 
   let expected =
     [
-      #(DerivField(type_: "T", variant: "A", field: "foo"), [DerivFieldOpt(deriv: "json", opt: None, key: "foo", val: "bar")]),
+      #(DerivField(type_: "T", variant: "A", field: "foo"), [
+        DerivFieldOpt(deriv: "json", opt: None, key: "foo", val: "bar"),
+        DerivFieldOpt(deriv: "json", opt: None, key: "baz", val: "boo"),
+      ]),
     ]
     |> dict.from_list
 
