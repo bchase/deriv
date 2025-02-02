@@ -23,12 +23,12 @@ pub type Post {
     id: Uuid,
     title: String,
     body: String,
-    //$ json(named(content))
+    //$ json named content
     draft: Bool,
     tags: List(String),
     created_by: User,
     meta_nested_key: String,
-    //$ json(named(meta.nested.key))
+    //$ json named meta.nested.key
   )
 }
 ```
@@ -55,12 +55,12 @@ pub type Post {
     id: Uuid,
     title: String,
     body: String,
-    //$ json(named(content))
+    //$ json named content
     draft: Bool,
     tags: List(String),
     created_by: User,
     meta_nested_key: String,
-    //$ json(named(meta.nested.key))
+    //$ json named meta.nested.key
   )
 }
 
