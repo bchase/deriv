@@ -27,7 +27,7 @@ import youid/uuid.{type Uuid}
 pub type Foo {
   Foo(
     uuid: Uuid,
-    id: Int, //$ json(named(int_id))
+    id: Int, //$ json named int_id
     name: String,
     active: Bool,
     ratio: Float,
@@ -53,7 +53,7 @@ import youid/uuid.{type Uuid}
 pub type Foo {
   Foo(
     uuid: Uuid,
-    id: Int, //$ json(named(int_id))
+    id: Int, //$ json named int_id
     name: String,
     active: Bool,
     ratio: Float,
@@ -318,8 +318,8 @@ pub type T {
   //$ derive json(decode)
   A(
     foo: String,
-    //$ json(foo(bar))
-    //$ json(baz(boo))
+    //$ json foo bar
+    //$ json baz boo
   )
 }
   "
@@ -337,8 +337,8 @@ pub type T {
   let expected =
     [
       #(DerivField(type_: "T", variant: "A", field: "foo"), [
-        DerivFieldOpt(deriv: "json", opt: None, key: "foo", val: "bar"),
-        DerivFieldOpt(deriv: "json", opt: None, key: "baz", val: "boo"),
+        DerivFieldOpt(strs: ["json", "foo", "bar"]),
+        DerivFieldOpt(strs: ["json", "baz", "boo"]),
       ]),
     ]
     |> dict.from_list
@@ -607,12 +607,12 @@ import birl.{type Time}
 pub type DateTimeExamples {
   DateTimeExamples(
     t0: Time,
-    t1: Time, //$ json(birl(iso8601))
-    t2: Time, //$ json(birl(naive))
-    t3: Time, //$ json(birl(http))
-    t4: Time, //$ json(birl(unix))
-    t5: Time, //$ json(birl(unix_milli))
-    t6: Time, //$ json(birl(unix_micro))
+    t1: Time, //$ json birl iso8601
+    t2: Time, //$ json birl naive
+    t3: Time, //$ json birl http
+    t4: Time, //$ json birl unix
+    t5: Time, //$ json birl unix_milli
+    t6: Time, //$ json birl unix_micro
   )
 } //$ derive json(decode,encode)
 ")
@@ -626,12 +626,12 @@ import gleam/json.{type Json}
 pub type DateTimeExamples {
   DateTimeExamples(
     t0: Time,
-    t1: Time, //$ json(birl(iso8601))
-    t2: Time, //$ json(birl(naive))
-    t3: Time, //$ json(birl(http))
-    t4: Time, //$ json(birl(unix))
-    t5: Time, //$ json(birl(unix_milli))
-    t6: Time, //$ json(birl(unix_micro))
+    t1: Time, //$ json birl iso8601
+    t2: Time, //$ json birl naive
+    t3: Time, //$ json birl http
+    t4: Time, //$ json birl unix
+    t5: Time, //$ json birl unix_milli
+    t6: Time, //$ json birl unix_micro
   )
 } //$ derive json(decode,encode)
 
@@ -789,7 +789,7 @@ pub fn unnested_json_test() {
   let input = "
 pub type Unnested {
   Unnested(
-    unnested: Int, //$ json(named(foo.bar.baz))
+    unnested: Int, //$ json named foo.bar.baz
   )
 } //$ derive json(decode,encode)
   "
@@ -801,7 +801,7 @@ import gleam/json.{type Json}
 
 pub type Unnested {
   Unnested(
-    unnested: Int, //$ json(named(foo.bar.baz))
+    unnested: Int, //$ json named foo.bar.baz
   )
 } //$ derive json(decode,encode)
 

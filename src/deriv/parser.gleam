@@ -1,14 +1,13 @@
-import gleam/option.{Some, None}
+import gleam/option.{type Option, Some, None}
 import gleam/dict
 import gleam/result
 import gleam/list
 import gleam/string
-import gleam/set
 import gleam/regexp.{Match}
-import nibble.{do, return}
-import nibble/lexer
 import glance.{type CustomType}
 import deriv/types.{type Derivation, Derivation, DerivField, type DerivFieldOpt, DerivFieldOpt, type DerivFieldOpts}
+
+pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
 pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType, List(Derivation), DerivFieldOpts), Nil) {
   let assert Ok(type_line_re) = regexp.compile("^(pub )?type\\s+?" <> type_.name <> "\\s*?[{]", regexp.Options(case_insensitive: False, multi_line: True))
@@ -208,87 +207,19 @@ fn parse_all_deriv_field_opts(lines: List(String)) -> DerivFieldOpts {
   }
 }
 
-type Token {
-  LParen
-  RParen
-  Str(String)
-}
-
 fn parse_deriv_field_opts(str: String) -> List(DerivFieldOpt) {
-  let assert Ok(re) = regexp.from_string("\\s*[/][/][$]\\s*")
+  let assert Ok(magic_comment_re) = regexp.from_string("\\s*[/][/][$]\\s*")
+  let assert Ok(whitespace_re) = regexp.from_string("\\s+")
 
-  case regexp.split(re, str) {
+  case regexp.split(magic_comment_re, str) {
     [_, magic_comment] ->
-      parse_deriv_field_opts_(magic_comment)
+
+      case regexp.split(whitespace_re, magic_comment) {
+        [] -> []
+        strs -> [DerivFieldOpt(strs)]
+      }
 
     _ ->
       []
   }
-}
-
-fn parse_deriv_field_opts_(str: String) -> List(DerivFieldOpt) {
-  let lexer =
-    lexer.simple([
-      lexer.token("(", LParen),
-      lexer.token(")", RParen),
-      lexer.identifier("[^()]", "[^()]", set.from_list([ "(", ")" ]), Str),
-    ])
-
-  let str_parser = {
-    use tok <- nibble.take_map("expected key")
-    case tok {
-      Str(str) -> Some(str)
-      _ -> None
-    }
-  }
-
-  let deriv_with_opt_parser = {
-    use deriv <- do(str_parser)
-    use _ <- do(nibble.token(LParen))
-    use opt <- do(str_parser)
-    use _ <- do(nibble.token(LParen))
-    use key <- do(str_parser)
-    use _ <- do(nibble.token(LParen))
-    use val <- do(str_parser)
-    use _ <- do(nibble.token(RParen))
-    use _ <- do(nibble.token(RParen))
-    use _ <- do(nibble.token(RParen))
-
-    return(DerivFieldOpt(deriv:, opt: Some(opt), key:, val:))
-  }
-
-  let deriv_without_opt_parser = {
-    use deriv <- do(str_parser)
-    use _ <- do(nibble.token(LParen))
-    use key <- do(str_parser)
-    use _ <- do(nibble.token(LParen))
-    use val <- do(str_parser)
-    use _ <- do(nibble.token(RParen))
-    use _ <- do(nibble.token(RParen))
-
-    return(DerivFieldOpt(deriv:, opt: None, key:, val:))
-  }
-
-  // let parser =
-  //   nibble.one_of([
-  //     deriv_with_opt_parser,
-  //     deriv_without_opt_parser,
-  //   ])
-
-  case lexer.run(str, lexer) {
-    Error(_) -> Error(Nil)
-    Ok(tokens) -> {
-      // nibble.run(tokens, parser)
-      [
-        deriv_with_opt_parser,
-        deriv_without_opt_parser,
-      ]
-      |> list.find_map(fn(parser) {
-        nibble.run(tokens, parser)
-        |> result.map(fn(x) { [x] })
-      })
-      |> result.map_error(fn(_) { Nil })
-    }
-  }
-  |> result.unwrap([])
 }

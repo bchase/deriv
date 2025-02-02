@@ -211,10 +211,15 @@ fn jtype(type_: Type) -> JType {
 
 fn json_field_name(field: VarField, field_opts: List(DerivFieldOpt)) -> String {
   field_opts
-  |> list.find(fn(f) { f.deriv == "json" && f.key == "named" })
+  |> list.find_map(fn(opt) {
+    case opt.strs {
+      ["json", "named", val] -> Ok(val)
+      _ -> Error(Nil)
+    }
+  })
   |> fn(x) {
     case x, field {
-      Ok(field_opt), _ -> field_opt.val
+      Ok(val), _ -> val
       Error(_), field -> field.name
     }
   }

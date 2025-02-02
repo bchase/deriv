@@ -378,9 +378,9 @@ pub fn birl_time_kind(
     opts ->
       opts
       |> list.find_map(fn(opt) {
-        case opt.deriv == "json" && opt.key == "birl" {
-          True -> Ok(opt.val)
-          False -> Error(Nil)
+        case opt.strs {
+          ["json", "birl", val] -> Ok(val)
+          _ -> Error(Nil)
         }
       })
       |> result.unwrap("iso8601")

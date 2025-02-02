@@ -67,10 +67,11 @@ pub type DerivField {
 
 pub type DerivFieldOpt {
   DerivFieldOpt(
-    deriv: String,
-    opt: Option(String),
-    key: String,
-    val: String,
+    // deriv: String,
+    // opt: Option(String),
+    // key: String,
+    // val: String,
+    strs: List(String),
   )
 }
 
