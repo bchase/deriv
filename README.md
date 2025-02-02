@@ -13,22 +13,24 @@ gleam add deriv@1
 import youid/uuid.{type Uuid}
 
 pub type User {
-  User(
-    id: Uuid,
-    name: String,
-  )
-} //$ derive json(decode,encode)
+  //$ derive json(decode,encode)
+  User(id: Uuid, name: String)
+}
 
 pub type Post {
+  //$ derive json(decode,encode)
   Post(
     id: Uuid,
     title: String,
-    body: String, //$ json(named(content))
+    body: String,
+    //$ json(named(content))
     draft: Bool,
     tags: List(String),
     created_by: User,
+    meta_nested_key: String,
+    //$ json(named(meta.nested.key))
   )
-} //$ derive json(decode,encode)
+}
 ```
 
 ```
@@ -43,22 +45,24 @@ import gleam/list
 import youid/uuid.{type Uuid}
 
 pub type User {
-  User(
-    id: Uuid,
-    name: String,
-  )
-} //$ derive json(decode,encode)
+  //$ derive json(decode,encode)
+  User(id: Uuid, name: String)
+}
 
 pub type Post {
+  //$ derive json(decode,encode)
   Post(
     id: Uuid,
     title: String,
-    body: String, //$ json(named(content))
+    body: String,
+    //$ json(named(content))
     draft: Bool,
     tags: List(String),
     created_by: User,
+    meta_nested_key: String,
+    //$ json(named(meta.nested.key))
   )
-} //$ derive json(decode,encode)
+}
 
 pub fn decoder_user() -> Decoder(User) {
   decode.one_of([decoder_user_user()])
@@ -96,7 +100,8 @@ pub fn decoder_post_post() -> Decoder(Post) {
     use draft <- decode.parameter
     use tags <- decode.parameter
     use created_by <- decode.parameter
-    Post(id:, title:, body:, draft:, tags:, created_by:)
+    use meta_nested_key <- decode.parameter
+    Post(id:, title:, body:, draft:, tags:, created_by:, meta_nested_key:)
   })
   |> decode.field("id", util.decoder_uuid())
   |> decode.field("title", decode.string)
@@ -104,6 +109,7 @@ pub fn decoder_post_post() -> Decoder(Post) {
   |> decode.field("draft", decode.bool)
   |> decode.field("tags", decode.list(decode.string))
   |> decode.field("created_by", decoder_user())
+  |> decode.subfield(["meta", "nested", "key"], decode.string)
 }
 
 pub fn encode_post(value: Post) -> Json {
@@ -116,6 +122,15 @@ pub fn encode_post(value: Post) -> Json {
         #("draft", json.bool(value.draft)),
         #("tags", json.preprocessed_array(list.map(value.tags, json.string))),
         #("created_by", encode_user(value.created_by)),
+        #(
+          "meta",
+          json.object([
+            #(
+              "nested",
+              json.object([#("key", json.string(value.meta_nested_key))]),
+            ),
+          ]),
+        ),
       ])
   }
 }
