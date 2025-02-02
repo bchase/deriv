@@ -346,7 +346,52 @@ fn encode_variant_json_object_expr(
 
       let encode_expr = encode_field(type_, variant, field, all_field_opts)
 
-      Tuple([String(json_field_name), encode_expr])
+      case string.split(json_field_name, ".") {
+        [] -> panic
+
+        [_simple_field_name] ->
+          Tuple([String(json_field_name), encode_expr])
+
+        [top_level_field_name, ..rest] -> {
+          rest
+          |> list.reverse
+          |> fn(fs) {
+            case fs {
+              [last_field_name, ..other_field_names] -> {
+                // let terminal_expr = Tuple([String(last_field_name), encode_expr])
+                let terminal_expr =
+                  // Tuple([String(last_field_name), encode_expr])
+                  Call(
+                    function: FieldAccess(Variable("json"), "object"),
+                    arguments: [
+                      UnlabelledField(List(
+                        [Tuple([String(last_field_name), encode_expr])],
+                        None,
+                      )),
+                    ],
+                  )
+
+                let expr =
+                  list.fold(other_field_names, terminal_expr, fn(acc_expr, json_field_name) {
+                    Call(
+                      function: FieldAccess(Variable("json"), "object"),
+                      arguments: [
+                        UnlabelledField(List(
+                          [Tuple([String(json_field_name), acc_expr])],
+                          None,
+                        )),
+                      ],
+                    )
+                  })
+
+                Tuple([String(top_level_field_name), expr])
+              }
+
+              _ -> panic
+            }
+          }
+        }
+      }
     })
 
   Call(
@@ -570,7 +615,7 @@ fn decoder_type_variant_func(
               |> list.map(fn(str) { String(str) })
 
             Call(
-              function: FieldAccess(Variable("decode"), "at"),
+              function: FieldAccess(Variable("decode"), "subfield"),
               arguments: [
                 UnlabelledField(List(json_fields, None)),
                 UnlabelledField(expr),
