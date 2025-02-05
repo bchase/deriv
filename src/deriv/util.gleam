@@ -44,6 +44,7 @@ pub fn decoder_uuid() -> Decoder(Uuid) {
 pub fn encode_uuid(uuid: Uuid) -> Json {
   uuid
   |> uuid.to_string
+  |> string.lowercase
   |> json.string
 }
 
