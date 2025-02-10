@@ -868,7 +868,7 @@ pub fn encode_unnested(value: Unnested) -> Json {
 }
 
 pub fn form_data_decode_test() {
-  let form = form.FormData(fields: [
+  let fields = [
     #("person[name]", "Brad"),
     #("person[age]", "38"),
     #("person[kd]", "1.87"),
@@ -878,9 +878,9 @@ pub fn form_data_decode_test() {
     #("person[hobbies][]", "Tarkov"),
     #("person[pet][name]", "Jovie"),
     #("person[pet][age]", "8"),
-  ])
+  ]
 
-  let r = form.decode_person_form(form)
+  let r = form.decode_person_form(fields)
   io.debug(r)
 
   True |> should.equal(True)

@@ -16,11 +16,7 @@ import decode.{type Decoder}
 // ? - hashes/maps/dicts
 // ? - array of nested
 
-pub type FormData {
-  FormData(
-    fields: List(#(String, String)),
-  )
-} // TODO wisp.FormData
+pub type FormData = List(#(String, String))
 
 pub type PersonForm {
   //$ derive form(person)
@@ -205,7 +201,7 @@ fn to_field(tokens: List(String)) -> Result(Field, String) {
 type Fields = Dict(Field, List(String))
 
 fn fields(form: FormData) -> Fields {
-  form.fields
+  form
   |> list.map(fn(field) {
     let #(key_str, val) = field
 
@@ -252,7 +248,7 @@ fn array(field: Field, decoder: Decoder(t), fields: Fields) -> Result(List(t), N
 }
 
 pub fn decode_(form: FormData, decoder: Decoder(t)) -> Result(t, List(dynamic.DecodeError)) {
-  decode.from(decoder, dynamic.from(dict.from_list(form.fields)))
+  decode.from(decoder, dynamic.from(dict.from_list(form)))
 }
 
 fn decode_string(
