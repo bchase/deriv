@@ -9,6 +9,7 @@ import deriv/parser
 import deriv
 import deriv/util
 import gleam/io
+import deriv/example/wisp_form_data as form
 
 import glance.{Import, UnqualifiedImport, Named}
 
@@ -864,4 +865,23 @@ pub fn encode_unnested(value: Unnested) -> Json {
 
   write.src
   |> should.equal(output)
+}
+
+pub fn form_data_decode_test() {
+  let form = form.FormData(fields: [
+    #("person[name]", "Brad"),
+    #("person[age]", "38"),
+    #("person[kd]", "1.87"),
+    #("person[active]", "true"),
+    #("person[hobbies][]", "Japanese"),
+    #("person[hobbies][]", "Gleam"),
+    #("person[hobbies][]", "Tarkov"),
+    #("person[pet][name]", "Jovie"),
+    #("person[pet][age]", "8"),
+  ])
+
+  let r = form.decode_person_form(form)
+  io.debug(r)
+
+  True |> should.equal(True)
 }
