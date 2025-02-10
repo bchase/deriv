@@ -52,23 +52,26 @@ pub fn person_input_name(field: PersonFormField) -> String {
 }
 
 pub fn decode_person_form(form: FormData) -> Result(PersonForm, Nil) {
+  decode_person_form_(form, "person")
+}
+pub fn decode_person_form_(form: FormData, f: String) -> Result(PersonForm, Nil) {
   let fields = fields(form)
 
-  use name <- result.try(scalar(person_form_field(PersonName), decode.string, fields))
-  use age <- result.try(scalar(person_form_field(PersonAge), decoder_int(), fields))
-  let kd = option.from_result(scalar(person_form_field(PersonKd), decoder_float(), fields))
-  use active <- result.try(scalar(person_form_field(PersonActive), decoder_bool(), fields))
-  use hobbies <- result.try(array(person_form_field(PersonHobbies), decode.string, fields))
+  use name <- result.try(scalar(person_form_field(f, PersonName), decode.string, fields))
+  use age <- result.try(scalar(person_form_field(f, PersonAge), decoder_int(), fields))
+  let kd = option.from_result(scalar(person_form_field(f, PersonKd), decoder_float(), fields))
+  use active <- result.try(scalar(person_form_field(f, PersonActive), decoder_bool(), fields))
+  use hobbies <- result.try(array(person_form_field(f, PersonHobbies), decode.string, fields))
 
   // use pet <- result.try({
-  //   use name <- result.try(scalar(person_form_field(PersonPet(PetName)), decode.string, fields))
-  //   use age <- result.try(scalar(person_form_field(PersonPet(PetAge)), decoder_int(), fields))
+  //   use name <- result.try(scalar(person_form_field(f, PersonPet(PetName)), decode.string, fields))
+  //   use age <- result.try(scalar(person_form_field(f, PersonPet(PetAge)), decoder_int(), fields))
 
   //   Ok(PetForm(name:, age:))
   // })
   let pet = option.from_result({
-    use name <- result.try(scalar(person_form_field(PersonPet(PetName)), decode.string, fields))
-    use age <- result.try(scalar(person_form_field(PersonPet(PetAge)), decoder_int(), fields))
+    use name <- result.try(scalar(person_form_field(f, PersonPet(PetName)), decode.string, fields))
+    use age <- result.try(scalar(person_form_field(f, PersonPet(PetAge)), decoder_int(), fields))
 
     Ok(PetForm(name:, age:))
   })
@@ -90,15 +93,15 @@ pub type PetFormField {
   PetAge
 }
 
-fn person_form_field(field: PersonFormField) -> Field {
+fn person_form_field(form: String, field: PersonFormField) -> Field {
   case field {
-    PersonName -> Field(keys:[ Key("person"), Key("name") ])
-    PersonAge -> Field(keys:[ Key("person"), Key("age") ])
-    PersonKd -> Field(keys:[ Key("person"), Key("kd") ])
-    PersonActive -> Field(keys:[ Key("person"), Key("active") ])
-    PersonHobbies -> Field(keys:[ Key("person"), Key("hobbies"), Array ])
-    PersonPet(PetName) -> Field(keys: [ Key("person"), Key("pet"), Key("name") ])
-    PersonPet(PetAge) -> Field(keys: [ Key("person"), Key("pet"), Key("age") ])
+    PersonName -> Field(keys:[ Key(form), Key("name") ])
+    PersonAge -> Field(keys:[ Key(form), Key("age") ])
+    PersonKd -> Field(keys:[ Key(form), Key("kd") ])
+    PersonActive -> Field(keys:[ Key(form), Key("active") ])
+    PersonHobbies -> Field(keys:[ Key(form), Key("hobbies"), Array ])
+    PersonPet(PetName) -> Field(keys: [ Key(form), Key("pet"), Key("name") ])
+    PersonPet(PetAge) -> Field(keys: [ Key(form), Key("pet"), Key("age") ])
   }
 }
 
