@@ -12,6 +12,7 @@ import gleam/io
 import deriv/example/wisp_form_data as form
 
 import glance.{Import, UnqualifiedImport, Named}
+import simplifile
 
 pub fn suppress_io_warnings() { io.debug(Nil) }
 
@@ -868,6 +869,15 @@ pub fn encode_unnested(value: Unnested) -> Json {
 }
 
 pub fn form_data_decode_test() {
+  let assert Ok(src) = simplifile.read("src/deriv/example/wisp_form_data.gleam")
+  let assert Ok(module) = glance.module(src)
+
+  module.functions
+  |> list.each(fn(f) {
+    f
+    |> io.debug
+  })
+
   let fields = [
     #("person[name]", "Brad"),
     #("person[age]", "38"),

@@ -40,14 +40,18 @@ pub type PetForm {
 //// DERIVED ////
 
 pub fn person_input_name(field: PersonFormField) -> String {
+  person_input_name_("person", field)
+}
+
+pub fn person_input_name_(form: String, field: PersonFormField) -> String {
   case field {
-    PersonName -> "person[name]"
-    PersonAge -> "person[age]"
-    PersonKd -> "person[kd]"
-    PersonActive -> "person[active]"
-    PersonHobbies -> "person[hobbies][]"
-    PersonPet(PetName) -> "person[pet][name]"
-    PersonPet(PetAge) -> "person[pet][age]"
+    PersonFormName -> form <> "[name]"
+    PersonFormAge -> form <> "[age]"
+    PersonFormKd ->  form <> "[kd]"
+    PersonFormActive ->  form <> "[active]"
+    PersonFormHobbies ->  form <> "[hobbies][]"
+    PersonFormPetName ->  form <> "[pet][name]"
+    PersonFormPetAge ->  form <> "[pet][age]"
   }
 }
 
@@ -57,21 +61,21 @@ pub fn decode_person_form(form: FormData) -> Result(PersonForm, Nil) {
 pub fn decode_person_form_(form: FormData, f: String) -> Result(PersonForm, Nil) {
   let fields = fields(form)
 
-  use name <- result.try(scalar(person_form_field(f, PersonName), decode.string, fields))
-  use age <- result.try(scalar(person_form_field(f, PersonAge), decoder_int(), fields))
-  let kd = option.from_result(scalar(person_form_field(f, PersonKd), decoder_float(), fields))
-  use active <- result.try(scalar(person_form_field(f, PersonActive), decoder_bool(), fields))
-  use hobbies <- result.try(array(person_form_field(f, PersonHobbies), decode.string, fields))
+  use name <- result.try(scalar(person_form_field(f, PersonFormName), decode.string, fields))
+  use age <- result.try(scalar(person_form_field(f, PersonFormAge), decoder_int(), fields))
+  let kd = option.from_result(scalar(person_form_field(f, PersonFormKd), decoder_float(), fields))
+  use active <- result.try(scalar(person_form_field(f, PersonFormActive), decoder_bool(), fields))
+  use hobbies <- result.try(array(person_form_field(f, PersonFormHobbies), decode.string, fields))
 
   // use pet <- result.try({
-  //   use name <- result.try(scalar(person_form_field(f, PersonPet(PetName)), decode.string, fields))
-  //   use age <- result.try(scalar(person_form_field(f, PersonPet(PetAge)), decoder_int(), fields))
+  //   use name <- result.try(scalar(person_form_field(f, PersonFormPet(PetName)), decode.string, fields))
+  //   use age <- result.try(scalar(person_form_field(f, PersonFormPet(PetAge)), decoder_int(), fields))
 
   //   Ok(PetForm(name:, age:))
   // })
   let pet = option.from_result({
-    use name <- result.try(scalar(person_form_field(f, PersonPet(PetName)), decode.string, fields))
-    use age <- result.try(scalar(person_form_field(f, PersonPet(PetAge)), decoder_int(), fields))
+    use name <- result.try(scalar(person_form_field(f, PersonFormPetName), decode.string, fields))
+    use age <- result.try(scalar(person_form_field(f, PersonFormPetAge), decoder_int(), fields))
 
     Ok(PetForm(name:, age:))
   })
@@ -80,28 +84,24 @@ pub fn decode_person_form_(form: FormData, f: String) -> Result(PersonForm, Nil)
 }
 
 pub type PersonFormField {
-  PersonName
-  PersonAge
-  PersonKd
-  PersonActive
-  PersonHobbies
-  PersonPet(PetFormField)
-}
-
-pub type PetFormField {
-  PetName
-  PetAge
+  PersonFormName
+  PersonFormAge
+  PersonFormKd
+  PersonFormActive
+  PersonFormHobbies
+  PersonFormPetName
+  PersonFormPetAge
 }
 
 fn person_form_field(form: String, field: PersonFormField) -> Field {
   case field {
-    PersonName -> Field(keys:[ Key(form), Key("name") ])
-    PersonAge -> Field(keys:[ Key(form), Key("age") ])
-    PersonKd -> Field(keys:[ Key(form), Key("kd") ])
-    PersonActive -> Field(keys:[ Key(form), Key("active") ])
-    PersonHobbies -> Field(keys:[ Key(form), Key("hobbies"), Array ])
-    PersonPet(PetName) -> Field(keys: [ Key(form), Key("pet"), Key("name") ])
-    PersonPet(PetAge) -> Field(keys: [ Key(form), Key("pet"), Key("age") ])
+    PersonFormName -> Field(keys:[ Key(form), Key("name") ])
+    PersonFormAge -> Field(keys:[ Key(form), Key("age") ])
+    PersonFormKd -> Field(keys:[ Key(form), Key("kd") ])
+    PersonFormActive -> Field(keys:[ Key(form), Key("active") ])
+    PersonFormHobbies -> Field(keys:[ Key(form), Key("hobbies"), Array ])
+    PersonFormPetName -> Field(keys: [ Key(form), Key("pet"), Key("name") ])
+    PersonFormPetAge -> Field(keys: [ Key(form), Key("pet"), Key("age") ])
   }
 }
 
