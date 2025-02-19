@@ -6,11 +6,11 @@ import gleam/result
 import gleam/regexp.{type Regexp}
 import decode.{type Decoder}
 import youid/uuid.{type Uuid}
-import glance.{type Definition, type Function, Module, Definition, Function, type CustomType, type Variant}
+import glance.{type Module, type Definition, type Function, Module, Definition, Function, type CustomType, type Variant}
 import glance_printer
 import shellout
 import birl.{type Time}
-import deriv/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField}
+import deriv/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField, type ModuleReader}
 import gleam/io
 
 pub fn decode_type_field(
@@ -397,4 +397,7 @@ pub fn birl_time_kind(
         }
       }
   }
+}
+
+pub fn fetch_custom_type(ident: String, module_reader: ModuleReader) -> Result(Module, Nil) {
 }

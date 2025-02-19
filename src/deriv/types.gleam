@@ -1,8 +1,10 @@
 import gleam/option.{type Option}
 import gleam/dict.{type Dict}
-import glance.{type CustomType, type Import, type Definition}
+import glance.{type Module, type CustomType, type Import, type Definition}
 
 pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File) -> Gen
+
+pub type ModuleReader = fn(String) -> Result(Module, Nil)
 
 pub type File {
   File(
