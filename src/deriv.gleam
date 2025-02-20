@@ -197,7 +197,7 @@ fn gen_type_derivs(
     case dict.get(gen_funcs, d.name) {
       Error(_) -> Error(Nil)
       Ok(f) -> {
-        Ok(f(type_, d, field_opts, file))
+        Ok(f(type_, d, field_opts, file, util.fetch_custom_type))
       }
     }
   })

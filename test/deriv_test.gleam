@@ -868,85 +868,85 @@ pub fn encode_unnested(value: Unnested) -> Json {
   |> should.equal(output)
 }
 
-// pub fn a_unnested_json_test() {
-//   let assert Ok(module) = simplifile.read("")
+pub fn a_unnested_json_test() {
+  let assert Ok(module) = simplifile.read("")
 
-//   let input = "
-// pub type Unnested {
-//   Unnested(
-//     unnested: Int, //$ json named foo.bar.baz
-//   )
-// } //$ derive json(decode,encode)
-//   "
-//   |> string.trim
+  let input = "
+pub type Unnested {
+  Unnested(
+    unnested: Int, //$ json named foo.bar.baz
+  )
+} //$ derive json(decode,encode)
+  "
+  |> string.trim
 
-//  let output = "
-// import decode.{type Decoder}
-// import gleam/json.{type Json}
+ let output = "
+import decode.{type Decoder}
+import gleam/json.{type Json}
 
-// pub type Unnested {
-//   Unnested(
-//     unnested: Int, //$ json named foo.bar.baz
-//   )
-// } //$ derive json(decode,encode)
+pub type Unnested {
+  Unnested(
+    unnested: Int, //$ json named foo.bar.baz
+  )
+} //$ derive json(decode,encode)
 
-// pub fn decoder_unnested() -> Decoder(Unnested) {
-//   decode.one_of([decoder_unnested_unnested()])
-// }
+pub fn decoder_unnested() -> Decoder(Unnested) {
+  decode.one_of([decoder_unnested_unnested()])
+}
 
-// pub fn decoder_unnested_unnested() -> Decoder(Unnested) {
-//   decode.into({
-//     use unnested <- decode.parameter
-//     Unnested(unnested:)
-//   })
-//   |> decode.subfield([\"foo\", \"bar\", \"baz\"], decode.int)
-// }
+pub fn decoder_unnested_unnested() -> Decoder(Unnested) {
+  decode.into({
+    use unnested <- decode.parameter
+    Unnested(unnested:)
+  })
+  |> decode.subfield([\"foo\", \"bar\", \"baz\"], decode.int)
+}
 
-// pub fn encode_unnested(value: Unnested) -> Json {
-//   case value {
-//     Unnested(..) as value ->
-//       json.object([
-//         #(
-//           \"foo\",
-//           json.object([
-//             #(\"bar\", json.object([#(\"baz\", json.int(value.unnested))])),
-//           ]),
-//         ),
-//       ])
-//   }
-// }
-//   "
-//   |> string.trim
+pub fn encode_unnested(value: Unnested) -> Json {
+  case value {
+    Unnested(..) as value ->
+      json.object([
+        #(
+          \"foo\",
+          json.object([
+            #(\"bar\", json.object([#(\"baz\", json.int(value.unnested))])),
+          ]),
+        ),
+      ])
+  }
+}
+  "
+  |> string.trim
 
-//   let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
 
-//   let assert [write] =
-//     files
-//     |> deriv.gen_derivs
-//     |> deriv.build_writes
+  let assert [write] =
+    files
+    |> deriv.gen_derivs
+    |> deriv.build_writes
 
-//   let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
 
-//   let writes =
-//     files
-//     |> deriv.gen_derivs
-//     |> deriv.build_writes
+  let writes =
+    files
+    |> deriv.gen_derivs
+    |> deriv.build_writes
 
-//   let assert [write] =
-//     writes
+  let assert [write] =
+    writes
 
-//   io.println("")
-//   io.println("")
-//   io.println("GENERATED")
-//   io.println(write.src)
-//   io.println("")
-//   io.println("")
-//   io.println("EXPECTED")
-//   io.println(output)
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
 
-//   write.filepath
-//   |> should.equal("src/deriv/example/foo.gleam")
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
 
-//   write.src
-//   |> should.equal(output)
-// }
+  write.src
+  |> should.equal(output)
+}

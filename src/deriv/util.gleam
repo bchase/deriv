@@ -9,8 +9,9 @@ import youid/uuid.{type Uuid}
 import glance.{type Module, type Definition, type Function, Module, Definition, Function, type CustomType, type Variant}
 import glance_printer
 import shellout
+import simplifile
 import birl.{type Time}
-import deriv/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField, type ModuleReader}
+import deriv/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField, type ModuleReader, type ModuleReaderErr}
 import gleam/io
 
 pub fn decode_type_field(
@@ -399,5 +400,10 @@ pub fn birl_time_kind(
   }
 }
 
-pub fn fetch_custom_type(ident: String, module_reader: ModuleReader) -> Result(Module, Nil) {
+pub fn fetch_custom_type(ident: String) -> Result(Module, ModuleReaderErr) {
+  let filepath = "src/" <> ident <> ".gleam"
+  use src <- result.try(simplifile.read(filepath) |> result.map_error(types.FileErr))
+  use src <- result.try(glance.module(src) |> result.map_error(types.GlanceError))
+
+  Ok(src)
 }

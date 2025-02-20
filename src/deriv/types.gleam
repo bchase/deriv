@@ -1,10 +1,16 @@
 import gleam/option.{type Option}
 import gleam/dict.{type Dict}
 import glance.{type Module, type CustomType, type Import, type Definition}
+import simplifile
 
-pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File) -> Gen
+pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File, ModuleReader) -> Gen
 
-pub type ModuleReader = fn(String) -> Result(Module, Nil)
+pub type ModuleReaderErr {
+  FileErr(simplifile.FileError)
+  GlanceError(glance.Error)
+}
+
+pub type ModuleReader = fn(String) -> Result(Module, ModuleReaderErr)
 
 pub type File {
   File(
