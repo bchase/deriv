@@ -1,5 +1,6 @@
 import gleam/option.{type Option, Some, None}
 import gleam/dict
+import gleam/result
 import gleam/list
 import gleeunit
 import gleeunit/should
@@ -17,6 +18,10 @@ import glance.{Import, UnqualifiedImport, Named}
 pub fn suppress_io_warnings() { io.debug(Nil) }
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
+
+pub fn dummy_module_reader(_) {
+  panic as "`dummy_module_reader`"
+}
 
 pub fn main() {
   gleeunit.main()
@@ -123,14 +128,14 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
 
   let assert [write] =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(dummy_module_reader)
     |> deriv.build_writes
 
   let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
 
   let writes =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(dummy_module_reader)
     |> deriv.build_writes
 
   let assert [write] =
@@ -227,7 +232,7 @@ pub fn encode_t(value: T) -> Json {
 
   let assert [write] =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(dummy_module_reader)
     |> deriv.build_writes
 
   write.filepath
@@ -291,7 +296,7 @@ pub fn encode_maybe(value: Maybe) -> Json {
 
   let assert [write] =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(dummy_module_reader)
     |> deriv.build_writes
 
   write.filepath
@@ -423,7 +428,7 @@ pub fn encode_b(value: B) -> Json {
 
   let assert [write] =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(dummy_module_reader)
     |> deriv.build_writes
 
   write.filepath
@@ -683,14 +688,14 @@ pub fn encode_date_time_examples(value: DateTimeExamples) -> Json {
 
   let assert [write] =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(dummy_module_reader)
     |> deriv.build_writes
 
   let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
 
   let writes =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(dummy_module_reader)
     |> deriv.build_writes
 
   let assert [write] =
@@ -758,14 +763,14 @@ pub fn encode_dict_field_type(value: DictFieldType) -> Json {
 
   let assert [write] =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(dummy_module_reader)
     |> deriv.build_writes
 
   let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
 
   let writes =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(dummy_module_reader)
     |> deriv.build_writes
 
   let assert [write] =
@@ -839,14 +844,14 @@ pub fn encode_unnested(value: Unnested) -> Json {
 
   let assert [write] =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(dummy_module_reader)
     |> deriv.build_writes
 
   let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
 
   let writes =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(dummy_module_reader)
     |> deriv.build_writes
 
   let assert [write] =
@@ -868,52 +873,108 @@ pub fn encode_unnested(value: Unnested) -> Json {
   |> should.equal(output)
 }
 
-pub fn a_unnested_json_test() {
-  let assert Ok(module) = simplifile.read("")
+pub fn snake_case_test() {
+  util.snake_case("FooBar")
+  |> should.equal("foo_bar")
+
+  util.snake_case("Foo")
+  |> should.equal("foo")
+
+  util.snake_case("FooBarX")
+  |> should.equal("foo_bar_x")
+}
+
+pub fn unify_test() {
+  let authe_a_src = "
+pub type AutheA {
+  AutheA(
+    user_id: Uuid,
+    name: String,
+    email: String,
+    org_id: Uuid,
+    authe_id: Uuid,
+    provider: String,
+    uid: Option(String),
+    aid: Option(String),
+    encrypted_access_token: String,
+    encrypted_refresh_token: String,
+  )
+}
+  " |> string.trim
+
+  let authe_b_src = "
+pub type AutheB {
+  AutheB(
+    user_id: Uuid,
+    name: String,
+    email: String,
+    org_id: Uuid,
+    authe_id: Uuid,
+    provider: String,
+    uid: Option(String),
+    aid: Option(String),
+    encrypted_access_token: String,
+    encrypted_refresh_token: String,
+  )
+}
+  " |> string.trim
+
+  let parse = fn(src) {
+    glance.module(src)
+    |> result.map_error(types.GlanceErr)
+  }
+
+  let module_reader: types.ModuleReader = fn(ident) {
+    case ident {
+      "project/authe/a" -> parse(authe_a_src)
+      "project/authe/b" -> parse(authe_b_src)
+
+      _ -> {
+        io.debug(ident)
+        panic as "`module_reader` miss in `unify_test`"
+      }
+    }
+  }
 
   let input = "
-pub type Unnested {
-  Unnested(
-    unnested: Int, //$ json named foo.bar.baz
+pub type AutheTokens {
+  //$ derive unify(project/authe/a.AutheA,project/authe/b.AutheB)
+  Authe(
+    id: Uuid,
+    //$ unify field project/authe/a.AutheA authe_id
+    //$ unify field project/authe/b.AutheB authe_id
+    encrypted_access_token: String,
+    encrypted_refresh_token: String,
   )
-} //$ derive json(decode,encode)
-  "
-  |> string.trim
+}
+  " |> string.trim
 
  let output = "
-import decode.{type Decoder}
-import gleam/json.{type Json}
-
-pub type Unnested {
-  Unnested(
-    unnested: Int, //$ json named foo.bar.baz
+pub type AutheTokens {
+  //$ derive unify(project/authe/a.AutheA,project/authe/b.AutheB)
+  Authe(
+    id: Uuid,
+    //$ unify field project/authe/a.AutheA authe_id
+    //$ unify field project/authe/b.AutheB authe_id
+    encrypted_access_token: String,
+    encrypted_refresh_token: String,
   )
-} //$ derive json(decode,encode)
-
-pub fn decoder_unnested() -> Decoder(Unnested) {
-  decode.one_of([decoder_unnested_unnested()])
 }
 
-pub fn decoder_unnested_unnested() -> Decoder(Unnested) {
-  decode.into({
-    use unnested <- decode.parameter
-    Unnested(unnested:)
-  })
-  |> decode.subfield([\"foo\", \"bar\", \"baz\"], decode.int)
+pub fn authe_a(value: AutheA) -> AutheTokens {
+  Authe(
+    id: value.authe_id,
+    encrypted_access_token: value.encrypted_access_token,
+    encrypted_refresh_token: value.encrypted_refresh_token,
+  )
 }
 
-pub fn encode_unnested(value: Unnested) -> Json {
-  case value {
-    Unnested(..) as value ->
-      json.object([
-        #(
-          \"foo\",
-          json.object([
-            #(\"bar\", json.object([#(\"baz\", json.int(value.unnested))])),
-          ]),
-        ),
-      ])
-  }
+pub fn authe_b(value: AutheB) -> AutheTokens {
+  Authe(
+    id: value.authe_id,
+    encrypted_access_token: value.encrypted_access_token,
+    encrypted_refresh_token: value.encrypted_refresh_token,
+  )
 }
   "
   |> string.trim
@@ -922,14 +983,14 @@ pub fn encode_unnested(value: Unnested) -> Json {
 
   let assert [write] =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(module_reader)
     |> deriv.build_writes
 
   let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
 
   let writes =
     files
-    |> deriv.gen_derivs
+    |> deriv.gen_derivs(module_reader)
     |> deriv.build_writes
 
   let assert [write] =
