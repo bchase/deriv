@@ -7,7 +7,9 @@ pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File, ModuleReader
 
 pub type ModuleReaderErr {
   FileErr(simplifile.FileError)
-  GlanceError(glance.Error)
+  GlanceErr(glance.Error)
+  BadIdent(ident: String)
+  CustomTypeMissingErr(ident: String)
 }
 
 pub type ModuleReader = fn(String) -> Result(Module, ModuleReaderErr)

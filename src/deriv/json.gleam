@@ -13,7 +13,7 @@ pub fn gen(
   deriv: Derivation,
   field_opts: DerivFieldOpts,
   file: File,
-  module_reader: ModuleReader,
+  _module_reader: ModuleReader,
 ) -> Gen {
   let opts = deriv.opts
 
