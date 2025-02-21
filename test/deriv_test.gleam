@@ -902,7 +902,7 @@ pub fn snake_case_test() {
   |> should.equal("foo_bar_x")
 }
 
-pub fn unify_test() {
+pub fn unify_authe_test() {
   let authe_a_src = "
 pub type AutheA {
   AutheA(
@@ -949,7 +949,7 @@ pub type AutheB {
 
       _ -> {
         io.debug(ident)
-        panic as "`module_reader` miss in `unify_test`"
+        panic as "`module_reader` miss in `unify_authe_test`"
       }
     }
   }
@@ -995,6 +995,114 @@ pub fn authe_a(value: AutheA) -> AutheTokens {
     encrypted_access_token: value.encrypted_access_token,
     encrypted_refresh_token: value.encrypted_refresh_token,
   )
+}
+  "
+  |> string.trim
+
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let writes =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let assert [write] =
+    writes
+
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
+
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
+
+  write.src
+  |> should.equal(output)
+}
+
+pub fn unify_friend_test() {
+  let person_src = "
+pub type Person {
+  Person(
+    id: Int,
+    first_name: String,
+    last_name: String,
+    age: Int
+  )
+}
+  " |> string.trim
+
+  let pet_src = "
+pub type Pet {
+  Pet(
+    id: Int,
+    name: String,
+  )
+}
+  " |> string.trim
+
+  let parse = fn(src) {
+    glance.module(src)
+    |> result.map_error(types.GlanceErr)
+  }
+
+  let module_reader: types.ModuleReader = fn(ident) {
+    case ident {
+      "project/types/person" -> parse(person_src)
+      "project/types/pet" -> parse(pet_src)
+
+      _ -> {
+        io.debug(ident)
+        panic as "`module_reader` miss in `unify_friend_test`"
+      }
+    }
+  }
+
+  let input = "
+import project/types/person.{type Person}
+import project/types/pet.{type Pet}
+
+pub type Friend {
+  //$ derive unify project/types/person.Person
+  //$ derive unify project/types/pet.Pet
+  Friend(
+    name: String,
+    //$ unify field project/types/person.Person first_name
+  )
+}
+  " |> string.trim
+
+ let output = "
+import project/types/person.{type Person}
+import project/types/pet.{type Pet}
+
+pub type Friend {
+  //$ derive unify project/types/person.Person
+  //$ derive unify project/types/pet.Pet
+  Friend(
+    name: String,
+    //$ unify field project/types/person.Person first_name
+  )
+}
+
+pub fn pet(value: Pet) -> Friend {
+  Friend(name: value.name)
+}
+
+pub fn person(value: Person) -> Friend {
+  Friend(name: value.first_name)
 }
   "
   |> string.trim
