@@ -67,6 +67,7 @@ fn parse_derivations_from_inside_type_def_lines(lines: List(String)) -> List(Der
     }
   })
   |> list.flatten
+  |> list.reverse
 }
 
 pub fn parse_import_with_derivations(import_: glance.Import, src: String) -> Result(#(glance.Import, List(Derivation)), Nil) {

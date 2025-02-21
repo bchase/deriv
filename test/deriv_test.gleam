@@ -981,7 +981,7 @@ pub type AutheTokens {
   )
 }
 
-pub fn authe_b(value: AutheB) -> AutheTokens {
+pub fn authe_a(value: AutheA) -> AutheTokens {
   Authe(
     id: value.authe_id,
     encrypted_access_token: value.encrypted_access_token,
@@ -989,7 +989,7 @@ pub fn authe_b(value: AutheB) -> AutheTokens {
   )
 }
 
-pub fn authe_a(value: AutheA) -> AutheTokens {
+pub fn authe_b(value: AutheB) -> AutheTokens {
   Authe(
     id: value.authe_id,
     encrypted_access_token: value.encrypted_access_token,
@@ -1097,12 +1097,12 @@ pub type Friend {
   )
 }
 
-pub fn pet(value: Pet) -> Friend {
-  Friend(name: value.name)
-}
-
 pub fn person(value: Person) -> Friend {
   Friend(name: value.first_name)
+}
+
+pub fn pet(value: Pet) -> Friend {
+  Friend(name: value.name)
 }
   "
   |> string.trim
