@@ -182,7 +182,16 @@ fn gleam_module_str_to_file_path(module: String) -> String {
 }
 
 fn parse_types_and_derivations(file: File) -> List(#(CustomType, List(Derivation), DerivFieldOpts)) {
-  let assert Ok(parsed) = glance.module(file.src)
+  let parsed =
+    case glance.module(file.src) {
+      Error(err) -> {
+        io.debug(file)
+        io.debug(err)
+        panic
+      }
+
+      Ok(x) -> x
+    }
 
   parsed.custom_types
   |> list.map(fn(ct) { ct.definition })
