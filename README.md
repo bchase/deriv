@@ -178,6 +178,7 @@ pub type Friend {
 $ gleam run -m deriv
 ```
 ```gleam
+// src/project/types/friend.gleam
 import project/types/person.{type Person}
 import project/types/pet.{type Pet}
 
