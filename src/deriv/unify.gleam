@@ -75,7 +75,7 @@ type UnifyFunc {
 fn get_param_types_and_variants(
   idents: List(String),
   module_reader: ModuleReader,
-) -> List(#(Definition(CustomType), Variant)) {
+) -> List(#(Definition(CustomType), Variant, String)) {
   idents
   |> list.map(fn(ident) {
     util.fetch_custom_type(ident, module_reader)
@@ -94,11 +94,11 @@ fn get_param_types_and_variants(
     }
   }
   |> list.map(fn(x) {
-    let #(_module_name, type_) = x
+    let #(module_name, type_) = x
 
     case type_.definition.variants {
       [variant] ->
-        #(type_, variant)
+        #(type_, variant, module_name)
 
       _, -> {
         io.debug(type_)
@@ -119,10 +119,11 @@ fn unify(
       idents
       |> get_param_types_and_variants(module_reader)
       |> list.map(fn(x) {
-        let #(param_type_def, param_variant) = x
+        let #(param_type_def, param_variant, param_type_module) = x
         let param_type = param_type_def.definition
 
         unify_variant(
+          param_type_module,
           param_type,
           param_variant,
           return_type,
@@ -139,6 +140,7 @@ fn unify(
 }
 
 fn unify_variant(
+  param_type_module: String,
   param_type: CustomType,
   param_variant: Variant,
   return_type: CustomType,
@@ -146,6 +148,7 @@ fn unify_variant(
   overrides: UnifyFieldOverrides,
 ) -> UnifyFunc {
   let fields = unify_func_fields(
+    param_type_module,
     param_type,
     param_variant,
     return_type,
@@ -263,7 +266,15 @@ fn build_field_override(
 //   |> option.from_result
 // }
 
+fn build_ident(
+  module_name: String,
+  type_: CustomType,
+) -> String {
+  module_name <> "." <> type_.name
+}
+
 fn unify_func_fields(
+  param_type_module: String,
   param_type: CustomType,
   param_variant: Variant,
   return_type: CustomType,
@@ -294,7 +305,8 @@ fn unify_func_fields(
         let #(param_field, os) = x
 
         list.find_map(os, fn(o) {
-          case o.field == return_field {
+          let ident = build_ident(param_type_module, param_type)
+          case o.ident == ident && o.field == return_field {
             False -> Error(Nil)
             True -> Ok(#(param_field, o))
           }
