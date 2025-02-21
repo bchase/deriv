@@ -1,3 +1,7 @@
+## v1.1.1 - 2024-02-22
+
+- [json] handle `Option(List(t))` en/decode
+
 ## v1.1.0 - 2024-02-21
 
 - [syntax] convert to `//$ derive DERIVATION OPT1 OPT2` `derive` syntax
