@@ -6,11 +6,12 @@ import gleam/result
 import gleam/regexp.{type Regexp}
 import decode.{type Decoder}
 import youid/uuid.{type Uuid}
-import glance.{type Definition, type Function, Module, Definition, Function, type CustomType, type Variant}
+import glance.{type Module, type Definition, type Function, Module, Definition, Function, type CustomType, type Variant}
 import glance_printer
 import shellout
+import simplifile
 import birl.{type Time}
-import deriv/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField}
+import deriv/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField, type ModuleReader, type ModuleReaderErr}
 import gleam/io
 
 pub fn decode_type_field(
@@ -67,13 +68,30 @@ pub fn snake_case(str: String) -> String {
   |> list.reverse
   |> list.fold(SC(acc: [], curr: [], next_is_capital: True), step_snake_case)
   |> fn(sc) {
-    let result =
-      case sc.curr {
-        [] -> sc.acc
-        _ -> list.append(sc.acc, [sc.curr])
-      }
+    case sc.curr {
+      [] -> sc
+      _ -> SC(..sc, acc: list.append(sc.acc, [sc.curr]))
+    }
+    |> fn(sc) {
+      case sc.acc {
+        [[last, second_to_last, ..rest], ..rest_chunks] -> {
+          let last_is_uppercase = last == string.uppercase(last)
+          let second_to_last_is_lowercase = second_to_last == string.lowercase(second_to_last)
 
-    result
+          case last_is_uppercase && second_to_last_is_lowercase {
+            False -> sc.acc
+            True -> {
+              let second_to_last_chunk = [second_to_last, ..rest]
+              let last_chunk = [last]
+
+              [last_chunk, second_to_last_chunk, ..rest_chunks]
+            }
+          }
+        }
+
+        _ -> sc.acc
+      }
+    }
     |> list.map(fn(group) {
       group
       |> list.reverse
@@ -397,4 +415,39 @@ pub fn birl_time_kind(
         }
       }
   }
+}
+
+pub fn fetch_module(path: String) -> Result(Module, ModuleReaderErr) {
+  let filepath = "src/" <> path <> ".gleam"
+  use src <- result.try(simplifile.read(filepath) |> result.map_error(types.FileErr))
+  use module <- result.try(glance.module(src) |> result.map_error(types.GlanceErr))
+
+  Ok(module)
+}
+
+pub fn fetch_custom_type(
+  ident: String,
+  read_module: ModuleReader,
+) -> Result(#(String, glance.Definition(glance.CustomType)), ModuleReaderErr) {
+  use #(module_name, ref) <- result.try(parse_ident(ident))
+  use module <- result.try(read_module(module_name))
+  use type_ <- result.try(find_custom_type(ref, module))
+
+  Ok(#(module_name, type_))
+}
+
+fn parse_ident(ident: String) -> Result(#(String, String), ModuleReaderErr) {
+  case string.split(ident, ".") {
+    [a, b] -> Ok(#(a, b))
+    _ -> Error(types.BadIdent(ident))
+  }
+}
+
+fn find_custom_type(
+  ref: String,
+  module: glance.Module,
+) -> Result(glance.Definition(glance.CustomType), ModuleReaderErr) {
+  module.custom_types
+  |> list.find(fn(type_) { type_.definition.name == ref })
+  |> result.replace_error(types.CustomTypeMissingErr(ref))
 }

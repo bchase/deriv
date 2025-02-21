@@ -1,4 +1,5 @@
 import gleam/option.{type Option, Some, None}
+import gleam/io
 import gleam/dict
 import gleam/result
 import gleam/list
@@ -66,6 +67,7 @@ fn parse_derivations_from_inside_type_def_lines(lines: List(String)) -> List(Der
     }
   })
   |> list.flatten
+  |> list.reverse
 }
 
 pub fn parse_import_with_derivations(import_: glance.Import, src: String) -> Result(#(glance.Import, List(Derivation)), Nil) {
@@ -90,32 +92,16 @@ pub fn parse_import_with_derivations(import_: glance.Import, src: String) -> Res
 }
 
 fn parse_derivations(raw: String) -> Result(List(Derivation), Nil) {
-  let assert Ok(re) = regexp.from_string("((\\w+)[(]([^)]+)[)]\\s*)+")
+  raw
+  |> string.trim
+  |> string.split(" ")
+  |> fn(tokens) {
+    case tokens {
+      ["derive", name, ..opts] ->
+        Ok([Derivation(name:, opts:)])
 
-  let raw = string.trim(raw)
-
-  case string.starts_with(raw, "derive") {
-    False -> Error(Nil)
-    True -> {
-      let str =
-        raw
-        |> string.drop_start(6)
-        |> string.trim
-
-      string.split(str, " ")
-      |> list.map(fn(d) {
-        case regexp.scan(re, d) {
-          [Match(submatches: [_, Some(deriv), Some(opts_str)], ..)] -> {
-            let opts = string.split(opts_str, ",")
-
-            Ok(Derivation(name: deriv, opts:))
-          }
-
-          _ ->
-            panic as { "Parse failure on derivation: " <> d }
-        }
-      })
-      |> result.all
+      _ ->
+        Error(Nil)
     }
   }
 }
