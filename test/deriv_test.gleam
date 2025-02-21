@@ -32,7 +32,7 @@ pub fn json_test() {
 import youid/uuid.{type Uuid}
 
 pub type Foo {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   Foo(
     uuid: Uuid,
     id: Int, //$ json named int_id
@@ -44,7 +44,7 @@ pub type Foo {
 }
 
 pub type Bar {
-  //$ derive json(decode)
+  //$ derive json decode
   Bar(
     baz: Bool,
   )
@@ -60,7 +60,7 @@ import gleam/list
 import youid/uuid.{type Uuid}
 
 pub type Foo {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   Foo(
     uuid: Uuid,
     id: Int, //$ json named int_id
@@ -72,7 +72,7 @@ pub type Foo {
 }
 
 pub type Bar {
-  //$ derive json(decode)
+  //$ derive json decode
   Bar(
     baz: Bool,
   )
@@ -188,7 +188,7 @@ pub fn json_multi_variant_type_test() {
   // |> string.trim
   let input = "
 pub type T {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   X(foo: String)
   Y(bar: Int)
 }
@@ -200,7 +200,7 @@ import decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type T {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   X(foo: String)
   Y(bar: Int)
 }
@@ -260,7 +260,7 @@ pub fn encode_t(value: T) -> Json {
 pub fn json_optional_field_test() {
   let input = "
 pub type Maybe {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   Maybe(
     name: Option(String),
   )
@@ -273,7 +273,7 @@ import decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type Maybe {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   Maybe(
     name: Option(String),
   )
@@ -330,7 +330,7 @@ pub fn gleam_format_magic_comment_parsing_test() {
   // //$ json(baz(boo))
   let src = "
 pub type T {
-  //$ derive json(decode)
+  //$ derive json decode
   A(
     foo: String,
     //$ json foo bar
@@ -365,14 +365,14 @@ pub type T {
 pub fn nested_type_test() {
   let input = "
 pub type A {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   A(
     b: B,
   )
 }
 
 pub type B {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   B(
     x: String,
   )
@@ -385,14 +385,14 @@ import decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type A {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   A(
     b: B,
   )
 }
 
 pub type B {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   B(
     x: String,
   )
@@ -624,7 +624,7 @@ pub fn birl_json_test() {
 import birl.{type Time}
 
 pub type DateTimeExamples {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   DateTimeExamples(
     t0: Time,
     t1: Time, //$ json birl iso8601
@@ -644,7 +644,7 @@ import deriv/util
 import gleam/json.{type Json}
 
 pub type DateTimeExamples {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   DateTimeExamples(
     t0: Time,
     t1: Time, //$ json birl iso8601
@@ -734,7 +734,7 @@ pub fn encode_date_time_examples(value: DateTimeExamples) -> Json {
 pub fn dict_fields_json_test() {
   let input = string.trim("
 pub type DictFieldType {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   DictFieldType(
     dict: Dict(String, Int),
   )
@@ -746,7 +746,7 @@ import decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type DictFieldType {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   DictFieldType(
     dict: Dict(String, Int),
   )
@@ -811,7 +811,7 @@ pub fn encode_dict_field_type(value: DictFieldType) -> Json {
 pub fn unnested_json_test() {
   let input = "
 pub type Unnested {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   Unnested(
     unnested: Int, //$ json named foo.bar.baz
   )
@@ -824,7 +824,7 @@ import decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type Unnested {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   Unnested(
     unnested: Int, //$ json named foo.bar.baz
   )
@@ -956,7 +956,8 @@ pub type AutheB {
 
   let input = "
 pub type AutheTokens {
-  //$ derive unify(project/authe/a.AutheA,project/authe/b.AutheB)
+  //$ derive unify project/authe/a.AutheA
+  //$ derive unify project/authe/b.AutheB
   Authe(
     id: Uuid,
     //$ unify field project/authe/a.AutheA authe_id
@@ -969,7 +970,8 @@ pub type AutheTokens {
 
  let output = "
 pub type AutheTokens {
-  //$ derive unify(project/authe/a.AutheA,project/authe/b.AutheB)
+  //$ derive unify project/authe/a.AutheA
+  //$ derive unify project/authe/b.AutheB
   Authe(
     id: Uuid,
     //$ unify field project/authe/a.AutheA authe_id
@@ -979,7 +981,7 @@ pub type AutheTokens {
   )
 }
 
-pub fn authe_a(value: AutheA) -> AutheTokens {
+pub fn authe_b(value: AutheB) -> AutheTokens {
   Authe(
     id: value.authe_id,
     encrypted_access_token: value.encrypted_access_token,
@@ -987,7 +989,7 @@ pub fn authe_a(value: AutheA) -> AutheTokens {
   )
 }
 
-pub fn authe_b(value: AutheB) -> AutheTokens {
+pub fn authe_a(value: AutheA) -> AutheTokens {
   Authe(
     id: value.authe_id,
     encrypted_access_token: value.encrypted_access_token,

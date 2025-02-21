@@ -13,12 +13,12 @@ gleam add deriv@1
 import youid/uuid.{type Uuid}
 
 pub type User {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   User(id: Uuid, name: String)
 }
 
 pub type Post {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   Post(
     id: Uuid,
     title: String,
@@ -45,12 +45,12 @@ import gleam/list
 import youid/uuid.{type Uuid}
 
 pub type User {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   User(id: Uuid, name: String)
 }
 
 pub type Post {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   Post(
     id: Uuid,
     title: String,
