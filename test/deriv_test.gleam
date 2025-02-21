@@ -32,6 +32,7 @@ pub fn json_test() {
 import youid/uuid.{type Uuid}
 
 pub type Foo {
+  //$ derive json(decode,encode)
   Foo(
     uuid: Uuid,
     id: Int, //$ json named int_id
@@ -40,13 +41,14 @@ pub type Foo {
     ratio: Float,
     words: List(String),
   )
-} //$ derive json(decode,encode)
+}
 
 pub type Bar {
+  //$ derive json(decode)
   Bar(
     baz: Bool,
   )
-} //$ derive json(decode)
+}
   "
   |> string.trim
 
@@ -58,6 +60,7 @@ import gleam/list
 import youid/uuid.{type Uuid}
 
 pub type Foo {
+  //$ derive json(decode,encode)
   Foo(
     uuid: Uuid,
     id: Int, //$ json named int_id
@@ -66,13 +69,14 @@ pub type Foo {
     ratio: Float,
     words: List(String),
   )
-} //$ derive json(decode,encode)
+}
 
 pub type Bar {
+  //$ derive json(decode)
   Bar(
     baz: Bool,
   )
-} //$ derive json(decode)
+}
 
 pub fn decoder_foo() -> Decoder(Foo) {
   decode.one_of([decoder_foo_foo()])
@@ -184,9 +188,10 @@ pub fn json_multi_variant_type_test() {
   // |> string.trim
   let input = "
 pub type T {
+  //$ derive json(decode,encode)
   X(foo: String)
   Y(bar: Int)
-} //$ derive json(decode,encode)
+}
   "
   |> string.trim
 
@@ -195,9 +200,10 @@ import decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type T {
+  //$ derive json(decode,encode)
   X(foo: String)
   Y(bar: Int)
-} //$ derive json(decode,encode)
+}
 
 pub fn decoder_t() -> Decoder(T) {
   decode.one_of([decoder_t_x(), decoder_t_y()])
@@ -254,10 +260,11 @@ pub fn encode_t(value: T) -> Json {
 pub fn json_optional_field_test() {
   let input = "
 pub type Maybe {
+  //$ derive json(decode,encode)
   Maybe(
     name: Option(String),
   )
-} //$ derive json(decode,encode)
+}
   "
   |> string.trim
 
@@ -266,10 +273,11 @@ import decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type Maybe {
+  //$ derive json(decode,encode)
   Maybe(
     name: Option(String),
   )
-} //$ derive json(decode,encode)
+}
 
 pub fn decoder_maybe() -> Decoder(Maybe) {
   decode.one_of([decoder_maybe_maybe()])
@@ -357,16 +365,18 @@ pub type T {
 pub fn nested_type_test() {
   let input = "
 pub type A {
+  //$ derive json(decode,encode)
   A(
     b: B,
   )
-} //$ derive json(decode,encode)
+}
 
 pub type B {
+  //$ derive json(decode,encode)
   B(
     x: String,
   )
-} //$ derive json(decode,encode)
+}
   "
   |> string.trim
 
@@ -375,16 +385,18 @@ import decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type A {
+  //$ derive json(decode,encode)
   A(
     b: B,
   )
-} //$ derive json(decode,encode)
+}
 
 pub type B {
+  //$ derive json(decode,encode)
   B(
     x: String,
   )
-} //$ derive json(decode,encode)
+}
 
 pub fn decoder_a() -> Decoder(A) {
   decode.one_of([decoder_a_a()])
@@ -612,6 +624,7 @@ pub fn birl_json_test() {
 import birl.{type Time}
 
 pub type DateTimeExamples {
+  //$ derive json(decode,encode)
   DateTimeExamples(
     t0: Time,
     t1: Time, //$ json birl iso8601
@@ -621,7 +634,7 @@ pub type DateTimeExamples {
     t5: Time, //$ json birl unix_milli
     t6: Time, //$ json birl unix_micro
   )
-} //$ derive json(decode,encode)
+}
 ")
 
   let output = string.trim("
@@ -631,6 +644,7 @@ import deriv/util
 import gleam/json.{type Json}
 
 pub type DateTimeExamples {
+  //$ derive json(decode,encode)
   DateTimeExamples(
     t0: Time,
     t1: Time, //$ json birl iso8601
@@ -640,7 +654,7 @@ pub type DateTimeExamples {
     t5: Time, //$ json birl unix_milli
     t6: Time, //$ json birl unix_micro
   )
-} //$ derive json(decode,encode)
+}
 
 pub fn decoder_date_time_examples() -> Decoder(DateTimeExamples) {
   decode.one_of([decoder_date_time_examples_date_time_examples()])
@@ -720,10 +734,11 @@ pub fn encode_date_time_examples(value: DateTimeExamples) -> Json {
 pub fn dict_fields_json_test() {
   let input = string.trim("
 pub type DictFieldType {
+  //$ derive json(decode,encode)
   DictFieldType(
     dict: Dict(String, Int),
   )
-} //$ derive json(decode,encode)
+}
 ")
 
   let output = string.trim("
@@ -731,10 +746,11 @@ import decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type DictFieldType {
+  //$ derive json(decode,encode)
   DictFieldType(
     dict: Dict(String, Int),
   )
-} //$ derive json(decode,encode)
+}
 
 pub fn decoder_dict_field_type() -> Decoder(DictFieldType) {
   decode.one_of([decoder_dict_field_type_dict_field_type()])
@@ -795,10 +811,11 @@ pub fn encode_dict_field_type(value: DictFieldType) -> Json {
 pub fn unnested_json_test() {
   let input = "
 pub type Unnested {
+  //$ derive json(decode,encode)
   Unnested(
     unnested: Int, //$ json named foo.bar.baz
   )
-} //$ derive json(decode,encode)
+}
   "
   |> string.trim
 
@@ -807,10 +824,11 @@ import decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type Unnested {
+  //$ derive json(decode,encode)
   Unnested(
     unnested: Int, //$ json named foo.bar.baz
   )
-} //$ derive json(decode,encode)
+}
 
 pub fn decoder_unnested() -> Decoder(Unnested) {
   decode.one_of([decoder_unnested_unnested()])
