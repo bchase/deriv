@@ -4,7 +4,7 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
-import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter}
+import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture}
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts, type ModuleReader}
 import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
@@ -265,8 +265,23 @@ fn encode_field(
 
   let birl_time_kind = util.birl_time_kind(type_, variant, field.name, all_field_opts)
 
-  case ftype.parameters {
-    [] ->
+  case ftype, ftype.parameters {
+    JType("Option", _, [JType("List", _, [JType(_, _, []) as param])]), _ -> {
+      let param_type_encoder = unparameterized_type_encode_expr(param.name, birl_time_kind, None)
+
+      Call(
+        function: FieldAccess(Variable("json"), "nullable"),
+        arguments: [
+          UnlabelledField(FieldAccess(Variable("value"), field.name)),
+          UnlabelledField(
+            FnCapture(None, FieldAccess(Variable("json"), "array"), [], [
+              UnlabelledField(param_type_encoder),
+            ]),
+          ),
+        ],
+      )
+    }
+    _, [] ->
       unparameterized_type_encode_expr(ftype.name, birl_time_kind, Some(fn(func_expr) {
         Call(
           function: func_expr,
@@ -276,7 +291,7 @@ fn encode_field(
         )
       }))
 
-    [JType(name: param_type_name, module: None, parameters: [])] ->
+    _, [JType(name: param_type_name, module: None, parameters: [])] ->
       case ftype.name {
         "Option" -> {
           let param_type_encoder = unparameterized_type_encode_expr(param_type_name, birl_time_kind, None)
@@ -310,7 +325,7 @@ fn encode_field(
         }
       }
 
-    [
+    _, [
       JType(name: key_param_type_name, module: None, parameters: []),
       JType(name: val_param_type_name, module: None, parameters: []),
     ] ->
@@ -333,7 +348,7 @@ fn encode_field(
         }
       }
 
-    _ -> {
+    _, _ -> {
       io.debug(ftype)
       panic as "Not yet implemented for type printed above"
     }
@@ -507,9 +522,19 @@ fn decode_field_expr(
   let birl_time_kind = util.birl_time_kind(type_, variant, field.name, all_field_opts)
 
   let expr =
-    case t.parameters {
-      [] -> unparameterized_type_decode_expr(t.name, birl_time_kind)
-      [JType(parameters: [], ..) as param] ->
+    case t, t.parameters {
+      JType("Option", _, [JType("List", _, [JType(_, _, []) as param])]), _ -> {
+        let inner =
+          param.name
+          |> unparameterized_type_decode_expr(birl_time_kind)
+          |> UnlabelledField
+
+        Call(FieldAccess(Variable("decode"), "optional"), [
+          UnlabelledField(Call(FieldAccess(Variable("decode"), "list"), [inner]))
+        ])
+      }
+      _, [] -> unparameterized_type_decode_expr(t.name, birl_time_kind)
+      _, [JType(parameters: [], ..) as param] ->
         case t.name {
           "List" -> {
             let inner =
@@ -534,7 +559,7 @@ fn decode_field_expr(
             panic as "unimplemented"
           }
         }
-      [
+      _, [
         JType(parameters: [], ..) as key_param,
         JType(parameters: [], ..) as val_param,
       ] ->
@@ -556,7 +581,7 @@ fn decode_field_expr(
             panic as "unimplemented"
           }
         }
-      _ -> {
+      _, _ -> {
         io.debug(field)
         panic as "unimplemented"
       }

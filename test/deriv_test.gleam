@@ -29,6 +29,7 @@ pub fn main() {
 
 pub fn json_test() {
   let input = "
+import gleam/option.{type Option}
 import youid/uuid.{type Uuid}
 
 pub type Foo {
@@ -40,6 +41,7 @@ pub type Foo {
     active: Bool,
     ratio: Float,
     words: List(String),
+    maybe_list: Option(List(String)),
   )
 }
 
@@ -57,6 +59,7 @@ import decode.{type Decoder}
 import deriv/util
 import gleam/json.{type Json}
 import gleam/list
+import gleam/option.{type Option}
 import youid/uuid.{type Uuid}
 
 pub type Foo {
