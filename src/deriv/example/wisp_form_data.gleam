@@ -1,3 +1,4 @@
+import gleam/io
 import gleam/option.{type Option, Some, None}
 import gleam/result
 import gleam/string
@@ -39,78 +40,78 @@ pub type PetForm {
 
 //// DERIVED ////
 
-pub fn person_input_name(field: PersonFormField) -> String {
-  person_input_name_("person", field)
-}
+// pub fn person_input_name(field: PersonFormField) -> String {
+//   person_input_name_("person", field)
+// }
 
-pub fn person_input_name_(form: String, field: PersonFormField) -> String {
-  case field {
-    PersonFormName -> form <> "[name]"
-    PersonFormAge -> form <> "[age]"
-    PersonFormKd ->  form <> "[kd]"
-    PersonFormActive ->  form <> "[active]"
-    PersonFormHobbies ->  form <> "[hobbies][]"
-    PersonFormPetName ->  form <> "[pet][name]"
-    PersonFormPetAge ->  form <> "[pet][age]"
-  }
-}
+// pub fn person_input_name_(form: String, field: PersonFormField) -> String {
+//   case field {
+//     PersonFormName -> form <> "[name]"
+//     PersonFormAge -> form <> "[age]"
+//     PersonFormKd ->  form <> "[kd]"
+//     PersonFormActive ->  form <> "[active]"
+//     PersonFormHobbies ->  form <> "[hobbies][]"
+//     PersonFormPetName ->  form <> "[pet][name]"
+//     PersonFormPetAge ->  form <> "[pet][age]"
+//   }
+// }
 
-pub fn decode_person_form(form: FormData) -> Result(PersonForm, Nil) {
-  decode_person_form_(form, "person")
-}
-pub fn decode_person_form_(form: FormData, f: String) -> Result(PersonForm, Nil) {
-  let fields = fields(form)
+// pub fn decode_person_form(form: FormData) -> Result(PersonForm, Nil) {
+//   decode_person_form_(form, "person")
+// }
+// pub fn decode_person_form_(form: FormData, f: String) -> Result(PersonForm, Nil) {
+//   let fields = fields(form)
 
-  use name <- result.try(scalar(person_form_field(f, PersonFormName), decode.string, fields))
-  use age <- result.try(scalar(person_form_field(f, PersonFormAge), decoder_int(), fields))
-  let kd = option.from_result(scalar(person_form_field(f, PersonFormKd), decoder_float(), fields))
-  use active <- result.try(scalar(person_form_field(f, PersonFormActive), decoder_bool(), fields))
-  use hobbies <- result.try(array(person_form_field(f, PersonFormHobbies), decode.string, fields))
+//   use name <- result.try(scalar(person_form_field(f, PersonFormName), decode.string, fields))
+//   use age <- result.try(scalar(person_form_field(f, PersonFormAge), decoder_int(), fields))
+//   let kd = option.from_result(scalar(person_form_field(f, PersonFormKd), decoder_float(), fields))
+//   use active <- result.try(scalar(person_form_field(f, PersonFormActive), decoder_bool(), fields))
+//   use hobbies <- result.try(array(person_form_field(f, PersonFormHobbies), decode.string, fields))
 
-  // use pet <- result.try({
-  //   use name <- result.try(scalar(person_form_field(f, PersonFormPet(PetName)), decode.string, fields))
-  //   use age <- result.try(scalar(person_form_field(f, PersonFormPet(PetAge)), decoder_int(), fields))
+//   // use pet <- result.try({
+//   //   use name <- result.try(scalar(person_form_field(f, PersonFormPet(PetName)), decode.string, fields))
+//   //   use age <- result.try(scalar(person_form_field(f, PersonFormPet(PetAge)), decoder_int(), fields))
 
-  //   Ok(PetForm(name:, age:))
-  // })
-  let pet = option.from_result({
-    use name <- result.try(scalar(person_form_field(f, PersonFormPetName), decode.string, fields))
-    use age <- result.try(scalar(person_form_field(f, PersonFormPetAge), decoder_int(), fields))
+//   //   Ok(PetForm(name:, age:))
+//   // })
+//   let pet = option.from_result({
+//     use name <- result.try(scalar(person_form_field(f, PersonFormPetName), decode.string, fields))
+//     use age <- result.try(scalar(person_form_field(f, PersonFormPetAge), decoder_int(), fields))
 
-    Ok(PetForm(name:, age:))
-  })
+//     Ok(PetForm(name:, age:))
+//   })
 
-  Ok(PersonForm(name:, age:, kd:, active:, hobbies:, pet:))
-}
+//   Ok(PersonForm(name:, age:, kd:, active:, hobbies:, pet:))
+// }
 
-pub type PersonFormField {
-  PersonFormName
-  PersonFormAge
-  PersonFormKd
-  PersonFormActive
-  PersonFormHobbies
-  PersonFormPetName
-  PersonFormPetAge
-}
+// pub type PersonFormField {
+//   PersonFormName
+//   PersonFormAge
+//   PersonFormKd
+//   PersonFormActive
+//   PersonFormHobbies
+//   PersonFormPetName
+//   PersonFormPetAge
+// }
 
-fn person_form_field(form: String, field: PersonFormField) -> Field {
-  case field {
-    PersonFormName -> Field(keys:[ Key(form), Key("name") ])
-    PersonFormAge -> Field(keys:[ Key(form), Key("age") ])
-    PersonFormKd -> Field(keys:[ Key(form), Key("kd") ])
-    PersonFormActive -> Field(keys:[ Key(form), Key("active") ])
-    PersonFormHobbies -> Field(keys:[ Key(form), Key("hobbies"), Array ])
-    PersonFormPetName -> Field(keys: [ Key(form), Key("pet"), Key("name") ])
-    PersonFormPetAge -> Field(keys: [ Key(form), Key("pet"), Key("age") ])
-  }
-}
+// fn person_form_field(form: String, field: PersonFormField) -> Field {
+//   case field {
+//     PersonFormName -> Field(keys:[ Key(form), Key("name") ])
+//     PersonFormAge -> Field(keys:[ Key(form), Key("age") ])
+//     PersonFormKd -> Field(keys:[ Key(form), Key("kd") ])
+//     PersonFormActive -> Field(keys:[ Key(form), Key("active") ])
+//     PersonFormHobbies -> Field(keys:[ Key(form), Key("hobbies"), ArrayKey ])
+//     PersonFormPetName -> Field(keys: [ Key(form), Key("pet"), Key("name") ])
+//     PersonFormPetAge -> Field(keys: [ Key(form), Key("pet"), Key("age") ])
+//   }
+// }
 
 
 //// GENERIC DERIV HELPERS ////
 
 type Key {
   Key(name: String)
-  Array
+  ArrayKey
 }
 
 type Field {
@@ -153,7 +154,7 @@ fn get_keys(acc: TokenParse) -> Result(TokenParse, String) {
         }
 
         _ ->
-          Error("Regex match failed on partial key: `\"" <> key <> "`\"")
+          Error("[get_keys] Regex match failed on partial key: `\"" <> key <> "`\"")
       }
     }
   }
@@ -170,7 +171,7 @@ fn get_form(key: String) -> Result(TokenParse, String) {
     }
 
     _ ->
-      Error("Regex form name match failed on key: `\"" <> key <> "`\"")
+      Error("[get_form] Regex form name match failed on key: `\"" <> key <> "`\"")
   }
 }
 
@@ -191,7 +192,7 @@ fn to_field(tokens: List(String)) -> Result(Field, String) {
         keys
         |> list.map(fn(key) {
           case key {
-            "" -> Array
+            "" -> ArrayKey
             token -> Key(token)
           }
         })
@@ -228,26 +229,6 @@ fn fields(form: FormData) -> Fields {
     #(key, vals)
   })
   |> dict.from_list
-}
-
-fn scalar(field: Field, decoder: Decoder(t), fields: Fields) -> Result(t, Nil) {
-  use strs <- result.try(dict.get(fields, field))
-
-  case strs {
-    [str] ->
-      decode.from(decoder, dynamic.from(str))
-      |> result.replace_error(Nil)
-
-    _ ->
-      Error(Nil)
-  }
-}
-
-fn array(field: Field, decoder: Decoder(t), fields: Fields) -> Result(List(t), Nil) {
-  use strs <- result.try(dict.get(fields, field))
-
-  decode.from(decode.list(decoder), dynamic.from(strs))
-  |> result.replace_error(Nil)
 }
 
 pub fn decode_(form: FormData, decoder: Decoder(t)) -> Result(t, List(dynamic.DecodeError)) {
@@ -385,3 +366,158 @@ fn decoder_bool() -> Decoder(Bool) {
 // }
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
+
+
+//// // // // // //
+
+//pub type Form {
+//  //$ derive form
+//  Form(
+//    asana_resource_action: FormField(String),
+//    //$ form placeholder "resource.action"
+//    //$ form validate .is_resource_action
+//    slack_workflow_webhook_url: FormField(String),
+//    //$ form placeholder "Slack workflow webhook URL"
+//    //$ form validate is_url
+//    slack_list_id: FormField(String),
+//    //$ form placeholder "Slack list ID"
+//    //$ form validate present
+//  )
+//}
+
+// type FieldType {
+//   Scalar
+//   Array
+// }
+
+pub type Err {
+  FieldNameParseErr(name: String)
+  FieldLookupErr(name: String)
+  FieldLookupScalarHasMultipleValuesErr(name: String)
+  FieldDecodeError(List(dynamic.DecodeError))
+  FieldMissingError(name: String)
+}
+
+fn scalar(
+  field_name: String,
+  decoder: Decoder(t),
+  field_values: Fields,
+) -> Result(t, Err) {
+  use field <- result.try(
+    field_name
+    |> parse_field
+    |> result.map_error(FieldNameParseErr)
+  )
+
+  scalar_(field_name, field, decoder, field_values)
+}
+
+fn scalar_(field_name: String, field: Field, decoder: Decoder(t), fields: Fields) -> Result(t, Err) {
+  use strs <- result.try(
+    dict.get(fields, field)
+    |> result.replace_error(FieldMissingError(field_name))
+  )
+
+  case strs {
+    [] ->
+      Error(FieldMissingError(field_name))
+
+    [str] ->
+      decode.from(decoder, dynamic.from(str))
+      |> result.map_error(FieldDecodeError)
+
+    _ ->
+      Error(FieldLookupScalarHasMultipleValuesErr(field_name))
+  }
+}
+
+fn array(
+  field_name: String,
+  decoder: Decoder(t),
+  field_values: Fields,
+) -> Result(List(t), Err) {
+  use field <- result.try(
+    field_name
+    |> parse_field
+    |> result.map_error(FieldNameParseErr)
+  )
+
+  array_(field_name, field, decoder, field_values)
+}
+
+fn array_(field_name: String, field: Field, decoder: Decoder(t), fields: Fields) -> Result(List(t), Err) {
+  use strs <- result.try(
+    dict.get(fields, field)
+    |> result.map(list.reverse)
+    |> result.replace_error(FieldMissingError(field_name))
+  )
+
+  decode.from(decode.list(decoder), dynamic.from(strs))
+  |> result.map_error(FieldDecodeError)
+}
+
+pub fn decode_person_form(form: FormData) -> Result(PersonForm, Err) {
+  // let form_name = f
+  // let lookups = person_form_field_lookup(form_name)
+  // let get_field_for_name = dict.get(lookups, _)
+  let vals = fields(form)
+
+  // let scalar___ =
+  //   fn(field_name, decoder: Decoder(t), cont) {
+  //     scalar__(field_name, decoder, vals)
+  //     |> result.then(cont)
+  //   }
+
+  // let array___ =
+  //   fn(field_name, decoder: Decoder(t), cont) {
+  //     array__(field_name, decode.list(decoder), vals)
+  //     |> result.then(cont)
+  //   }
+
+  use name <- result.try(scalar("person[name]", decode.string, vals))
+  use age <- result.try(scalar("person[age]", decoder_int(), vals))
+  let kd = option.from_result(scalar("person[kd]", decoder_float(), vals))
+  use active <- result.try(scalar("person[active]", decoder_bool(), vals))
+  use hobbies <- result.try(array("person[hobbies][]", decode.string, vals))
+
+  // use pet <- result.try({
+  //   use name <- scalar_("person[pet][name]", decode.string)
+  //   use age <- scalar_("person[name][age]", decode.int)
+  //   Ok(PetForm(name:, age:,))
+  // })
+  let pet = option.from_result({
+    use name <- result.try(scalar("person[pet][name]", decode.string, vals))
+    use age <- result.try(scalar("person[pet][age]", decoder_int(), vals))
+
+    Ok(PetForm(name:, age:,))
+  })
+
+  Ok(PersonForm(name:, age:, kd:, active:, hobbies:, pet:))
+}
+
+// fn person_form_field_(form: String, field: PersonFormField) -> Field {
+//   case field {
+//     PersonFormName -> Field(keys:[ Key(form), Key("name") ])
+//     PersonFormAge -> Field(keys:[ Key(form), Key("age") ])
+//     PersonFormKd -> Field(keys:[ Key(form), Key("kd") ])
+//     PersonFormActive -> Field(keys:[ Key(form), Key("active") ])
+//     PersonFormHobbies -> Field(keys:[ Key(form), Key("hobbies"), ArrayKey ])
+//     PersonFormPetName -> Field(keys: [ Key(form), Key("pet"), Key("name") ])
+//     PersonFormPetAge -> Field(keys: [ Key(form), Key("pet"), Key("age") ])
+//   }
+// }
+
+// fn person_form_field_lookup(
+//   form: String,
+// ) -> Dict(String, Field) {
+//   [
+//     #(form <> "[name]", Field(keys:[ Key(form), Key("name") ])),
+//     #(form <> "[age]", Field(keys:[ Key(form), Key("age") ])),
+//     #(form <> "[kd]", Field(keys:[ Key(form), Key("kd") ])),
+//     #(form <> "[active]", Field(keys:[ Key(form), Key("active") ])),
+//     #(form <> "[hobbies", Field(keys:[ Key(form), Key("hobbies"), ArrayKey ])),
+//     #(form <> "[pet][name]", Field(keys: [ Key(form), Key("pet"), Key("name") ])),
+//     #(form <> "person[pet][age]", Field(keys: [ Key(form), Key("pet"), Key("age") ])),
+//   ]
+//   |> dict.from_list
+// }

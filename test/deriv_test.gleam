@@ -1158,7 +1158,7 @@ pub fn form_data_decode_test() {
   module.functions
   |> list.each(fn(f) {
     f
-    |> io.debug
+    // |> io.debug
   })
 
   let fields = [
@@ -1173,8 +1173,16 @@ pub fn form_data_decode_test() {
     #("person[pet][age]", "8"),
   ]
 
-  let r = form.decode_person_form(fields)
-  io.debug(r)
-
-  True |> should.equal(True)
+  form.decode_person_form(fields)
+  |> should.equal(Ok(form.PersonForm(
+    name: "Brad",
+    age: 38,
+    kd: Some(1.87),
+    active: True,
+    hobbies: ["Japanese", "Gleam", "Tarkov"],
+    pet: Some(form.PetForm(
+      name: "Jovie",
+      age: 8,
+    ))
+  )))
 }
