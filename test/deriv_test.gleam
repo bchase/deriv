@@ -71,6 +71,7 @@ pub type Foo {
     active: Bool,
     ratio: Float,
     words: List(String),
+    maybe_list: Option(List(String)),
   )
 }
 
@@ -93,7 +94,8 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     use active <- decode.parameter
     use ratio <- decode.parameter
     use words <- decode.parameter
-    Foo(uuid:, id:, name:, active:, ratio:, words:)
+    use maybe_list <- decode.parameter
+    Foo(uuid:, id:, name:, active:, ratio:, words:, maybe_list:)
   })
   |> decode.field(\"uuid\", util.decoder_uuid())
   |> decode.field(\"int_id\", decode.int)
@@ -101,6 +103,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
   |> decode.field(\"active\", decode.bool)
   |> decode.field(\"ratio\", decode.float)
   |> decode.field(\"words\", decode.list(decode.string))
+  |> decode.field(\"maybe_list\", decode.optional(decode.list(decode.string)))
 }
 
 pub fn encode_foo(value: Foo) -> Json {
@@ -113,6 +116,10 @@ pub fn encode_foo(value: Foo) -> Json {
         #(\"active\", json.bool(value.active)),
         #(\"ratio\", json.float(value.ratio)),
         #(\"words\", json.preprocessed_array(list.map(value.words, json.string))),
+        #(
+          \"maybe_list\",
+          json.nullable(value.maybe_list, json.array(_, json.string)),
+        ),
       ])
   }
 }
