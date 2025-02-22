@@ -1151,15 +1151,209 @@ pub fn pet(value: Pet) -> Friend {
   |> should.equal(output)
 }
 
+fn get_invariant(module: glance.Module, type_name: String) -> glance.Variant {
+  let assert Ok(t) =
+    module.custom_types
+    |> list.find_map(fn(t) {
+      case t.definition.name == type_name {
+        True -> Ok(t.definition)
+        False -> Error(Nil)
+      }
+    })
+
+  let assert [v]: List(glance.Variant) = t.variants
+
+  v
+}
+
+type FormDecoder {
+  FormDecoder(
+    type_: glance.CustomType,
+    lines: List(DecodeLine),
+  )
+}
+
+type DecodeLine {
+  DecodeBaseLine(
+    field_name: String,
+    input_name: String,
+    decoder: glance.Expression,
+    kind: BaseKind,
+  )
+  DecodeCustomLine(
+    field_name: String,
+    type_: glance.Type,
+    lines: List(DecodeLine),
+  )
+  DecodeCustomOptionLine(
+    field_name: String,
+    type_: glance.Type,
+    lines: List(DecodeLine),
+  )
+}
+
+type BaseKind {
+  Scalar
+  ScalarOption
+  Array
+}
+
+fn decoder_string() -> glance.Expression {
+  glance.Call(
+    function: glance.FieldAccess(glance.Variable("form"), "decoder_string()"),
+    arguments: [],
+  )
+}
+
+fn decoder_int() -> glance.Expression {
+  glance.Call(
+    function: glance.FieldAccess(glance.Variable("form"), "decoder_int()"),
+    arguments: [],
+  )
+}
+
+fn decoder_float() -> glance.Expression {
+  glance.Call(
+    function: glance.FieldAccess(glance.Variable("form"), "decoder_float()"),
+    arguments: [],
+  )
+}
+
+fn decoder_bool() -> glance.Expression {
+  glance.Call(
+    function: glance.FieldAccess(glance.Variable("form"), "decoder_bool()"),
+    arguments: [],
+  )
+}
+
+fn dls() -> List(DecodeLine) {
+  let pet_type = todo
+
+  [
+    // use name <- result.try(scalar("person[name]", decode.string, vals))
+    DecodeBaseLine("name", "person[name]", decoder_string(), Scalar),
+    // use age <- result.try(scalar("person[age]", decoder_int(), vals))
+    DecodeBaseLine("age", "person[age]", decoder_int(), Scalar),
+    // let kd = option.from_result(scalar("person[kd]", decoder_float(), vals))
+    DecodeBaseLine("kd", "person[kd]", decoder_float(), ScalarOption),
+    // use active <- result.try(scalar("person[active]", decoder_bool(), vals))
+    DecodeBaseLine("active", "person[active]", decoder_bool(), Scalar),
+    // use hobbies <- result.try(array("person[hobbies][]", decode.string, vals))
+    DecodeBaseLine("hobbies", "person[hobbies][]", decoder_string(), Array),
+
+    // use pet <- result.try({
+    DecodeCustomLine("pet", pet_type, [
+      // use name <- scalar_("person[pet][name]", decode.string)
+      DecodeBaseLine("name", "person[pet][name]", decoder_string(), Scalar),
+      // use age <- scalar_("person[name][age]", decode.int)
+      DecodeBaseLine("age", "person[pet][age]", decoder_int(), Scalar),
+    ]),
+
+    // let pet = option.from_result({
+    DecodeCustomOptionLine("pet", pet_type, [
+      // use name <- scalar_("person[pet][name]", decode.string)
+      DecodeBaseLine("name", "person[pet][name]", decoder_string(), Scalar),
+      // use age <- scalar_("person[name][age]", decode.int)
+      DecodeBaseLine("age", "person[pet][age]", decoder_int(), Scalar),
+    ]),
+  ]
+}
+
+fn get_base_type_decoder(type_name: String) -> Result(glance.Expression, Nil) {
+  case type_name {
+    "String" -> Ok(decoder_string())
+    "Int" -> Ok(decoder_string())
+    "Float" -> Ok(decoder_float())
+    "Bool" -> Ok(decoder_bool())
+    _ -> Error(Nil)
+  }
+}
+
+fn build_names(module: glance.Module, type_name: String, prefix prefix: String) -> List(DecodeLine) {
+  let v = get_invariant(module, type_name)
+
+  list.flat_map(v.fields, fn(f) {
+    case f {
+      glance.LabelledVariantField(..) as f -> {
+        let field_name = prefix <> "[" <> f.label <> "]"
+
+        case f.item {
+          glance.NamedType(..) as ft ->
+            case ft.name, ft.parameters, get_base_type_decoder(ft.name) {
+              // TODO `Option(List(t))`?
+              "Option", [glance.NamedType(name:, ..) as pt], _ -> {
+                case get_base_type_decoder(name) {
+                  Ok(decoder) -> {
+                    DecodeBaseLine(ft.name, field_name, decoder, Scalar)
+                    |> list.wrap
+                  }
+
+                  _ -> {
+                    DecodeCustomOptionLine(ft.name, pt, build_names(module, name, field_name))
+                    |> list.wrap
+                  }
+                }
+              }
+
+              "List", [glance.NamedType(name:, ..)], _ -> {
+                let field_name = field_name <> "[]"
+
+                case get_base_type_decoder(name) {
+                  Ok(decoder) -> {
+                    DecodeBaseLine(ft.name, field_name, decoder, Scalar)
+                    |> list.wrap
+                  }
+
+                  _ -> {
+                    io.debug(v)
+                    io.debug(ft)
+                    panic as "[deriv][form] Supporting lists of non-base types are not yet implemented"
+                  }
+                }
+              }
+
+              _,_, Ok(decoder) -> {
+                DecodeBaseLine(ft.name, field_name, decoder, Scalar)
+                |> list.wrap
+              }
+
+              _, _, _ -> {
+                let field_name = prefix <> "[" <> f.label <> "]"
+
+                DecodeCustomOptionLine(ft.name, ft, build_names(module, ft.name, field_name))
+                |> list.wrap
+              }
+            }
+
+          _ -> {
+            io.debug(v)
+            io.debug(f)
+            panic as "[deriv][form] Only `LabelledVariantField`s are supported"
+          }
+        }
+      }
+
+      _ -> {
+        io.debug(f)
+        panic as "[deriv][form] Only invariant `CustomType`s are supported"
+      }
+    }
+  })
+}
+
+
 pub fn form_data_decode_test() {
   let assert Ok(src) = simplifile.read("src/deriv/example/wisp_form_data.gleam")
   let assert Ok(module) = glance.module(src)
 
-  module.functions
-  |> list.each(fn(f) {
-    f
-    // |> io.debug
-  })
+  let assert Ok(f) = list.find(module.functions, fn(f) { f.definition.name == "decode_person_form" })
+
+  io.debug(f)
+
+  build_names(module, "PersonForm", prefix: "person")
+  |> io.debug
+  build_names(module, "Foo", prefix: "foo")
+  |> io.debug
 
   let fields = [
     #("person[name]", "Brad"),
