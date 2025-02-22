@@ -9,16 +9,18 @@ gleam add deriv@1
 
 ## Usage
 
+### `derive json`
+
 ```gleam
 import youid/uuid.{type Uuid}
 
 pub type User {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   User(id: Uuid, name: String)
 }
 
 pub type Post {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   Post(
     id: Uuid,
     title: String,
@@ -45,12 +47,12 @@ import gleam/list
 import youid/uuid.{type Uuid}
 
 pub type User {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   User(id: Uuid, name: String)
 }
 
 pub type Post {
-  //$ derive json(decode,encode)
+  //$ derive json decode encode
   Post(
     id: Uuid,
     title: String,
@@ -136,8 +138,67 @@ pub fn encode_post(value: Post) -> Json {
 }
 ```
 
-Further documentation can be found at <https://hexdocs.pm/deriv>.
+### `derive unify`
 
+```gleam
+// src/project/types/person.gleam
+pub type Person {
+  Person(
+    id: Int,
+    first_name: String,
+    last_name: String,
+    age: Int
+  )
+}
+```
+```gleam
+// src/project/types/pet.gleam
+pub type Pet {
+  Pet(
+    id: Int,
+    name: String,
+  )
+}
+```
+```gleam
+// src/project/types/friend.gleam
+import project/types/person.{type Person}
+import project/types/pet.{type Pet}
+
+pub type Friend {
+  //$ derive unify project/types/person.Person
+  //$ derive unify project/types/pet.Pet
+  Friend(
+    id: Int,
+    name: String,
+  )
+}
+```
+```
+$ gleam run -m deriv
+```
+```gleam
+// src/project/types/friend.gleam
+import project/types/person.{type Person}
+import project/types/pet.{type Pet}
+
+pub type Friend {
+  //$ derive unify project/types/person.Person
+  //$ derive unify project/types/pet.Pet
+  Friend(
+    name: String,
+    //$ unify field project/types/person.Person first_name
+  )
+}
+
+pub fn person(value: Person) -> Friend {
+  Friend(name: value.first_name)
+}
+
+pub fn pet(value: Pet) -> Friend {
+  Friend(name: value.name)
+}
+```
 ## Development
 
 ```sh

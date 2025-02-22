@@ -9,9 +9,10 @@ import gleam/regexp
 import simplifile
 import shellout
 import tom
-import deriv/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpts}
+import deriv/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpts, type ModuleReader}
 import deriv/parser
 import deriv/json as deriv_json
+import deriv/unify as deriv_unify
 import deriv/util
 import gleam/io
 
@@ -63,6 +64,7 @@ import gleam/io
 const all_gen_funcs: List(#(String, GenFunc)) =
   [
     #("json", deriv_json.gen),
+    #("unify", deriv_unify.gen),
   ]
 
 pub fn main() {
@@ -82,7 +84,7 @@ pub fn main() {
 
   filepaths
   |> load_files
-  |> gen_derivs
+  |> gen_derivs(util.fetch_module)
   |> build_writes
   |> perform_file_writes
 }
@@ -114,7 +116,10 @@ fn project_name() -> String {
   }
 }
 
-pub fn gen_derivs(files: List(File)) -> List(Gen) {
+pub fn gen_derivs(
+  files: List(File),
+  module_reader: ModuleReader,
+) -> List(Gen) {
   let gen_funcs = all_gen_funcs |>  dict.from_list
 
   let project_derivs_module_name = project_name() <> "/derivs"
@@ -129,7 +134,7 @@ pub fn gen_derivs(files: List(File)) -> List(Gen) {
 
       file
       |> parse_types_and_derivations
-      |> list.flat_map(gen_type_derivs(_, file, gen_funcs))
+      |> list.flat_map(gen_type_derivs(_, file, gen_funcs, module_reader))
     })
     |> list.flatten
     |> list.map(fn(gen) {
@@ -177,7 +182,16 @@ fn gleam_module_str_to_file_path(module: String) -> String {
 }
 
 fn parse_types_and_derivations(file: File) -> List(#(CustomType, List(Derivation), DerivFieldOpts)) {
-  let assert Ok(parsed) = glance.module(file.src)
+  let parsed =
+    case glance.module(file.src) {
+      Error(err) -> {
+        io.debug(file)
+        io.debug(err)
+        panic
+      }
+
+      Ok(x) -> x
+    }
 
   parsed.custom_types
   |> list.map(fn(ct) { ct.definition })
@@ -189,6 +203,7 @@ fn gen_type_derivs(
   x: #(CustomType, List(Derivation), DerivFieldOpts),
   file: File,
   gen_funcs: Dict(String, GenFunc),
+  module_reader: ModuleReader,
 ) -> List(Gen) {
   let #(type_, derivs, field_opts) = x
 
@@ -197,7 +212,7 @@ fn gen_type_derivs(
     case dict.get(gen_funcs, d.name) {
       Error(_) -> Error(Nil)
       Ok(f) -> {
-        Ok(f(type_, d, field_opts, file))
+        Ok(f(type_, d, field_opts, file, module_reader))
       }
     }
   })
@@ -557,7 +572,7 @@ fn derivs_file_import_gens(
     let #(file, types_and_derivs) = load_types_from_file(import_, derivs, all_files)
 
     types_and_derivs
-    |> list.flat_map(gen_type_derivs(_, file, gen_funcs))
+    |> list.flat_map(gen_type_derivs(_, file, gen_funcs, util.fetch_module))
   })
 }
 
