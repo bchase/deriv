@@ -169,7 +169,6 @@ pub type Friend {
   //$ derive unify project/types/person.Person
   //$ derive unify project/types/pet.Pet
   Friend(
-    id: Int,
     name: String,
   )
 }
