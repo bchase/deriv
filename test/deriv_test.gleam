@@ -14,6 +14,7 @@ import deriv/example/unify
 
 import simplifile
 import glance.{Import, UnqualifiedImport, Named}
+import gleam/regexp
 
 pub fn suppress_io_warnings() { io.debug(Nil) }
 
@@ -1148,4 +1149,36 @@ pub fn pet(value: Pet) -> Friend {
 
   write.src
   |> should.equal(output)
+}
+
+pub fn foo_test() {
+  let src =
+"
+import target1
+import foo/bar/target2
+import foo/bar/target3.{type Foo, Bar, baz}
+import foo/bar as target4
+
+import target5.{type Foo, Bar, baz}
+import foo/bar/target6.{type Foo, Bar, baz}
+import foo/bar/target7.{type Foo, Bar, baz}
+import foo/bar.{type Foo, Bar, baz} as target8
+"
+|> string.trim
+
+  let assert Ok(re) =
+    "^import\\s+([/A-Za-z0-9]+)([.][{].+?[}])?(\\s+as\\s+(\\w+))?"
+    //          1              2              3          4
+    // |> regexp.compile(regexp.Options(case_insensitive: False, multi_line: True))
+    |> regexp.compile(regexp.Options(case_insensitive: False, multi_line: True))
+
+  regexp.scan(re, src)
+  |> io.debug
+  |> list.each(fn(m) {
+    case m {
+      regexp.Match(submatches: [_, _, _, Some(x), ..], ..) -> io.debug(x)
+      regexp.Match(submatches: [Some(x), ..], ..) -> io.debug(x)
+      _ -> ""
+    }
+  })
 }

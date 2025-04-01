@@ -1,9 +1,10 @@
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/io
 import gleam/option.{Some, None}
 import gleam/list
 import gleam/result
 import gleam/string
+import gleam/regexp
 import glance.{type CustomType, type Definition, type Function, type Variant, LabelledVariantField, Definition, Function, Public, FunctionParameter, Named, NamedType, Expression, Call, Variable, LabelledField, FieldAccess, Span}
 import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type DerivFieldOpt, type DerivField, DerivFieldOpt}
 import deriv/util
@@ -17,6 +18,8 @@ pub fn gen(
   file: File,
   module_reader: ModuleReader,
 ) -> Gen {
+  let import_refs = build_import_refs(file.src)
+
   let overrides = build_field_overrides(field_opts, module_reader)
 
   let idents = deriv.opts
@@ -29,6 +32,7 @@ pub fn gen(
       idents,
       overrides,
       module_reader,
+      import_refs,
     )
     |> list.map(unify_func)
 
@@ -113,6 +117,7 @@ fn unify(
   idents: List(String),
   overrides: UnifyFieldOverrides,
   module_reader: ModuleReader,
+  import_refs: Dict(String, String),
 ) -> List(UnifyFunc) {
   case return_type.variants {
     [return_variant] ->
@@ -387,6 +392,8 @@ fn unify_func(
     fields:,
   ) = uf
 
+  io.debug(param_type)
+
   let dummy_span = Span(-1, -1)
 
   Definition([], Function(func_name, Public,
@@ -396,4 +403,29 @@ fn unify_func(
       LabelledField(field.return_field, FieldAccess(Variable("value"), field.param_field))
     })))], dummy_span)
   )
+}
+
+// TODO mv util
+fn build_import_refs(
+  src src: String,
+) -> Dict(String, String) {
+  let assert Ok(re) =
+    "^import\\s+([/A-Za-z0-9]+)([.][{].+?[}])?(\\s+as\\s+(\\w+))?"
+    //          1              2              3          4
+    |> regexp.compile(regexp.Options(case_insensitive: False, multi_line: True))
+
+  regexp.scan(re, src)
+  |> list.filter_map(fn(match) {
+    case match {
+      regexp.Match(submatches: [Some(m), _, _, Some(qualified), ..], ..) ->
+        Ok(#(m, qualified))
+
+      regexp.Match(submatches: [Some(m), ..], ..) ->
+        Ok(#(m, m))
+
+      _ ->
+        Error(Nil)
+    }
+  })
+  |> dict.from_list
 }
