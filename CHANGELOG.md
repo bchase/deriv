@@ -1,3 +1,7 @@
+## v1.1.2 - 2024-04-05
+
+- [json] specify decoder func with `$// json decoder FUNC`
+
 ## v1.1.1 - 2024-02-22
 
 - [json] handle `Option(List(t))` en/decode
