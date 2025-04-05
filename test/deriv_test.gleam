@@ -912,6 +912,69 @@ pub fn snake_case_test() {
   |> should.equal("foo_bar_x")
 }
 
+pub fn json_specify_decoder_test() {
+  let input = "
+pub type Maybe {
+  //$ derive json decode
+  Maybe(
+    name: Option(String),
+    //$ json decoder decoder_name
+  )
+}
+  "
+  |> string.trim
+
+ let output = "
+import decode.{type Decoder}
+
+pub type Maybe {
+  //$ derive json decode
+  Maybe(
+    name: Option(String),
+    //$ json decoder decoder_name
+  )
+}
+
+pub fn decoder_maybe() -> Decoder(Maybe) {
+  decode.one_of([decoder_maybe_maybe()])
+}
+
+pub fn decoder_maybe_maybe() -> Decoder(Maybe) {
+  decode.into({
+    use name <- decode.parameter
+    Maybe(name:)
+  })
+  |> decode.field(\"name\", decode.optional(decoder_name()))
+}
+  "
+  |> string.trim
+
+  let files = [ File(module: "deriv/example/maybe", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs(dummy_module_reader)
+    |> deriv.build_writes
+
+  write.filepath
+  |> should.equal("src/deriv/example/maybe.gleam")
+
+  // io.println(output)
+  // io.println(write.src)
+
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
+
+  write.src
+  |> should.equal(output)
+}
+
 pub fn unify_authe_test() {
   let authe_a_src = "
 pub type AutheA {
