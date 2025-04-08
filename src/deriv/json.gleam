@@ -524,8 +524,11 @@ fn decode_field_expr(
   let opts = util.get_field_opts(all_field_opts, type_, variant, field.name)
 
   let expr =
-    case t, t.parameters {
-      JType("Option", _, [JType("List", _, [JType(_, _, []) as param])]), _ -> {
+    case specifies_decoder(opts), t, t.parameters {
+      Some(decoder_name), _, _ ->
+        Call(function: Variable(decoder_name), arguments: [])
+
+      _, JType("Option", _, [JType("List", _, [JType(_, _, []) as param])]), _ -> {
         let inner =
           param.name
           |> unparameterized_type_decode_expr(birl_time_kind, opts)
@@ -535,8 +538,8 @@ fn decode_field_expr(
           UnlabelledField(Call(FieldAccess(Variable("decode"), "list"), [inner]))
         ])
       }
-      _, [] -> unparameterized_type_decode_expr(t.name, birl_time_kind, opts)
-      _, [JType(parameters: [], ..) as param] ->
+      _,_,  [] -> unparameterized_type_decode_expr(t.name, birl_time_kind, opts)
+      _, _, [JType(parameters: [], ..) as param] ->
         case t.name {
           "List" -> {
             let inner =
@@ -561,7 +564,7 @@ fn decode_field_expr(
             panic as "unimplemented"
           }
         }
-      _, [
+      _, _, [
         JType(parameters: [], ..) as key_param,
         JType(parameters: [], ..) as val_param,
       ] ->
@@ -583,7 +586,7 @@ fn decode_field_expr(
             panic as "unimplemented"
           }
         }
-      _, _ -> {
+      _, _, _ -> {
         io.debug(field)
         panic as "unimplemented"
       }
@@ -683,8 +686,8 @@ fn unparameterized_type_decode_expr(
   birl_time_kind: BirlTimeKind,
   opts: List(DerivFieldOpt),
 ) -> Expression {
-  unparameterized_type_decode_expr_(opts)
-  |> result.map_error(fn(_nil) {
+  // unparameterized_type_decode_expr_(opts)
+  // |> result.map_error(fn(_nil) {
     case type_name {
       "Int" -> FieldAccess(Variable("decode"), "int")
       "Float" -> FieldAccess(Variable("decode"), "float")
@@ -694,13 +697,29 @@ fn unparameterized_type_decode_expr(
       "Time" -> birl_time_decode_expr(birl_time_kind)
       _ -> Call(Variable("decoder_" <> util.snake_case(type_name)), [])
     }
-  })
-  |> result.unwrap_both
+  // })
+  // |> result.unwrap_both
 }
 
-fn unparameterized_type_decode_expr_(
+// fn unparameterized_type_decode_expr_(
+//   opts: List(DerivFieldOpt),
+// ) -> Result(Expression, Nil) {
+//   opts
+//   |> list.reverse
+//   |> list.find_map(fn(x) {
+//     case x {
+//       DerivFieldOpt(strs: ["json", "decoder", decoder_name]) -> Ok(decoder_name)
+//       _ -> Error(Nil)
+//     }
+//   })
+//   |> result.map(fn(decoder_name) {
+//     Call(function: Variable(decoder_name), arguments: [])
+//   })
+// }
+
+fn specifies_decoder(
   opts: List(DerivFieldOpt),
-) -> Result(Expression, Nil) {
+) -> Option(String) {
   opts
   |> list.reverse
   |> list.find_map(fn(x) {
@@ -709,9 +728,7 @@ fn unparameterized_type_decode_expr_(
       _ -> Error(Nil)
     }
   })
-  |> result.map(fn(decoder_name) {
-    Call(function: Variable(decoder_name), arguments: [])
-  })
+  |> option.from_result
 }
 
 fn birl_time_decode_expr(

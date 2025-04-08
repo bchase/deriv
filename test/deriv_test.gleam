@@ -944,7 +944,7 @@ pub fn decoder_maybe_maybe() -> Decoder(Maybe) {
     use name <- decode.parameter
     Maybe(name:)
   })
-  |> decode.field(\"name\", decode.optional(decoder_name()))
+  |> decode.field(\"name\", decoder_name())
 }
   "
   |> string.trim
