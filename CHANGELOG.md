@@ -1,3 +1,7 @@
+## v2.0.0 - 2024-04-08
+
+ - override decoder at top-level, skip e.g. `decode.list`, `decode.option` in code gen
+
 ## v1.1.2 - 2024-04-05
 
 - [json] specify decoder func with `$// json decoder FUNC`
@@ -18,5 +22,3 @@
 - [fix] Downcase `uuid.to_string` on JSON encode
 
 ## v1.0.0 - 2025-02-03
-
-- 🎉 First release!
