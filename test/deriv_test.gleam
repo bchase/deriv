@@ -207,6 +207,7 @@ pub type T {
 
  let output = "
 import decode.{type Decoder}
+import deriv/util
 import gleam/json.{type Json}
 
 pub type T {
@@ -221,24 +222,33 @@ pub fn decoder_t() -> Decoder(T) {
 
 pub fn decoder_t_x() -> Decoder(T) {
   decode.into({
+    use _deriv_var_constr <- decode.parameter
     use foo <- decode.parameter
     X(foo:)
   })
+  |> decode.field(\"_var\", util.is(\"X\"))
   |> decode.field(\"foo\", decode.string)
 }
 
 pub fn decoder_t_y() -> Decoder(T) {
   decode.into({
+    use _deriv_var_constr <- decode.parameter
     use bar <- decode.parameter
     Y(bar:)
   })
+  |> decode.field(\"_var\", util.is(\"Y\"))
   |> decode.field(\"bar\", decode.int)
 }
 
 pub fn encode_t(value: T) -> Json {
   case value {
-    X(..) as value -> json.object([#(\"foo\", json.string(value.foo))])
-    Y(..) as value -> json.object([#(\"bar\", json.int(value.bar))])
+    X(..) as value ->
+      json.object([
+        #(\"_var\", json.string(\"X\")),
+        #(\"foo\", json.string(value.foo)),
+      ])
+    Y(..) as value ->
+      json.object([#(\"_var\", json.string(\"Y\")), #(\"bar\", json.int(value.bar))])
   }
 }
   "

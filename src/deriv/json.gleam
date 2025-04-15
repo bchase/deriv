@@ -8,6 +8,8 @@ import glance.{type CustomType, type Variant, type VariantField, LabelledVariant
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt}
 import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
+const deriv_variant_json_key = "_var"
+
 pub fn gen(
   type_: CustomType,
   deriv: Derivation,
@@ -120,17 +122,16 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
 }
 
 fn needs_util_import(type_: CustomType) -> Bool {
-  // is_multi_variant(type_) || uses_uuid(type_)
-  uses_uuid(type_) || uses_birl_time(type_)
+  is_multi_variant(type_) || uses_uuid(type_) || uses_birl_time(type_)
 }
 
 fn needs_list_import(type_: CustomType) -> Bool {
   uses_list(type_)
 }
 
-// fn is_multi_variant(type_: CustomType) -> Bool {
-//   list.length(type_.variants) > 1
-// }
+fn is_multi_variant(type_: CustomType) -> Bool {
+  list.length(type_.variants) > 1
+}
 
 fn uses_uuid(type_: CustomType) -> Bool {
   type_.variants
@@ -420,6 +421,23 @@ fn encode_variant_json_object_expr(
       }
     })
 
+  let encode_lines =
+    case is_multi_variant(type_) {
+      True ->
+        Tuple([String(deriv_variant_json_key), Call(
+          function: FieldAccess(Variable("json"), "string"),
+          arguments: [
+            UnlabelledField(String(variant.name)),
+          ],
+        )
+        ])
+        |> list.wrap
+        |> list.append(encode_lines)
+
+      False ->
+        encode_lines
+    }
+
   Call(
     function: FieldAccess(Variable("json"), "object"),
     arguments: [ UnlabelledField(List(encode_lines, None)) ],
@@ -627,6 +645,17 @@ fn decoder_type_variant_func(
       Use([PatternVariable(field)], FieldAccess(Variable("decode"), "parameter"))
     })
 
+  let use_exprs =
+    case is_multi_variant(type_) {
+      True ->
+        Use([PatternVariable("_deriv_var_constr")], FieldAccess(Variable("decode"), "parameter"))
+        |> list.wrap
+        |> list.append(use_exprs)
+
+      False ->
+        use_exprs
+    }
+
   let constr_args = fields |> list.map(ShorthandField)
 
   let decode_into_call: Expression =
@@ -639,8 +668,33 @@ fn decoder_type_variant_func(
       ]))
     )])
 
+  let initial_body =
+    case is_multi_variant(type_) {
+      True -> {
+        let call =
+          Call(
+            function: FieldAccess(Variable("decode"), "field"),
+            arguments: [
+              UnlabelledField(String(deriv_variant_json_key)),
+              UnlabelledField(Call(
+                function: FieldAccess(Variable("util"), "is"),
+                arguments: [
+                  UnlabelledField(String(variant.name)),
+                ]
+              )),
+            ],
+          )
+
+        decode_into_call
+        |> BinaryOperator(Pipe, _, call)
+      }
+
+      False ->
+        decode_into_call
+    }
+
   let body: List(Statement) =
-    list.fold(pipe_exprs, decode_into_call, fn(acc, x) {
+    list.fold(pipe_exprs, initial_body, fn(acc, x) {
       let #(field, json_field, expr) = x
 
       let json_field = json_field |> option.unwrap(field)
@@ -667,7 +721,8 @@ fn decoder_type_variant_func(
 
       BinaryOperator(Pipe, acc, call)
     })
-    |> fn(expr) { [Expression(expr)] }
+    |> Expression
+    |> list.wrap
 
   Definition([],
     Function(
