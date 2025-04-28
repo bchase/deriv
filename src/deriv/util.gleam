@@ -265,6 +265,18 @@ pub fn gleam_format(src: String) -> String {
   formatted_enc
 }
 
+pub fn is(
+  value: String,
+) -> Decoder(Nil) {
+  decode.string
+  |> decode.then(fn(str) {
+    case str == value {
+      True -> decode.into(Nil)
+      False -> decode.fail("failed to match for value: " <> value)
+    }
+  })
+}
+
 pub fn decoder_birl_parse() -> Decoder(Time) {
   decoder_birl_string_to_result(
     func_name: "parse",
