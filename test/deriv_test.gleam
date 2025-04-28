@@ -1115,6 +1115,104 @@ pub fn authe_b(value: AutheB) -> AutheTokens {
   |> should.equal(output)
 }
 
+pub fn into_test() {
+  // glance.module("
+// pub fn foo() {
+  // f.Foo
+// }
+  // " |> string.trim)
+  // |> io.debug
+  // |> io.debug
+  // |> io.debug
+  // |> io.debug
+  // |> io.debug
+
+  let foo_src = "
+pub type Foo {
+  Foo(
+    name: String,
+    count: Int,
+  )
+}
+  " |> string.trim
+
+  let parse = fn(src) {
+    glance.module(src)
+    |> result.map_error(types.GlanceErr)
+  }
+
+  let module_reader: types.ModuleReader = fn(ident) {
+    case ident {
+      "project/asdf/foo" -> parse(foo_src)
+
+      _ -> {
+        io.debug(ident)
+        panic as "`module_reader` miss in `into_test`"
+      }
+    }
+  }
+
+// TODO
+  let input = "
+pub type Bar {
+  //$ derive into project/asdf/foo.Foo as f
+  Bar(
+    title: String,
+    //$ into field project/asdf/foo.Foo name
+    count: Int,
+  )
+}
+  " |> string.trim
+
+ let output = "
+pub type Bar {
+  //$ derive into project/asdf/foo.Foo as f
+  Bar(
+    title: String,
+    //$ into field project/asdf/foo.Foo name
+    count: Int,
+  )
+}
+
+pub fn into_foo(value: Bar) -> f.Foo {
+  f.Foo(name: value.title, count: value.count)
+}
+  "
+  |> string.trim
+
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let writes =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let assert [write] =
+    writes
+
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
+
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
+
+  write.src
+  |> should.equal(output)
+}
+
 pub fn unify_friend_test() {
   let person_src = "
 pub type Person {
