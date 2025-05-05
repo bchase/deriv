@@ -143,9 +143,19 @@ fn step_snake_case(is_capital: Regexp, state: SC, char: String) -> SC {
   }
 }
 
-pub fn replace_function(full_src: String, func_name func_name: String, func_src func_src: String) -> String {
-  let re_str = "^(pub )?fn " <> func_name <> "[(].*"
-  let assert Ok(re) = regexp.compile(re_str, regexp.Options(case_insensitive: False, multi_line: True))
+pub fn pascal_case(str: String) -> String {
+  str
+  |> string.split("_")
+  |> list.map(string.capitalise)
+  |> string.join("")
+}
+
+pub fn replace_function(
+  full_src: String,
+  func_name func_name: String,
+  func_src func_src: String,
+) -> String {
+  let re = func_start_re(func_name)
 
   let assert [before, after] =
     regexp.split(re, full_src)
@@ -156,6 +166,25 @@ pub fn replace_function(full_src: String, func_name func_name: String, func_src 
   let new_after = drop_lines_up_to_and_including_lone_closing_brace(after)
 
   [ new_before, func_src, new_after ]
+  |> string.join("\n\n")
+}
+
+pub fn replace_type(
+  full_src: String,
+  type_name type_name: String,
+  type_src type_src: String,
+) -> String {
+  let re = type_start_re(type_name)
+
+  let assert [before, after] =
+    regexp.split(re, full_src)
+    |> list.filter(fn(str) { str != "pub " && str != "" })
+
+  let new_before = string.trim_end(before)
+
+  let new_after = drop_lines_up_to_and_including_lone_closing_brace(after)
+
+  [ new_before, type_src, new_after ]
   |> string.join("\n\n")
 }
 
@@ -178,14 +207,20 @@ fn drop_lines_up_to_and_including_lone_closing_brace(str) {
   |> string.trim_start
 }
 
+fn func_start_re(func_name: String) -> Regexp {
+  let assert Ok(re) =
+    { "^(pub )?fn " <> func_name <> "[(].*" }
+    |> regexp.compile(regexp.Options(case_insensitive: False, multi_line: True))
+
+  re
+}
+
 pub fn update_funcs(init_src: String, funcs: List(#(String, String))) -> String {
   list.fold(funcs, init_src, fn(src, func) {
     let #(func_name, func_src) = func
 
-    let re_str = "^(pub )?fn " <> func_name <> "[(].*"
-    let assert Ok(re) = regexp.compile(re_str, regexp.Options(case_insensitive: False, multi_line: True))
+    let re = func_start_re(func_name)
 
-    // case string.contains(src, "fn " <> func_name) {
     case regexp.check(re, src) {
       True ->  replace_function(src, func_name:, func_src:)
       False -> {
@@ -196,6 +231,35 @@ pub fn update_funcs(init_src: String, funcs: List(#(String, String))) -> String 
           }
 
         src <> newlines <> func_src
+      }
+    }
+  })
+}
+
+fn type_start_re(type_name: String) -> Regexp {
+  let assert Ok(re) =
+    { "^(pub\\s*(opaque\\s*)?)?type " <> type_name <> "\\s*{\\s*$" }
+    |> regexp.compile(regexp.Options(case_insensitive: False, multi_line: True))
+
+  re
+}
+
+pub fn update_types(init_src: String, types: List(#(String, String))) -> String {
+  list.fold(types, init_src, fn(src, type_) {
+    let #(type_name, type_src) = type_
+
+    let re = type_start_re(type_name)
+
+    case regexp.check(re, src) {
+      True -> replace_type(src, type_name:, type_src:)
+      False -> {
+        let newlines =
+          case string.ends_with(src, "\n") {
+            True -> "\n"
+            False -> "\n\n"
+          }
+
+        src <> newlines <> type_src
       }
     }
   })

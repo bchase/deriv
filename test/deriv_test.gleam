@@ -518,6 +518,46 @@ type Bar {
   |> should.equal(expected)
 }
 
+pub fn replace_type_test() {
+  let src = string.trim("
+import gleam/string
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}
+
+fn foo(str: String) -> String {
+  str
+}")
+
+  let new = string.trim("
+type Foo {
+  Hoge(
+    asdf: Int,
+  )
+}
+")
+
+  let expected = string.trim("
+import gleam/string
+
+type Foo {
+  Hoge(
+    asdf: Int,
+  )
+}
+
+fn foo(str: String) -> String {
+  str
+}")
+
+  util.replace_type(src, type_name: "Bar", type_src: new)
+  |> string.trim
+  |> should.equal(expected)
+}
+
 pub fn consolidate_imports_test() {
   let src = string.trim("
 import foo/bar.{type Orig, Orig, orig, type Foo}
