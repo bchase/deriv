@@ -636,15 +636,8 @@ fn build_fields(
       let param_fields = fields(param_variant)
       let return_fields = fields(return_variant)
 
-      // io.debug(param_fields)
-      // io.debug(return_fields)
-
       return_fields
       |> list.map(fn(r_field) {
-        io.debug(r_field)
-        io.debug(r_field)
-        io.debug(r_field)
-        io.debug(r_field)
         let #(return_field, result_field_type) = r_field
 
         let #(param_field, param_field_type) =
