@@ -1362,6 +1362,17 @@ pub fn pet(value: Pet) -> Friend {
 }
 
 pub fn form_test() {
+    // to_fields // `Fields(field)` for edit form values
+    //
+    // decode
+    //
+    // Lookups
+    // X field_to_id:, // from fields
+    //   field_to_name:, // from fields
+    //   field_to_label:, // from fields
+    // X field_to_type:,
+    //   field_is_required:, // from type
+    //   name_to_field:, // `field_to_name` in reverse
   let input = "
 import foo/bar as sql
 
