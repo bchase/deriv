@@ -82,7 +82,7 @@ fn gen_form_field_type(
   let fields =
     gen_form_fields(
       variant,
-      init_acc(),
+      [],
       prefix: type_.name,
       module_name:,
       module:,
@@ -90,7 +90,18 @@ fn gen_form_field_type(
       wrap: None,
     )
 
-  let fields = fields |> list.map(fn(f) { f.id })
+  let prefix = variant.name
+
+  let fields =
+    fields
+    |> list.map(fn(f) {
+      f.segments
+      |> list.map(util.pascal_case)
+      |> string.join("")
+      |> fn(str) {
+        prefix <> str
+      }
+    })
 
   [
     ["pub type " <> type_.name <> "Field {"],
@@ -123,7 +134,7 @@ fn is_enum_type(
 fn gleam_type_for(
   type_: glance.Type,
 ) -> Result(form.GleamType, Nil) {
-  case type_ |> io.debug {
+  case type_ {
     NamedType(name:, parameters: [], ..) ->
       case name {
         "Int" ->
@@ -164,7 +175,7 @@ fn gleam_type_for(
 
 type Field {
   Field(
-    id: String, // e.g. `"SomeFormField"`
+    // id: String, // e.g. `"SomeFormField"`
     segments: List(String), //
     // name: String, // e.g. `"[field]"`
     // label: String, // e.g. `"Field"`
@@ -174,17 +185,12 @@ type Field {
 }
 
 fn to_field(
-  id id: String,
   gleam_type gleam_type: form.GleamType,
-  acc acc: Acc,
+  fields fields: List(String),
 ) -> Field {
   Field(
-    id:,
-    segments: acc.fields,
-    // name: id,
-    // label: id,
+    segments: fields,
     gleam_type:,
-    // required: False,
   )
 }
 
@@ -208,7 +214,7 @@ fn init_acc() -> Acc {
 
 fn gen_form_fields(
   variant: Variant,
-  acc: Acc,
+  fields: List(String),
   prefix prefix: String,
   module_name module_name: String,
   module module: glance.Module,
@@ -221,10 +227,10 @@ fn gen_form_fields(
       LabelledVariantField(label: name, item: field_type) -> {
         case gleam_type_for(field_type) {
           Ok(gleam_type) ->
-            { prefix <> { name |> util.pascal_case } }
-            |> to_field(id: _, gleam_type:, acc: {
-              Acc(..acc, fields: acc.fields |> list.append([name]))
-            })
+            Field(
+              gleam_type:,
+              segments: fields |> list.append([name]),
+            )
             |> list.wrap
 
           _not_simple_gleam_type -> {
@@ -234,24 +240,19 @@ fn gen_form_fields(
               Ok(t) ->
                 case is_enum_type(t), t {
                   True, _ -> {
-                    { prefix <> { name |> util.pascal_case } }
-                    |> to_field(id: _, gleam_type: form.Enum(ident: "?." <> t.name), acc: {
-                      Acc(..acc, fields: acc.fields |> list.append([name]))
-                    })
+                    Field(
+                      gleam_type: form.Enum(ident: "?." <> t.name),
+                      segments: fields |> list.append([name])
+                    )
                     |> list.wrap
                   }
 
                   False, CustomType(variants: [variant], ..) -> {
                     let prefix = prefix <> { name |> util.pascal_case }
 
-                    let acc =
-                      Acc(
-                        fields: acc.fields |> list.append([name]),
-                        // build_type: todo,
-                        // constructors: acc.constructors |> list.append([variant.name]),
-                      )
+                    let fields = fields |> list.append([name])
 
-                    gen_form_fields(variant, acc, prefix:, module_name:, module:, module_reader:, wrap:)
+                    gen_form_fields(variant, fields, prefix:, module_name:, module:, module_reader:, wrap:)
                   }
 
                   _, _ ->
@@ -275,7 +276,6 @@ fn gen_form_fields(
         panic as "`derive form` only supports labelled fields"
       }
     }
-    |> io.debug
   })
 }
 
