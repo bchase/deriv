@@ -90,17 +90,30 @@ fn gen_form_field_type(
       wrap: None,
     )
 
-  let prefix = variant.name
+  fields
+  |> list.map(fn(f) {
+    to_id(variant, f)
+    |> io.debug
+    is_required(f)
+    |> io.debug
+  })
+
+  fields
+  |> list.map(fn(f) {
+    to_label(f)
+  })
+  |> io.debug
+
+  fields
+  |> list.map(fn(f) {
+    to_name("foo", f)
+  })
+  |> io.debug
 
   let fields =
     fields
     |> list.map(fn(f) {
-      f.segments
-      |> list.map(util.pascal_case)
-      |> string.join("")
-      |> fn(str) {
-        prefix <> str
-      }
+      to_id(variant, f)
     })
 
   [
@@ -184,32 +197,54 @@ type Field {
   )
 }
 
-fn to_field(
-  gleam_type gleam_type: form.GleamType,
-  fields fields: List(String),
-) -> Field {
-  Field(
-    segments: fields,
-    gleam_type:,
-  )
+fn to_id(
+  variant: Variant,
+  field: Field,
+) -> String {
+  field.segments
+  |> list.map(util.pascal_case)
+  |> string.join("")
+  |> fn(str) {
+    variant.name <> str
+  }
 }
 
-type Acc {
-  Acc(
-    fields: List(String),
-    // build_type: fn(form.GleamType) -> form.GleamType,
-    // constructors: List(String),
-    // outer: List(OuterType),
-  )
+fn to_name(
+  form: String,
+  field: Field,
+) -> String {
+  field.segments
+  |> list.map(fn(segment) {
+    "[" <> segment <> "]"
+  })
+  |> string.join("")
+  |> fn(str) {
+    form <> str
+  }
 }
 
-fn init_acc() -> Acc {
-  Acc(
-    fields: [],
-    // build_type: fn(x) { x },
-    // constructors: [],
-    // outer: [],
-  )
+fn to_label(
+  field: Field,
+) -> String {
+  field.segments
+  |> list.map(string.capitalise)
+  |> string.join(" ")
+}
+
+fn is_required(
+  field: Field,
+) -> Bool {
+  io.debug(field.segments)
+  case field.gleam_type |> io.debug {
+    form.Option(_) ->
+      False
+
+    form.List(_) ->
+      False
+
+    _ ->
+      True
+  }
 }
 
 fn gen_form_fields(
