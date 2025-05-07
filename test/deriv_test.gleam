@@ -1360,3 +1360,119 @@ pub fn pet(value: Pet) -> Friend {
   write.src
   |> should.equal(output)
 }
+
+pub fn form_test() {
+  let input = "
+import foo/bar as sql
+
+pub type PersonForm {
+  //$ derive form person
+  PersonForm(
+    name: String,
+    email: Option(String),
+    interval: Int,
+    favorite: Bool,
+    revenue: Option(RevenueForm),
+  )
+}
+
+pub type RevenueForm {
+  RevenueForm(
+    amount: Int,
+    currency: sql.Currency,
+    //$ form decoder decoder_currency
+    //$ form value common.currency_value
+  )
+}
+  "
+  |> string.trim
+
+  let output = "
+import foo/bar as sql
+
+pub type PersonForm {
+  //$ derive form person
+  PersonForm(
+    name: String,
+    email: Option(String),
+    interval: Int,
+    favorite: Bool,
+    revenue: Option(RevenueForm),
+  )
+}
+
+pub type RevenueForm {
+  RevenueForm(
+    amount: Int,
+    currency: sql.Currency,
+    //$ form decoder decoder_currency
+    //$ form value common.currency_value
+  )
+}
+
+pub type PersonFormField {
+  PersonFormName
+  PersonFormEmail
+  PersonFormInterval
+  PersonFormFavorite
+  PersonFormRevenueAmount
+  PersonFormRevenueCurrency
+}
+  "
+  |> string.trim
+
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+
+  let module_reader = fn(ident) {
+    case ident {
+      "deriv/example/foo" -> {
+        let assert Ok(module) = glance.module(input)
+        Ok(module)
+      }
+
+      "foo/bar" -> {
+        let assert Ok(module) = glance.module(string.trim("
+pub type Currency {
+  Usd
+  Jpy
+  Eur
+}
+        "))
+        Ok(module)
+      }
+
+      _ ->
+        panic as { "test `module_reader` missing ident: " <> ident }
+    }
+  }
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let writes =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let assert [write] =
+    writes
+
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
+
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
+
+  write.src
+  |> should.equal(output)
+}
