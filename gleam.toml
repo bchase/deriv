@@ -17,6 +17,7 @@ youid = ">= 1.2.0 and < 2.0.0"
 tom = ">= 1.1.1 and < 2.0.0"
 glance_printer = ">= 2.0.0 and < 3.0.0"
 birl = ">= 1.8.0 and < 2.0.0"
+form = { path = "deps/form" }
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"
