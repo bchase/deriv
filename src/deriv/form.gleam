@@ -8,30 +8,9 @@ import gleam/string
 import glance.{Module, type CustomType, type Definition, type Function, type Variant, LabelledVariantField, Definition, Function, Public, FunctionParameter, Named, NamedType, Expression, Call, Variable, LabelledField, FieldAccess, Span, CustomType}
 import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type DerivFieldOpt, type DerivField, DerivFieldOpt}
 import deriv/util
+import form
 
 pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File) -> Gen
-
-fn base_type(
-  type_: glance.Type
-) -> String {
-  case type_ {
-    NamedType(name: field_type_name, parameters: [], ..) ->
-      field_type_name
-
-    NamedType(name: _parameterized_type, parameters: [param_type], ..) ->
-      base_type(param_type)
-
-    NamedType(name: _multi_parameterized_type,  ..) -> {
-      io.debug(type_)
-      panic as { "`derive form` doesn't know what to do with multi parameter types" }
-    }
-
-    _ -> {
-      io.debug(type_)
-      panic as { "`derive form` only supports fields of `NamedType`" }
-    }
-  }
-}
 
 fn base_type_(
   type_: glance.Type
@@ -55,6 +34,42 @@ fn base_type_(
   }
 }
 
+// type OuterType {
+//   List
+//   Option
+// }
+
+// fn base_type__(
+//   type_: glance.Type,
+//   outer: List(OuterType),
+// ) -> #(glance.Type, List(OuterType)) {
+//   case type_ {
+//     NamedType(parameters: [], ..) ->
+//       #(type_, outer)
+
+//     NamedType(name: "Option", parameters: [param_type], ..) ->
+//       base_type__(param_type, outer |> list.append([Option]))
+
+//     NamedType(name: "List", parameters: [param_type], ..) ->
+//       base_type__(param_type, outer |> list.append([List]))
+
+//     NamedType(name:, parameters: [_param_type], ..) -> {
+//       io.debug(type_)
+//       panic as { "`derive form` doesn't know what to do with wrapper type: " <> name }
+//     }
+
+//     NamedType(name: _multi_parameterized_type,  ..) -> {
+//       io.debug(type_)
+//       panic as { "`derive form` doesn't know what to do with multi parameter types" }
+//     }
+
+//     _ -> {
+//       io.debug(type_)
+//       panic as { "`derive form` only supports fields of `NamedType`" }
+//     }
+//   }
+// }
+
 fn gen_form_field_type(
   type_: CustomType,
   variant: Variant,
@@ -67,11 +82,15 @@ fn gen_form_field_type(
   let fields =
     gen_form_fields(
       variant,
+      init_acc(),
       prefix: type_.name,
       module_name:,
       module:,
       module_reader:,
+      wrap: None,
     )
+
+  let fields = fields |> list.map(fn(f) { f.id })
 
   [
     ["pub type " <> type_.name <> "Field {"],
@@ -101,57 +120,138 @@ fn is_enum_type(
   })
 }
 
-fn bool_int_float_or_string(
+fn gleam_type_for(
   type_: glance.Type,
-) -> Bool {
-  case type_ {
+) -> Result(form.GleamType, Nil) {
+  case type_ |> io.debug {
     NamedType(name:, parameters: [], ..) ->
-      [
-        "Int" ,
-        "Float" ,
-        "Bool" ,
-        "String",
-      ]
-      |> list.contains(name)
+      case name {
+        "Int" ->
+          Ok(form.Int)
+
+        "Float" ->
+          Ok(form.Float)
+
+        "Bool" ->
+          Ok(form.Bool)
+
+        "String" ->
+          Ok(form.String)
+
+        "Uuid" ->
+          Ok(form.Uuid)
+
+        _ ->
+          Error(Nil)
+      }
+
+    NamedType(name: "Option", parameters: [param], ..) -> {
+      use t <- result.try(gleam_type_for(param))
+
+      Ok(form.Option(t))
+    }
+
+    NamedType(name: "List", parameters: [param], ..) -> {
+      use t <- result.try(gleam_type_for(param))
+
+      Ok(form.List(t))
+    }
 
     _ ->
-      False
+      Error(Nil)
   }
+}
+
+type Field {
+  Field(
+    id: String, // e.g. `"SomeFormField"`
+    segments: List(String), //
+    // name: String, // e.g. `"[field]"`
+    // label: String, // e.g. `"Field"`
+    gleam_type: form.GleamType, // e.g. `form.String`
+    // required: Bool,
+  )
+}
+
+fn to_field(
+  id id: String,
+  gleam_type gleam_type: form.GleamType,
+  acc acc: Acc,
+) -> Field {
+  Field(
+    id:,
+    segments: acc.fields,
+    // name: id,
+    // label: id,
+    gleam_type:,
+    // required: False,
+  )
+}
+
+type Acc {
+  Acc(
+    fields: List(String),
+    // build_type: fn(form.GleamType) -> form.GleamType,
+    // constructors: List(String),
+    // outer: List(OuterType),
+  )
+}
+
+fn init_acc() -> Acc {
+  Acc(
+    fields: [],
+    // build_type: fn(x) { x },
+    // constructors: [],
+    // outer: [],
+  )
 }
 
 fn gen_form_fields(
   variant: Variant,
+  acc: Acc,
   prefix prefix: String,
   module_name module_name: String,
   module module: glance.Module,
   module_reader module_reader: ModuleReader,
-) -> List(String) {
+  wrap wrap: Option(fn(form.GleamType) -> form.GleamType),
+) -> List(Field) {
   variant.fields
   |> list.flat_map(fn(field) {
     case field {
       LabelledVariantField(label: name, item: field_type) -> {
-        let field_name =
-          { prefix <> { name |> util.pascal_case } }
-          |> list.wrap
+        case gleam_type_for(field_type) {
+          Ok(gleam_type) ->
+            { prefix <> { name |> util.pascal_case } }
+            |> to_field(id: _, gleam_type:, acc: {
+              Acc(..acc, fields: acc.fields |> list.append([name]))
+            })
+            |> list.wrap
 
-        let field_type = base_type_(field_type)
+          _not_simple_gleam_type -> {
+            let field_type = base_type_(field_type) // TODO recurse properly
 
-        case bool_int_float_or_string(field_type) {
-          True ->
-            field_name
-
-          False -> {
             case util.look_up_type(field_type, module, module_reader) {
               Ok(t) ->
                 case is_enum_type(t), t {
                   True, _ -> {
-                    field_name
+                    { prefix <> { name |> util.pascal_case } }
+                    |> to_field(id: _, gleam_type: form.Enum(ident: "?." <> t.name), acc: {
+                      Acc(..acc, fields: acc.fields |> list.append([name]))
+                    })
+                    |> list.wrap
                   }
 
                   False, CustomType(variants: [variant], ..) -> {
                     let prefix = prefix <> { name |> util.pascal_case }
 
-                    gen_form_fields(variant, prefix:, module_name:, module:, module_reader:)
+                    let acc =
+                      Acc(
+                        fields: acc.fields |> list.append([name]),
+                        // build_type: todo,
+                        // constructors: acc.constructors |> list.append([variant.name]),
+                      )
+
+                    gen_form_fields(variant, acc, prefix:, module_name:, module:, module_reader:, wrap:)
                   }
 
                   _, _ ->
@@ -160,12 +260,11 @@ fn gen_form_fields(
 
               Error(_) -> {
                 io.debug(field)
+                // !!! NOTE: if here for some weird nesting, see `TODO recurse` above !!!
                 panic as { "`derive form` couldn't find field type" }
+                // !!! NOTE: if here for some weird nesting, see `TODO recurse` above !!!
               }
             }
-
-            // { prefix <> { name |> util.pascal_case } }
-            // |> list.wrap
           }
         }
       }
@@ -176,6 +275,7 @@ fn gen_form_fields(
         panic as "`derive form` only supports labelled fields"
       }
     }
+    |> io.debug
   })
 }
 
