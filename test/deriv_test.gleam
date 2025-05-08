@@ -1429,6 +1429,79 @@ pub type PersonFormField {
   PersonFormRevenueAmount
   PersonFormRevenueCurrency
 }
+
+pub fn person_form_field_lookups(form: String) -> Lookups(PersonFormField) {
+  let field_to_id = fn(field) {
+    case field {
+      PersonFormName -> \"PersonFormName\"
+      PersonFormEmail -> \"PersonFormEmail\"
+      PersonFormInterval -> \"PersonFormInterval\"
+      PersonFormFavorite -> \"PersonFormFavorite\"
+      PersonFormRevenueAmount -> \"PersonFormRevenueAmount\"
+      PersonFormRevenueCurrency -> \"PersonFormRevenueCurrency\"
+    }
+    |> fn(str) { \"field-\" <> str }
+  }
+  let field_to_name = fn(field) {
+    case field {
+      PersonFormName -> form <> \"[name]\"
+      PersonFormEmail -> form <> \"[email]\"
+      PersonFormInterval -> form <> \"[interval]\"
+      PersonFormFavorite -> form <> \"[favorite]\"
+      PersonFormRevenueAmount -> form <> \"[revenue][amount]\"
+      PersonFormRevenueCurrency -> form <> \"[revenue][currency]\"
+    }
+  }
+  let field_to_label = fn(field) {
+    case field {
+      PersonFormName -> \"Name\"
+      PersonFormEmail -> \"Email\"
+      PersonFormInterval -> \"Interval\"
+      PersonFormFavorite -> \"Favorite\"
+      PersonFormRevenueAmount -> \"Revenue Amount\"
+      PersonFormRevenueCurrency -> \"Revenue Currency\"
+    }
+  }
+  let field_to_type = fn(field) {
+    case field {
+      PersonFormName -> String
+      PersonFormEmail -> Option(String)
+      PersonFormInterval -> Int
+      PersonFormFavorite -> Bool
+      PersonFormRevenueAmount -> Option(Int)
+      PersonFormRevenueCurrency -> Option(Enum(ident: \"?.Currency\"))
+    }
+  }
+  let field_is_required = fn(field) {
+    case field {
+      PersonFormName -> True
+      PersonFormEmail -> False
+      PersonFormInterval -> True
+      PersonFormFavorite -> False
+      PersonFormRevenueAmount -> False
+      PersonFormRevenueCurrency -> False
+    }
+  }
+  let dict =
+    [
+      #(form <> \"[name]\", PersonFormName),
+      #(form <> \"[email]\", PersonFormEmail),
+      #(form <> \"[interval]\", PersonFormInterval),
+      #(form <> \"[favorite]\", PersonFormFavorite),
+      #(form <> \"[revenue][amount]\", PersonFormRevenueAmount),
+      #(form <> \"[revenue][currency]\", PersonFormRevenueCurrency),
+    ]
+    |> dict.from_list
+  let name_to_field = fn(name) { dict.get(dict, name) }
+  form.Lookups(
+    field_to_id:,
+    field_to_name:,
+    field_to_label:,
+    field_to_type:,
+    field_is_required:,
+    name_to_field:,
+  )
+}
   "
   |> string.trim
 
