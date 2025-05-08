@@ -34,82 +34,31 @@ fn base_type_(
   }
 }
 
-// type OuterType {
-//   List
-//   Option
-// }
-
-// fn base_type__(
-//   type_: glance.Type,
-//   outer: List(OuterType),
-// ) -> #(glance.Type, List(OuterType)) {
-//   case type_ {
-//     NamedType(parameters: [], ..) ->
-//       #(type_, outer)
-
-//     NamedType(name: "Option", parameters: [param_type], ..) ->
-//       base_type__(param_type, outer |> list.append([Option]))
-
-//     NamedType(name: "List", parameters: [param_type], ..) ->
-//       base_type__(param_type, outer |> list.append([List]))
-
-//     NamedType(name:, parameters: [_param_type], ..) -> {
-//       io.debug(type_)
-//       panic as { "`derive form` doesn't know what to do with wrapper type: " <> name }
-//     }
-
-//     NamedType(name: _multi_parameterized_type,  ..) -> {
-//       io.debug(type_)
-//       panic as { "`derive form` doesn't know what to do with multi parameter types" }
-//     }
-
-//     _ -> {
-//       io.debug(type_)
-//       panic as { "`derive form` only supports fields of `NamedType`" }
-//     }
-//   }
-// }
-
-fn gen_form_field_type(
+fn build_fields(
   type_: CustomType,
   variant: Variant,
   file: File,
   module_reader: ModuleReader,
-) -> String {
+) -> List(Field) {
   let assert Ok(module) = glance.module(file.src)
   let module_name = file.module
 
-  let fields =
-    gen_form_fields(
-      variant,
-      [],
-      prefix: type_.name,
-      module_name:,
-      module:,
-      module_reader:,
-      wrap: fn(x) { x },
-    )
+  gen_form_fields(
+    variant,
+    [],
+    prefix: type_.name,
+    module_name:,
+    module:,
+    module_reader:,
+    wrap: fn(x) { x },
+  )
+}
 
-  // fields
-  // |> list.map(fn(f) {
-  //   to_id(variant, f)
-  //   |> io.debug
-  //   is_required(f)
-  //   |> io.debug
-  // })
-
-  // fields
-  // |> list.map(fn(f) {
-  //   to_label(f)
-  // })
-  // |> io.debug
-
-  // fields
-  // |> list.map(fn(f) {
-  //   to_name("foo", f)
-  // })
-  // |> io.debug
-
+fn gen_form_field_type(
+  fields: List(Field),
+  type_: CustomType,
+  variant: Variant,
+) -> String {
   let fields =
     fields
     |> list.map(fn(f) {
@@ -188,12 +137,8 @@ fn gleam_type_for(
 
 type Field {
   Field(
-    // id: String, // e.g. `"SomeFormField"`
-    segments: List(String), //
-    // name: String, // e.g. `"[field]"`
-    // label: String, // e.g. `"Field"`
-    gleam_type: form.GleamType, // e.g. `form.String`
-    // required: Bool,
+    segments: List(String),
+    gleam_type: form.GleamType,
   )
 }
 
@@ -210,7 +155,6 @@ fn to_id(
 }
 
 fn to_name(
-  form: String,
   field: Field,
 ) -> String {
   field.segments
@@ -218,9 +162,6 @@ fn to_name(
     "[" <> segment <> "]"
   })
   |> string.join("")
-  |> fn(str) {
-    form <> str
-  }
 }
 
 fn to_label(
@@ -231,10 +172,28 @@ fn to_label(
   |> string.join(" ")
 }
 
+fn to_gleam_type_string(
+  type_: form.GleamType,
+) -> String {
+  case type_ {
+    form.String -> "String"
+    form.Int -> "Int"
+    form.Float -> "Float"
+    form.Bool -> "Bool"
+    form.Uuid -> "Uuid"
+    form.Enum(ident:) -> "Enum(ident: \"" <> ident <> "\")"
+    form.Option(t) -> "Option(" <> to_gleam_type_string(t) <> ")"
+    form.List(t) -> "List(" <> to_gleam_type_string(t) <> ")"
+  }
+}
+
 fn is_required(
   field: Field,
 ) -> Bool {
   case field.gleam_type {
+    form.Bool ->
+      False
+
     form.Option(_) ->
       False
 
@@ -323,104 +282,6 @@ fn gen_form_fields(
   })
 }
 
-//   pub type [SomeForm]Field {
-//     [SomeForm][FieldName]
-//   }
-
-// fn gen_to_fields_func
-//
-//   pub fn to_fields(form: [SomeForm]) -> Fields([SomeForm]Field) {
-//     [
-//       #([SomeForm][StringFieldName], [form.string_field_name]),
-//       #([SomeForm][OptionalStringFieldName], [form.optional_string_field_name|> option.unwrap("")]),
-//       #([SomeForm][IntFieldName], [form.int_field_name |> int.to_string]),
-//     ]
-//     |> dict.from_list
-//   }
-
-// fn gen_decode_form_func
-//
-//   pub fn decode_person_form(
-//     fields: Fields(PersonFormField),
-//   ) -> Result(PersonForm, form.Err(PersonFormField)) {
-//     use name <- result.try(scalar(PersonFormName, decoder_string(), fields))
-//     use email <- result.try(maybe(scalar(PersonFormEmail, decoder_string(), fields)))
-//     use interval <- result.try(scalar(PersonFormInterval, decoder_int(), fields))
-//     use favorite <- result.try(bool(PersonFormFavorite, fields))
-//     use revenue <- result.try(maybe({
-//       use currency <- result.try(scalar(PersonFormRevenueCurrency, decoder_currency(), fields))
-//       use amount <- result.try(scalar(PersonFormRevenueAmount, decoder_int(), fields))
-//
-//       Ok(RevenueForm(currency:, amount:))
-//     }))
-//
-//     Ok(PersonForm(name:, email:, interval:, favorite:, revenue:))
-//   }
-
-// fn gen_form_field_lookups_func
-//
-//   pub fn person_form_field_lookups(form: String) -> Lookups(PersonFormField) {
-//     let field_to_id =
-//       fn(field) {
-//         case field {
-//           PersonFormName  -> "PersonFormName"
-//           // ...
-//         }
-//         |> fn(str) { "field-" <> str }
-//       }
-//
-//     let field_to_name =
-//       fn(field) {
-//         case field {
-//           PersonFormName -> form <> "[name]"
-//           // ...
-//         }
-//       }
-//
-//     let field_to_label =
-//       fn(field) {
-//         case field {
-//           PersonFormName -> "Name"
-//           // ...
-//         }
-//       }
-//
-//     let field_to_type =
-//       fn(field) {
-//         case field {
-//           PersonFormName -> String
-//           // ...
-//         }
-//       }
-//
-//     let field_is_required =
-//       fn(field) {
-//         case field {
-//           PersonFormName -> True
-//           // ...
-//         }
-//       }
-//
-//     let dict = {
-//       [
-//         #(form <> "[name]", PersonFormName),
-//         // ...
-//       ]
-//       |> dict.from_list
-//     }
-//
-//     let name_to_field = fn(name) { dict.get(dict, name) }
-//
-//     form.Lookups(
-//       field_to_id:,
-//       field_to_name:,
-//       field_to_label:,
-//       field_to_type:,
-//       field_is_required:,
-//       name_to_field:,
-//     )
-//   }
-
 pub fn gen(
   type_: CustomType,
   deriv: Derivation,
@@ -443,19 +304,22 @@ pub fn gen(
 
   let imports = []
 
-  let funcs =
-    []
-    // into_(
-    //   type_,
-    //   deriv.opts,
-    //   overrides,
-    //   module_reader,
-    // )
-    // |> list.map(into_func)
+  let form =
+    case deriv.opts {
+      [name] -> name
+      _ -> {
+        io.debug(deriv)
+        panic as { "`deriv/form.gen` cannot figure out form name (invalid opts)" }
+      }
+    }
 
-  let gen = gen_form_field_type(type_, variant, file, module_reader)
+  let fields = build_fields(type_, variant, file, module_reader)
+  let gen = gen_form_field_type(fields, type_, variant)
+
   let assert Ok(Module(custom_types: [field_type], ..)) = glance.module(gen)
-  // io.debug(field_type)
+
+  let funcs =
+    gen_lookups(fields, type_, variant)
 
   let types =
     [field_type]
@@ -476,6 +340,201 @@ pub fn gen(
       funcs_src,
     ]
     |> string.join("\n\n")
+    |> util.gleam_format
 
   Gen(file:, deriv:, imports:, types:, funcs:, src:, meta: dict.new())
+}
+
+fn field_to_id_clauses(
+  fields: List(Field),
+  variant: Variant,
+  indent count: Int,
+) -> String {
+  fields
+  |> list.map(fn(field) {
+    let id = to_id(variant, field)
+
+    id <> " -> " <> "\"" <> id <> "\""
+  })
+  |> list.map(indent(_, count))
+  |> string.join("\n")
+  |> string.trim
+}
+
+fn field_to_name_clauses(
+  fields: List(Field),
+  variant: Variant,
+  indent count: Int,
+) -> String {
+  fields
+  |> list.map(fn(field) {
+    let id = to_id(variant, field)
+    let name = to_name(field)
+
+    id <> " -> form <> \"" <> name <> "\""
+  })
+  |> list.map(indent(_, count))
+  |> string.join("\n")
+  |> string.trim
+}
+
+fn field_to_label_clauses(
+  fields: List(Field),
+  variant: Variant,
+  indent count: Int,
+) -> String {
+  fields
+  |> list.map(fn(field) {
+    let id = to_id(variant, field)
+    let label = to_label(field)
+
+    id <> " -> " <> "\"" <> label <> "\""
+  })
+  |> list.map(indent(_, count))
+  |> string.join("\n")
+  |> string.trim
+}
+
+fn field_to_type_clauses(
+  fields: List(Field),
+  variant: Variant,
+  indent count: Int,
+) -> String {
+  fields
+  |> list.map(fn(field) {
+    let id = to_id(variant, field)
+    let type_ = to_gleam_type_string(field.gleam_type)
+
+    id <> " -> " <> type_
+  })
+  |> list.map(indent(_, count))
+  |> string.join("\n")
+  |> string.trim
+}
+
+fn field_is_required_clauses(
+  fields: List(Field),
+  variant: Variant,
+  indent count: Int,
+) -> String {
+  fields
+  |> list.map(fn(field) {
+    let id = to_id(variant, field)
+    let required =
+      case is_required(field) {
+        True -> "True"
+        False -> "False"
+      }
+
+    id <> " -> " <> required
+  })
+  |> list.map(indent(_, count))
+  |> string.join("\n")
+  |> string.trim
+}
+
+fn name_to_field_tuples(
+  fields: List(Field),
+  variant: Variant,
+  indent count: Int,
+) -> String {
+  fields
+  |> list.map(fn(field) {
+    let id = to_id(variant, field)
+    let name = to_name(field)
+
+    "#(form <> \"" <> name <> "\", " <> id <> "),"
+  })
+  |> list.map(indent(_, count))
+  |> string.join("\n")
+  |> string.trim
+}
+
+fn gen_lookups(
+  fields: List(Field),
+  type_: CustomType,
+  variant: Variant,
+) -> List(Definition(Function)) {
+  let field_type_name = type_.name <> "Field"
+  let func_name =
+    field_type_name
+    |> util.snake_case
+    |> string.append("_lookups")
+
+  "
+pub fn FUNC_NAME(form: String) -> Lookups(FIELD_TYPE_NAME) {
+  let field_to_id =
+    fn(field) {
+      case field {
+        FIELD_TO_ID
+      }
+      |> fn(str) { \"field-\" <> str }
+    }
+
+  let field_to_name =
+    fn(field) {
+      case field {
+        FIELD_TO_NAME
+      }
+    }
+
+  let field_to_label =
+    fn(field) {
+      case field {
+        FIELD_TO_LABEL
+      }
+    }
+
+  let field_to_type =
+    fn(field) {
+      case field {
+        FIELD_TO_TYPE
+      }
+    }
+
+  let field_is_required =
+    fn(field) {
+      case field {
+        FIELD_IS_REQUIRED
+      }
+    }
+
+  let dict =
+    [
+      NAME_TO_FIELD
+    ]
+    |> dict.from_list
+
+  let name_to_field = fn(name) { dict.get(dict, name) }
+
+  form.Lookups(
+    field_to_id:,
+    field_to_name:,
+    field_to_label:,
+    field_to_type:,
+    field_is_required:,
+    name_to_field:,
+  )
+}
+  "
+  |> string.trim
+  |> string.replace("FIELD_TYPE_NAME", field_type_name)
+  |> string.replace("FUNC_NAME", func_name)
+  |> string.replace("FIELD_TO_ID", field_to_id_clauses(fields, variant, indent: 4))
+  |> string.replace("FIELD_TO_NAME", field_to_name_clauses(fields, variant, indent: 4))
+  |> string.replace("FIELD_TO_LABEL", field_to_label_clauses(fields, variant, indent: 4))
+  |> string.replace("FIELD_TO_TYPE", field_to_type_clauses(fields, variant, indent: 4))
+  |> string.replace("FIELD_IS_REQUIRED", field_is_required_clauses(fields, variant, indent: 4))
+  |> string.replace("NAME_TO_FIELD", name_to_field_tuples(fields, variant, indent: 3))
+  |> fn(src) {
+    case glance.module(src) {
+      Error(_) -> {
+        io.println(src)
+        panic as { "`gen_lookups` generated invalid Gleam" }
+      }
+
+      Ok(module) ->
+        module.functions
+    }
+  }
 }
