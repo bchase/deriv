@@ -12,28 +12,6 @@ import form
 
 pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File) -> Gen
 
-fn base_type_(
-  type_: glance.Type
-) -> glance.Type {
-  case type_ {
-    NamedType(parameters: [], ..) ->
-      type_
-
-    NamedType(parameters: [param_type], ..) ->
-      base_type_(param_type)
-
-    NamedType(name: _multi_parameterized_type,  ..) -> {
-      io.debug(type_)
-      panic as { "`derive form` doesn't know what to do with multi parameter types" }
-    }
-
-    _ -> {
-      io.debug(type_)
-      panic as { "`derive form` only supports fields of `NamedType`" }
-    }
-  }
-}
-
 fn build_fields(
   type_: CustomType,
   variant: Variant,
@@ -538,3 +516,25 @@ pub fn FUNC_NAME(form: String) -> Lookups(FIELD_TYPE_NAME) {
     }
   }
 }
+
+// fn base_type(
+//   type_: glance.Type
+// ) -> glance.Type {
+//   case type_ {
+//     NamedType(parameters: [], ..) ->
+//       type_
+
+//     NamedType(parameters: [param_type], ..) ->
+//       base_type(param_type)
+
+//     NamedType(name: _multi_parameterized_type,  ..) -> {
+//       io.debug(type_)
+//       panic as { "`derive form` doesn't know what to do with multi parameter types" }
+//     }
+
+//     _ -> {
+//       io.debug(type_)
+//       panic as { "`derive form` only supports fields of `NamedType`" }
+//     }
+//   }
+// }
