@@ -9,7 +9,7 @@ pub type ModuleReaderErr {
   FileErr(simplifile.FileError)
   GlanceErr(glance.Error)
   BadIdent(ident: String)
-  CustomTypeMissingErr(ident: String)
+  NotFoundErr(ident: String)
 }
 
 pub type ModuleReader = fn(String) -> Result(Module, ModuleReaderErr)

@@ -448,6 +448,17 @@ pub fn fetch_custom_type(
   Ok(#(module_name, type_))
 }
 
+pub fn fetch_function(
+  ident: String,
+  read_module: ModuleReader,
+) -> Result(#(String, glance.Definition(glance.Function)), ModuleReaderErr) {
+  use #(module_name, ref) <- result.try(parse_ident(ident))
+  use module <- result.try(read_module(module_name))
+  use type_ <- result.try(find_function(ref, module))
+
+  Ok(#(module_name, type_))
+}
+
 fn parse_ident(ident: String) -> Result(#(String, String), ModuleReaderErr) {
   case string.split(ident, ".") {
     [a, b] -> Ok(#(a, b))
@@ -461,5 +472,14 @@ fn find_custom_type(
 ) -> Result(glance.Definition(glance.CustomType), ModuleReaderErr) {
   module.custom_types
   |> list.find(fn(type_) { type_.definition.name == ref })
-  |> result.replace_error(types.CustomTypeMissingErr(ref))
+  |> result.replace_error(types.NotFoundErr(ref))
+}
+
+fn find_function(
+  ref: String,
+  module: glance.Module,
+) -> Result(glance.Definition(glance.Function), ModuleReaderErr) {
+  module.functions
+  |> list.find(fn(func) { func.definition.name == ref })
+  |> result.replace_error(types.NotFoundErr(ref))
 }
