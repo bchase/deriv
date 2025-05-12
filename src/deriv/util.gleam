@@ -1,12 +1,14 @@
+import gleam/option.{type Option, Some, None}
+import gleam/dynamic
 import gleam/dict
 import gleam/list
 import gleam/string
 import gleam/json.{type Json}
-import gleam/result
+import gleam/result.{try}
 import gleam/regexp.{type Regexp}
 import decode.{type Decoder}
 import youid/uuid.{type Uuid}
-import glance.{type Module, type Definition, type Function, Module, Definition, Function, type CustomType, type Variant}
+import glance.{type Module, type Definition, type Function, Module, Definition, Function, type CustomType, type Variant, CustomType}
 import glance_printer
 import shellout
 import simplifile
@@ -317,6 +319,17 @@ pub fn func_str(func: Definition(Function)) -> String {
   |> gleam_format
 }
 
+pub fn type_name(type_: Definition(CustomType)) -> String {
+  let Definition(_, CustomType(name:, ..)) = type_
+  name
+}
+
+pub fn type_str(type_: Definition(CustomType)) -> String {
+  Module([], [type_], [], [], [])
+  |> glance_printer.print
+  |> gleam_format
+}
+
 pub fn gleam_format(src: String) -> String {
   let escaped_src =
     src
@@ -501,6 +514,151 @@ pub fn fetch_module(path: String) -> Result(Module, ModuleReaderErr) {
   Ok(module)
 }
 
+pub fn look_up_type(
+  type_: glance.Type,
+  module: glance.Module,
+  module_reader: ModuleReader,
+) -> Result(glance.CustomType, ModuleReaderErr) {
+  look_up_type_from_imports(type_, module, module_reader)
+  |> result.lazy_or(fn() { look_up_type_in_module(type_, module) })
+}
+
+fn look_up_type_in_module(
+  type_: glance.Type,
+  module: glance.Module,
+) -> Result(glance.CustomType, ModuleReaderErr) {
+  case type_ {
+    glance.NamedType(name:, module: None, ..) ->
+      module.custom_types
+      |> list.find(fn(def) { def.definition.name == name })
+      |> result.map(fn(def) { def.definition })
+      |> result.replace_error(types.NotFoundErr(
+        func: "look_up_type_in_module",
+        data: dynamic.from(type_),
+      ))
+
+    _ ->
+      Error(types.ModuleReaderErr(
+        msg: "`look_up_type_in_module` doesn't understand non-`NamedType`s",
+        data: dynamic.from(type_),
+      ))
+  }
+}
+
+fn look_up_type_from_imports(
+  type_: glance.Type,
+  module: glance.Module,
+  module_reader: ModuleReader,
+) -> Result(glance.CustomType, ModuleReaderErr) {
+  case type_ {
+    glance.NamedType(name:, module: Some(ref), ..) -> {
+      let imports = module.imports |> list.map(fn(def) { def.definition })
+
+      use mod <- try(
+        module_name_for(ref, imports)
+        |> result.replace_error(types.BadIdent(ident: name))
+      )
+
+      let ident = mod <> "." <> name
+
+      use #(_, ct) <- try(
+        fetch_custom_type(ident, module_reader)
+        |> result.replace_error(types.NotFoundErr(
+          func: "look_up_custom_type",
+          data: dynamic.from(#(ident, type_)),
+        ))
+      )
+
+      Ok(ct.definition)
+    }
+
+    glance.NamedType(name:, module: None, ..) ->
+      module.imports
+      |> list.find_map(fn(import_) {
+        use _matched <- result.try(
+          import_.definition.unqualified_types
+          |> list.find(fn(t) {
+            t.alias == Some(name) || t.name == name
+          })
+          |> result.replace_error(types.ModuleReaderErr(
+            msg: "`look_up_type_from_imports` import miss",
+            data: dynamic.from(#(type_, import_)),
+          ))
+        )
+
+        let ident = import_.definition.module <> "." <> name
+
+        use module <- result.try(module_reader(ident))
+
+        module.custom_types
+        |> list.find(fn(ct) { ct.definition.name == name })
+        |> result.map(fn(ct) { ct.definition })
+        |> result.replace_error(types.NotFoundErr(
+          func: "look_up_type_from_imports",
+          data: dynamic.from(#(type_, module)),
+        ))
+      })
+      |> result.replace_error(types.NotFoundErr(
+        func: "look_up_type_from_imports",
+        data: dynamic.from(type_),
+      ))
+
+    _ ->
+      Error(types.ModuleReaderErr(
+        msg: "`look_up_type_from_imports` doesn't understand non-`NamedType`s",
+        data: dynamic.from(type_),
+      ))
+  }
+}
+
+pub fn look_up_custom_type(
+  type_: glance.Type,
+  module: glance.Module,
+  module_reader: ModuleReader,
+) -> Result(glance.Definition(glance.CustomType), ModuleReaderErr) {
+  // if qualified
+  //   look up qualified module
+  //   look in other module
+  // else // not qualified
+  //   look imported unqualifed || defined locally in module
+
+  let imports = module.imports |> list.map(fn(def) { def.definition })
+
+  // pub type UnqualifiedImport {
+  //   UnqualifiedImport(name: String, alias: Option(String))
+  // }
+
+  case type_ {
+    glance.NamedType(name:, module: Some(ref), ..) -> {
+      use mod <- try(
+        module_name_for(ref, imports)
+        |> result.replace_error(types.BadIdent(ident: name))
+      )
+
+      let ident = mod <> "." <> name
+
+      use #(_, ct) <- try(
+        fetch_custom_type(ident, module_reader)
+        |> result.replace_error(types.NotFoundErr(
+          func: "look_up_custom_type",
+          data: dynamic.from(#(ident, type_)),
+        ))
+      )
+
+      Ok(ct)
+    }
+
+    glance.NamedType(name:, module: None, ..) ->
+      todo
+
+    _ ->
+      Error(types.ModuleReaderErr(
+        msg: "`look_up_custom_type` couldn't figure out non-`NamedType`",
+        data: dynamic.from(type_),
+      ))
+  }
+}
+
 pub fn fetch_custom_type(
   ident: String,
   read_module: ModuleReader,
@@ -536,7 +694,7 @@ fn find_custom_type(
 ) -> Result(glance.Definition(glance.CustomType), ModuleReaderErr) {
   module.custom_types
   |> list.find(fn(type_) { type_.definition.name == ref })
-  |> result.replace_error(types.NotFoundErr(ref))
+  |> result.replace_error(types.NotFoundErr(func: "find_custom_type", data: dynamic.from(ref)))
 }
 
 fn find_function(
@@ -545,5 +703,47 @@ fn find_function(
 ) -> Result(glance.Definition(glance.Function), ModuleReaderErr) {
   module.functions
   |> list.find(fn(func) { func.definition.name == ref })
-  |> result.replace_error(types.NotFoundErr(ref))
+  |> result.replace_error(types.NotFoundErr(func: "find_function", data: dynamic.from(ref)))
+}
+
+// pub foo(
+// ) -> Import
+
+pub fn module_name_for(
+  str: String,
+  imports: List(glance.Import),
+) -> Result(String, Nil) {
+  imports
+  |> list.find(fn(import_) { local_name_for(import_) == str })
+  |> result.map(fn(import_) { import_.module })
+}
+// pub fn module_name_for(
+//   str: String,
+//   module: glance.Module,
+// ) -> Result(String, Nil) {
+//   module.imports
+//   |> list.map(fn(def) { def.definition })
+//   |> list.find(fn(import_) { local_name_for(import_) == str })
+//   |> result.map(fn(import_) { import_.module })
+// }
+
+fn local_name_for(
+  import_: glance.Import,
+) -> String {
+  case import_.alias {
+    Some(glance.Named(alias)) ->
+      alias
+
+    _ ->
+      final_segment_in_module_name(import_.module)
+  }
+}
+
+fn final_segment_in_module_name(
+  module: String,
+) -> String {
+  case module |> string.split("/") |> list.last {
+    Ok(segment) -> segment
+    Error(_) -> panic as "impossible match"
+  }
 }

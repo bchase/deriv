@@ -1,4 +1,5 @@
 import gleam/option.{type Option}
+import gleam/dynamic.{type Dynamic}
 import gleam/dict.{type Dict}
 import glance.{type Module, type CustomType, type Import, type Definition}
 import simplifile
@@ -9,7 +10,8 @@ pub type ModuleReaderErr {
   FileErr(simplifile.FileError)
   GlanceErr(glance.Error)
   BadIdent(ident: String)
-  NotFoundErr(ident: String)
+  NotFoundErr(func: String, data: Dynamic)
+  ModuleReaderErr(msg: String, data: Dynamic)
 }
 
 pub type ModuleReader = fn(String) -> Result(Module, ModuleReaderErr)
@@ -54,6 +56,7 @@ pub type Gen {
     file: File,
     deriv: Derivation,
     imports: List(Import),
+    types: List(Definition(glance.CustomType)),
     funcs: List(Definition(glance.Function)),
     src: String,
     meta: Dict(String, String),

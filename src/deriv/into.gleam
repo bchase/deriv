@@ -35,7 +35,7 @@ pub fn gen(
     |> list.map(util.func_str)
     |> string.join("\n\n")
 
-  Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
+  Gen(file:, deriv:, imports:, types: [], funcs:, src:, meta: dict.new())
 }
 
 fn build_field_overrides(

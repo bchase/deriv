@@ -14,6 +14,7 @@ import deriv/parser
 import deriv/json as deriv_json
 import deriv/unify as deriv_unify
 import deriv/into as deriv_into
+import deriv/form as deriv_form
 import deriv/util
 import gleam/io
 
@@ -67,6 +68,7 @@ const all_gen_funcs: List(#(String, GenFunc)) =
     #("json", deriv_json.gen),
     #("unify", deriv_unify.gen),
     #("into", deriv_into.gen),
+    #("form", deriv_form.gen),
   ]
 
 pub fn main() {
@@ -268,6 +270,13 @@ pub fn build_same_file_writes(xs: List(Gen)) -> List(Write) {
     let output_path = gleam_module_str_to_file_path(module)
     let output = OutputInline(module: module, filepath: output_path)
 
+    let types =
+      gens
+      |> list.flat_map(fn(gen) { gen.types })
+      |> list.map(fn(type_) { #(util.type_name(type_), util.type_str(type_)) })
+
+    let types_src = util.update_types(orig_src, types)
+
     let funcs =
       gens
       |> list.flat_map(fn(gen) { gen.funcs })
@@ -277,7 +286,7 @@ pub fn build_same_file_writes(xs: List(Gen)) -> List(Write) {
     let deriv_imports: List(Import) = list.flat_map(gens, fn(gen) { gen.imports })
     let all_imports: List(Import) = [module_imports, deriv_imports] |> list.flatten
 
-    let func_src_with_imports = util.update_funcs(orig_src, funcs)
+    let func_src_with_imports = util.update_funcs(types_src, funcs)
 
     let output_src =
       func_src_with_imports
