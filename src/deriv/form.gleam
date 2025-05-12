@@ -297,7 +297,13 @@ pub fn gen(
   let assert Ok(Module(custom_types: [field_type], ..)) = glance.module(gen)
 
   let funcs =
-    gen_lookups(fields, type_, variant)
+    [
+      gen_lookups(fields, type_, variant),
+      gen_decode_form(fields, type_, variant), // TODO
+      gen_form_to_fields(fields, type_, variant), // TODO
+    ]
+    |> list.flatten
+
 
   let types =
     [field_type]
@@ -426,6 +432,20 @@ fn name_to_field_tuples(
   |> list.map(indent(_, count))
   |> string.join("\n")
   |> string.trim
+}
+
+fn gen_decode_form(
+  fields: List(Field),
+  type_: CustomType,
+  variant: Variant,
+) -> List(Definition(Function)) {
+}
+
+fn gen_form_to_fields(
+  fields: List(Field),
+  type_: CustomType,
+  variant: Variant,
+) -> List(Definition(Function)) {
 }
 
 fn gen_lookups(
