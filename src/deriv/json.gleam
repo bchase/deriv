@@ -566,7 +566,7 @@ fn decode_field_expr(
   variant: Variant,
   field: VariantField,
   all_field_opts: DerivFieldOpts,
-) -> #(String, Option(String), Expression) {
+) -> #(String, Bool, Option(String), Expression) {
   let field = variant_field(field)
 
   let t = jtype(field.type_)
@@ -649,7 +649,13 @@ fn decode_field_expr(
     |> util.get_field_opts(type_, variant, field.name)
     |> json_field_name(field, _)
 
-  #(field.name, Some(json_field_name), expr) // TODO always `Some`
+  let is_option =
+    case field.type_ {
+      NamedType(name:, ..) if name == "Option" -> True
+      _ -> False
+    }
+
+  #(field.name, is_option, Some(json_field_name), expr) // TODO always `Some`
 }
 
 fn decoder_type_variant_func(
@@ -662,20 +668,20 @@ fn decoder_type_variant_func(
   let parameters: List(glance.FunctionParameter) = []
   let return: Option(Type) = Some(NamedType("Decoder", None, [NamedType(type_.name, None, [])]))
 
-  let pipe_exprs: List(#(String, Option(String), Expression)) =
+  let pipe_exprs: List(#(String, Bool, Option(String), Expression)) =
     variant.fields
     |> list.map(decode_field_expr(type_, variant, _, all_field_opts))
 
   let fields: List(String) =
     pipe_exprs
     |> list.map(fn(x) {
-      let #(field, _, _) = x
+      let #(field, is_option, _, _) = x
       field
     })
 
   let use_decode_field_exprs: List(Statement) =
     list.fold(pipe_exprs, [], fn(acc, x) {
-      let #(field, json_field, expr) = x
+      let #(field, is_option, json_field, expr) = x
 
       let json_field = json_field |> option.unwrap(field)
 
@@ -684,23 +690,56 @@ fn decoder_type_variant_func(
           [] -> panic
 
           [json_field] ->
-            Use(patterns: [PatternVariable(field)], function: {
-              Call(FieldAccess(Variable("decode"), "field"), [UnlabelledField(String(json_field)), UnlabelledField(expr)])
-            })
+            case is_option {
+              True ->
+                Use(patterns: [PatternVariable(field)], function: {
+                  Call(
+                    function: FieldAccess(Variable("decode"), "optional_field"),
+                    arguments: [
+                      UnlabelledField(String(json_field)),
+                      UnlabelledField(Variable("None")),
+                      UnlabelledField(expr),
+                    ])
+                  })
+
+              False ->
+                Use(patterns: [PatternVariable(field)], function: {
+                  Call(
+                    function: FieldAccess(Variable("decode"), "field"),
+                    arguments: [
+                      UnlabelledField(String(json_field)),
+                      UnlabelledField(expr),
+                    ])
+                  })
+            }
 
           json_fields -> {
             let json_fields =
               json_fields
               |> list.map(fn(str) { String(str) })
 
-            Call(
-              function: FieldAccess(Variable("decode"), "subfield"),
-              arguments: [
-                UnlabelledField(List(json_fields, None)),
-                UnlabelledField(expr),
-              ]
-            )
-            |> Use(patterns: [PatternVariable(field)], function: _)
+            case is_option {
+              True ->
+                Call(
+                  function: FieldAccess(Variable("decode"), "optionally_at"),
+                  arguments: [
+                    UnlabelledField(List(json_fields, None)),
+                    UnlabelledField(Variable("None")),
+                    UnlabelledField(expr),
+                  ]
+                )
+                |> Use(patterns: [PatternVariable(field)], function: _)
+
+              False ->
+                Call(
+                  function: FieldAccess(Variable("decode"), "subfield"),
+                  arguments: [
+                    UnlabelledField(List(json_fields, None)),
+                    UnlabelledField(expr),
+                  ]
+                )
+                |> Use(patterns: [PatternVariable(field)], function: _)
+            }
           }
         }
 
@@ -709,9 +748,6 @@ fn decoder_type_variant_func(
 
   let constr_args = fields |> list.map(ShorthandField)
 
-  // TODO
-  //   - check to import `None` (if `Option` import but no `None` constr)
-  //   - `field_optional`
   let decode_success_call: Statement =
     Call(FieldAccess(Variable("decode"), "success"), [
       UnlabelledField(

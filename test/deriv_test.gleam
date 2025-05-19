@@ -94,8 +94,9 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
   use active <- decode.field(\"active\", decode.bool)
   use ratio <- decode.field(\"ratio\", decode.float)
   use words <- decode.field(\"words\", decode.list(decode.string))
-  use maybe_list <- decode.field(
+  use maybe_list <- decode.optional_field(
     \"maybe_list\",
+    None,
     decode.optional(decode.list(decode.string)),
   )
   decode.success(Foo(uuid:, id:, name:, active:, ratio:, words:, maybe_list:))
