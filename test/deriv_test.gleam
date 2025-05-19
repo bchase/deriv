@@ -60,7 +60,7 @@ import decode.{type Decoder}
 import deriv/util
 import gleam/json.{type Json}
 import gleam/list
-import gleam/option.{type Option}
+import gleam/option.{type Option, None}
 import youid/uuid.{type Uuid}
 
 pub type Foo {

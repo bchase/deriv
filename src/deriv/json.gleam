@@ -59,7 +59,12 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
           ],
           unqualified_values: [],
         ),
-      ]),
+      ] |> list.append({
+        case are_any_fields_options(type_) {
+          True -> [none_constr_import()]
+          False -> []
+        }
+      })),
       #("encode", [
         // import gleam/json.{type Json}
         Import(
@@ -119,6 +124,35 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
       }
     )
   }
+}
+
+fn none_constr_import() -> Import {
+  Import(
+    module: "gleam/option",
+    alias: None,
+    unqualified_values: [
+      UnqualifiedImport(
+        name: "None",
+        alias: None,
+      ),
+    ],
+    unqualified_types: [],
+  )
+}
+
+fn are_any_fields_options(
+  type_: CustomType,
+) -> Bool {
+  type_.variants
+  |> list.any(fn(variant) {
+    variant.fields
+    |> list.any(fn(field) {
+      case field.item {
+        NamedType(name:, ..) if name == "Option" -> True
+        _ -> False
+      }
+    })
+  })
 }
 
 fn needs_util_import(type_: CustomType) -> Bool {
