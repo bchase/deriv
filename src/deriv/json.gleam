@@ -4,7 +4,7 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
-import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture}
+import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, PatternDiscard, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture}
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt}
 import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
@@ -531,12 +531,6 @@ fn decoder_type_func(
     type_.variants
     |> list.map(decoder_type_variant_func(type_, _, all_field_opts))
 
-  let decoder_call_exprs =
-    variant_funcs
-    |> list.map(fn(func) {
-      Call(Variable(util.func_name(func)), [])
-    })
-
   let body = {
     let #(first_decoder_call_expr, rest_decoder_call_exprs) =
       variant_funcs
@@ -686,13 +680,6 @@ fn decoder_type_variant_func(
     variant.fields
     |> list.map(decode_field_expr(type_, variant, _, all_field_opts))
 
-  let fields: List(String) =
-    pipe_exprs
-    |> list.map(fn(x) {
-      let #(field, is_option, _, _) = x
-      field
-    })
-
   let use_decode_field_exprs: List(Statement) =
     list.fold(pipe_exprs, [], fn(acc, x) {
       let #(field, is_option, json_field, expr) = x
@@ -760,7 +747,13 @@ fn decoder_type_variant_func(
       list.append(acc, [call])
     })
 
-  let constr_args = fields |> list.map(ShorthandField)
+  let constr_args =
+    pipe_exprs
+    |> list.map(fn(x) {
+      let #(field, _, _, _) = x
+      field
+    })
+    |> list.map(ShorthandField)
 
   let decode_success_call: Statement =
     Call(FieldAccess(Variable("decode"), "success"), [
@@ -773,11 +766,29 @@ fn decoder_type_variant_func(
     ])
     |> Expression
 
+  let use_decode_multi_var_type_exprs =
+    case is_multi_variant(type_) {
+      True -> [
+        Call(
+          function: FieldAccess(Variable("decode"), "field"),
+          arguments: [
+            UnlabelledField(String("_var")),
+            UnlabelledField(Call(FieldAccess(Variable("util"), "is"), [
+              UnlabelledField(String(variant.name)),
+            ])),
+          ]
+        )
+        |> Use(patterns: [PatternDiscard("deriv_var_constr")], function: _)
+      ]
+      False -> []
+    }
+
   let body: List(Statement) =
-    list.append(
+    list.flatten([
+      use_decode_multi_var_type_exprs,
       use_decode_field_exprs,
       [decode_success_call]
-    )
+    ])
 
   Definition([],
     Function(
