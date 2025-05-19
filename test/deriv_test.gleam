@@ -84,7 +84,7 @@ pub type Bar {
 }
 
 pub fn decoder_foo() -> Decoder(Foo) {
-  decode.one_of([decoder_foo_foo()])
+  decode.one_of(decoder_foo_foo(), [])
 }
 
 pub fn decoder_foo_foo() -> Decoder(Foo) {
@@ -121,7 +121,7 @@ pub fn encode_foo(value: Foo) -> Json {
 }
 
 pub fn decoder_bar() -> Decoder(Bar) {
-  decode.one_of([decoder_bar_bar()])
+  decode.one_of(decoder_bar_bar(), [])
 }
 
 pub fn decoder_bar_bar() -> Decoder(Bar) {
@@ -269,6 +269,10 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
 //  io.println("")
 //  io.println("EXPECTED")
 //  io.println(output)
+//  io.println("")
+//  io.println("")
+//  io.println("DIFF (<expected >generated)")
+//  io.println(util.diff(output, write.src))
 
 //  write.src
 //  |> should.equal(output)
@@ -338,6 +342,10 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
 //  io.println("")
 //  io.println("EXPECTED")
 //  io.println(output)
+//  io.println("")
+//  io.println("")
+//  io.println("DIFF (<expected >generated)")
+//  io.println(util.diff(output, write.src))
 
 //  write.src
 //  |> should.equal(output)
@@ -474,6 +482,10 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
 //  io.println("")
 //  io.println("EXPECTED")
 //  io.println(output)
+//  io.println("")
+//  io.println("")
+//  io.println("DIFF (<expected >generated)")
+//  io.println(util.diff(output, write.src))
 
 //  write.src
 //  |> should.equal(output)
@@ -740,6 +752,10 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
 //  io.println("")
 //  io.println("EXPECTED")
 //  io.println(output)
+//  io.println("")
+//  io.println("")
+//  io.println("DIFF (<expected >generated)")
+//  io.println(util.diff(output, write.src))
 
 //  write.filepath
 //  |> should.equal("src/deriv/example/foo.gleam")
@@ -817,6 +833,10 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
 //  io.println("")
 //  io.println("EXPECTED")
 //  io.println(output)
+//  io.println("")
+//  io.println("")
+//  io.println("DIFF (<expected >generated)")
+//  io.println(util.diff(output, write.src))
 
 //  write.filepath
 //  |> should.equal("src/deriv/example/foo.gleam")
@@ -900,6 +920,10 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
 //  io.println("")
 //  io.println("EXPECTED")
 //  io.println(output)
+//  io.println("")
+//  io.println("")
+//  io.println("DIFF (<expected >generated)")
+//  io.println(util.diff(output, write.src))
 
 //  write.filepath
 //  |> should.equal("src/deriv/example/foo.gleam")
@@ -977,6 +1001,10 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
 //  io.println("")
 //  io.println("EXPECTED")
 //  io.println(output)
+//  io.println("")
+//  io.println("")
+//  io.println("DIFF (<expected >generated)")
+//  io.println(util.diff(output, write.src))
 
 //  write.src
 //  |> should.equal(output)
@@ -1104,6 +1132,10 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
 //  io.println("")
 //  io.println("EXPECTED")
 //  io.println(output)
+//  io.println("")
+//  io.println("")
+//  io.println("DIFF (<expected >generated)")
+//  io.println(util.diff(output, write.src))
 
 //  write.filepath
 //  |> should.equal("src/deriv/example/foo.gleam")
@@ -1212,6 +1244,10 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
 //  io.println("")
 //  io.println("EXPECTED")
 //  io.println(output)
+//  io.println("")
+//  io.println("")
+//  io.println("DIFF (<expected >generated)")
+//  io.println(util.diff(output, write.src))
 
 //  write.filepath
 //  |> should.equal("src/deriv/example/foo.gleam")

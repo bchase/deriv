@@ -537,12 +537,26 @@ fn decoder_type_func(
       Call(Variable(util.func_name(func)), [])
     })
 
-  let body =
+  let body = {
+    let #(first_decoder_call_expr, rest_decoder_call_exprs) =
+      variant_funcs
+      |> list.map(fn(func) {
+        Call(Variable(util.func_name(func)), [])
+      })
+      |> fn(exprs) {
+        case exprs {
+          [first, ..rest] -> #(first, rest)
+          _ -> panic as { "No decoder expressions generated for: " <> string.inspect(type_) }
+        }
+      }
+
     [
       Expression(Call(FieldAccess(Variable("decode"), "one_of"), [
-        UnlabelledField(List(decoder_call_exprs, None))
+        UnlabelledField(first_decoder_call_expr),
+        UnlabelledField(List(rest_decoder_call_exprs, None)),
       ]))
     ]
+  }
 
   let type_func =
     Definition([], Function(
