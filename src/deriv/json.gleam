@@ -632,69 +632,15 @@ fn decoder_type_variant_func(
     variant.fields
     |> list.map(decode_field_expr(type_, variant, _, all_field_opts))
 
-  let fields =
+  let fields: List(String) =
     pipe_exprs
     |> list.map(fn(x) {
       let #(field, _, _) = x
       field
     })
 
-  let use_exprs =
-    fields
-    |> list.map(fn(field) {
-      Use([PatternVariable(field)], FieldAccess(Variable("decode"), "parameter"))
-    })
-
-  let use_exprs =
-    case is_multi_variant(type_) {
-      True ->
-        Use([PatternVariable("_deriv_var_constr")], FieldAccess(Variable("decode"), "parameter"))
-        |> list.wrap
-        |> list.append(use_exprs)
-
-      False ->
-        use_exprs
-    }
-
-  let constr_args = fields |> list.map(ShorthandField)
-
-  let decode_into_call: Expression =
-    Call(FieldAccess(Variable("decode"), "into"), [UnlabelledField(
-      Block(use_exprs |> list.append([
-        Expression(Call(
-          function: Variable(variant.name),
-          arguments: constr_args,
-        ))
-      ]))
-    )])
-
-  let initial_body =
-    case is_multi_variant(type_) {
-      True -> {
-        let call =
-          Call(
-            function: FieldAccess(Variable("decode"), "field"),
-            arguments: [
-              UnlabelledField(String(deriv_variant_json_key)),
-              UnlabelledField(Call(
-                function: FieldAccess(Variable("util"), "is"),
-                arguments: [
-                  UnlabelledField(String(variant.name)),
-                ]
-              )),
-            ],
-          )
-
-        decode_into_call
-        |> BinaryOperator(Pipe, _, call)
-      }
-
-      False ->
-        decode_into_call
-    }
-
-  let body: List(Statement) =
-    list.fold(pipe_exprs, initial_body, fn(acc, x) {
+  let use_decode_field_exprs: List(Statement) =
+    list.fold(pipe_exprs, [], fn(acc, x) {
       let #(field, json_field, expr) = x
 
       let json_field = json_field |> option.unwrap(field)
@@ -702,8 +648,12 @@ fn decoder_type_variant_func(
       let call =
         case string.split(json_field, ".") {
           [] -> panic
+
           [json_field] ->
-            Call(FieldAccess(Variable("decode"), "field"), [UnlabelledField(String(json_field)), UnlabelledField(expr)])
+            Use(patterns: [PatternVariable(field)], function: {
+              Call(FieldAccess(Variable("decode"), "field"), [UnlabelledField(String(json_field)), UnlabelledField(expr)])
+            })
+
           json_fields -> {
             let json_fields =
               json_fields
@@ -716,13 +666,34 @@ fn decoder_type_variant_func(
                 UnlabelledField(expr),
               ]
             )
+            |> Use(patterns: [PatternVariable(field)], function: _)
           }
         }
 
-      BinaryOperator(Pipe, acc, call)
+      list.append(acc, [call])
     })
+
+  let constr_args = fields |> list.map(ShorthandField)
+
+  // TODO
+  //   - check to import `None` (if `Option` import but no `None` constr)
+  //   - `field_optional`
+  let decode_success_call: Statement =
+    Call(FieldAccess(Variable("decode"), "success"), [
+      UnlabelledField(
+        Call(
+          function: Variable(variant.name),
+          arguments: constr_args,
+        )
+      )
+    ])
     |> Expression
-    |> list.wrap
+
+  let body: List(Statement) =
+    list.append(
+      use_decode_field_exprs,
+      [decode_success_call]
+    )
 
   Definition([],
     Function(
