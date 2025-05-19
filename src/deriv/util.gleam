@@ -486,3 +486,34 @@ fn find_function(
   |> list.find(fn(func) { func.definition.name == ref })
   |> result.replace_error(types.NotFoundErr(ref))
 }
+
+pub fn diff(
+  str1: String,
+  str2: String,
+) -> String {
+  let assert Ok(file_prefix) = shellout.command(
+    run: "date",
+    with: ["+%s"],
+    in: ".",
+    opt: []
+  )
+
+  let assert Ok(file_prefix) = file_prefix |> string.split("\n") |> list.first
+  let file_prefix = "/tmp/" <>  file_prefix
+  let file_name1 = file_prefix <> "1"
+  let file_name2 = file_prefix <> "2"
+
+  let assert Ok(_) = simplifile.write(to: file_name1, contents: str1)
+  let assert Ok(_) = simplifile.write(to: file_name2, contents: str2)
+
+  let diff =
+    case shellout.command(run: "diff", with: [file_name1, file_name2], in: ".", opt: []) {
+      Ok(diff) -> diff
+      Error(#(_, diff)) -> diff
+    }
+
+  let assert Ok(_) = simplifile.delete(file_name1)
+  let assert Ok(_) = simplifile.delete(file_name2)
+
+  diff
+}
