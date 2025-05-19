@@ -49,7 +49,7 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
       #("decode", [
         // import decode.{type Decoder}
         Import(
-          module: "decode",
+          module: "gleam/dynamic/decode",
           alias: None,
           unqualified_types: [
             UnqualifiedImport(

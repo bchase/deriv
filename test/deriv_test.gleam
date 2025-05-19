@@ -56,8 +56,8 @@ pub type Bar {
   |> string.trim
 
  let output = "
-import decode.{type Decoder}
 import deriv/util
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None}
@@ -179,8 +179,8 @@ pub type T {
   |> string.trim
 
  let output = "
-import decode.{type Decoder}
 import deriv/util
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type T {
@@ -258,7 +258,7 @@ pub type Maybe {
   |> string.trim
 
  let output = "
-import decode.{type Decoder}
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 import gleam/option.{None}
 
@@ -372,7 +372,7 @@ pub type B {
   |> string.trim
 
  let output = "
-import decode.{type Decoder}
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type A {
@@ -628,8 +628,8 @@ pub type DateTimeExamples {
 
   let output = string.trim("
 import birl.{type Time}
-import decode.{type Decoder}
 import deriv/util
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type DateTimeExamples {
@@ -726,7 +726,7 @@ pub type DictFieldType {
 ")
 
   let output = string.trim("
-import decode.{type Decoder}
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type DictFieldType {
@@ -805,7 +805,7 @@ pub type Unnested {
   |> string.trim
 
  let output = "
-import decode.{type Decoder}
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type Unnested {
@@ -901,7 +901,7 @@ pub type Maybe {
   |> string.trim
 
  let output = "
-import decode.{type Decoder}
+import gleam/dynamic/decode.{type Decoder}
 import gleam/option.{None}
 
 pub type Maybe {
