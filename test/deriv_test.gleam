@@ -9,6 +9,7 @@ import deriv/types.{type File, File, DerivFieldOpt, DerivField}
 import deriv/parser
 import deriv
 import deriv/util
+import youid/uuid
 import gleam/io
 // import deriv/example/unify
 
