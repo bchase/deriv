@@ -722,11 +722,17 @@ fn decoder_type_variant_func(
             case is_option {
               True ->
                 Call(
-                  function: FieldAccess(Variable("decode"), "optionally_at"),
+                  function: FieldAccess(Variable("decode"), "then"),
                   arguments: [
-                    UnlabelledField(List(json_fields, None)),
-                    UnlabelledField(Variable("None")),
-                    UnlabelledField(expr),
+                    Call(
+                      function: FieldAccess(Variable("decode"), "optionally_at"),
+                      arguments: [
+                        UnlabelledField(List(json_fields, None)),
+                        UnlabelledField(Variable("None")),
+                        UnlabelledField(expr),
+                      ]
+                    )
+                    |> UnlabelledField
                   ]
                 )
                 |> Use(patterns: [PatternVariable(field)], function: _)
