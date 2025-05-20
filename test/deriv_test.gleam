@@ -9,8 +9,9 @@ import deriv/types.{type File, File, DerivFieldOpt, DerivField}
 import deriv/parser
 import deriv
 import deriv/util
+import youid/uuid
 import gleam/io
-
+import shellout
 import simplifile
 import glance.{Import, UnqualifiedImport, Named}
 
@@ -54,11 +55,11 @@ pub type Bar {
   |> string.trim
 
  let output = "
-import decode.{type Decoder}
 import deriv/util
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 import gleam/list
-import gleam/option.{type Option}
+import gleam/option.{type Option, None}
 import youid/uuid.{type Uuid}
 
 pub type Foo {
@@ -82,27 +83,22 @@ pub type Bar {
 }
 
 pub fn decoder_foo() -> Decoder(Foo) {
-  decode.one_of([decoder_foo_foo()])
+  decode.one_of(decoder_foo_foo(), [])
 }
 
 pub fn decoder_foo_foo() -> Decoder(Foo) {
-  decode.into({
-    use uuid <- decode.parameter
-    use id <- decode.parameter
-    use name <- decode.parameter
-    use active <- decode.parameter
-    use ratio <- decode.parameter
-    use words <- decode.parameter
-    use maybe_list <- decode.parameter
-    Foo(uuid:, id:, name:, active:, ratio:, words:, maybe_list:)
-  })
-  |> decode.field(\"uuid\", util.decoder_uuid())
-  |> decode.field(\"int_id\", decode.int)
-  |> decode.field(\"name\", decode.string)
-  |> decode.field(\"active\", decode.bool)
-  |> decode.field(\"ratio\", decode.float)
-  |> decode.field(\"words\", decode.list(decode.string))
-  |> decode.field(\"maybe_list\", decode.optional(decode.list(decode.string)))
+  use uuid <- decode.field(\"uuid\", util.decoder_uuid())
+  use id <- decode.field(\"int_id\", decode.int)
+  use name <- decode.field(\"name\", decode.string)
+  use active <- decode.field(\"active\", decode.bool)
+  use ratio <- decode.field(\"ratio\", decode.float)
+  use words <- decode.field(\"words\", decode.list(decode.string))
+  use maybe_list <- decode.optional_field(
+    \"maybe_list\",
+    None,
+    decode.optional(decode.list(decode.string)),
+  )
+  decode.success(Foo(uuid:, id:, name:, active:, ratio:, words:, maybe_list:))
 }
 
 pub fn encode_foo(value: Foo) -> Json {
@@ -124,15 +120,12 @@ pub fn encode_foo(value: Foo) -> Json {
 }
 
 pub fn decoder_bar() -> Decoder(Bar) {
-  decode.one_of([decoder_bar_bar()])
+  decode.one_of(decoder_bar_bar(), [])
 }
 
 pub fn decoder_bar_bar() -> Decoder(Bar) {
-  decode.into({
-    use baz <- decode.parameter
-    Bar(baz:)
-  })
-  |> decode.field(\"baz\", decode.bool)
+  use baz <- decode.field(\"baz\", decode.bool)
+  decode.success(Bar(baz:))
 }
   "
   |> string.trim
@@ -162,6 +155,10 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
   io.println("")
   io.println("EXPECTED")
   io.println(output)
+  io.println("")
+  io.println("")
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -171,30 +168,6 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
 }
 
 pub fn json_multi_variant_type_test() {
-  // let input = "
-// pub type T {
-  // X(foo: String)
-  // Y(bar: Int)
-// } //$ derive json(decode,encode)
-  // "
-  // |> string.trim
-
- // let output = "
-// import gleam/json.{type Json}
-
-// pub type T {
-  // X(foo: String)
-  // Y(bar: Int)
-// } //$ derive json(decode,encode)
-
-// pub fn encode_t(value: T) -> Json {
-  // case value {
-  //   X(..) as value -> json.object([#(\"foo\", json.string(value.foo))])
-  //   Y(..) as value -> json.object([#(\"bar\", json.int(value.bar))])
-  // }
-// }
-  // "
-  // |> string.trim
   let input = "
 pub type T {
   //$ derive json decode encode
@@ -205,8 +178,8 @@ pub type T {
   |> string.trim
 
  let output = "
-import decode.{type Decoder}
 import deriv/util
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type T {
@@ -216,27 +189,19 @@ pub type T {
 }
 
 pub fn decoder_t() -> Decoder(T) {
-  decode.one_of([decoder_t_x(), decoder_t_y()])
+  decode.one_of(decoder_t_x(), [decoder_t_y()])
 }
 
 pub fn decoder_t_x() -> Decoder(T) {
-  decode.into({
-    use _deriv_var_constr <- decode.parameter
-    use foo <- decode.parameter
-    X(foo:)
-  })
-  |> decode.field(\"_var\", util.is(\"X\"))
-  |> decode.field(\"foo\", decode.string)
+  use _deriv_var_constr <- decode.field(\"_var\", util.is(\"X\"))
+  use foo <- decode.field(\"foo\", decode.string)
+  decode.success(X(foo:))
 }
 
 pub fn decoder_t_y() -> Decoder(T) {
-  decode.into({
-    use _deriv_var_constr <- decode.parameter
-    use bar <- decode.parameter
-    Y(bar:)
-  })
-  |> decode.field(\"_var\", util.is(\"Y\"))
-  |> decode.field(\"bar\", decode.int)
+  use _deriv_var_constr <- decode.field(\"_var\", util.is(\"Y\"))
+  use bar <- decode.field(\"bar\", decode.int)
+  decode.success(Y(bar:))
 }
 
 pub fn encode_t(value: T) -> Json {
@@ -271,6 +236,10 @@ pub fn encode_t(value: T) -> Json {
   io.println("")
   io.println("EXPECTED")
   io.println(output)
+  io.println("")
+  io.println("")
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
 
   write.src
   |> should.equal(output)
@@ -288,8 +257,9 @@ pub type Maybe {
   |> string.trim
 
  let output = "
-import decode.{type Decoder}
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
+import gleam/option.{None}
 
 pub type Maybe {
   //$ derive json decode encode
@@ -299,15 +269,16 @@ pub type Maybe {
 }
 
 pub fn decoder_maybe() -> Decoder(Maybe) {
-  decode.one_of([decoder_maybe_maybe()])
+  decode.one_of(decoder_maybe_maybe(), [])
 }
 
 pub fn decoder_maybe_maybe() -> Decoder(Maybe) {
-  decode.into({
-    use name <- decode.parameter
-    Maybe(name:)
-  })
-  |> decode.field(\"name\", decode.optional(decode.string))
+  use name <- decode.optional_field(
+    \"name\",
+    None,
+    decode.optional(decode.string),
+  )
+  decode.success(Maybe(name:))
 }
 
 pub fn encode_maybe(value: Maybe) -> Json {
@@ -329,9 +300,6 @@ pub fn encode_maybe(value: Maybe) -> Json {
   write.filepath
   |> should.equal("src/deriv/example/maybe.gleam")
 
-  // io.println(output)
-  // io.println(write.src)
-
   io.println("")
   io.println("")
   io.println("GENERATED")
@@ -340,13 +308,16 @@ pub fn encode_maybe(value: Maybe) -> Json {
   io.println("")
   io.println("EXPECTED")
   io.println(output)
+  io.println("")
+  io.println("")
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
 
   write.src
   |> should.equal(output)
 }
 
 pub fn gleam_format_magic_comment_parsing_test() {
-  // //$ json(baz(boo))
   let src = "
 pub type T {
   //$ derive json decode
@@ -400,7 +371,7 @@ pub type B {
   |> string.trim
 
  let output = "
-import decode.{type Decoder}
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type A {
@@ -418,15 +389,12 @@ pub type B {
 }
 
 pub fn decoder_a() -> Decoder(A) {
-  decode.one_of([decoder_a_a()])
+  decode.one_of(decoder_a_a(), [])
 }
 
 pub fn decoder_a_a() -> Decoder(A) {
-  decode.into({
-    use b <- decode.parameter
-    A(b:)
-  })
-  |> decode.field(\"b\", decoder_b())
+  use b <- decode.field(\"b\", decoder_b())
+  decode.success(A(b:))
 }
 
 pub fn encode_a(value: A) -> Json {
@@ -436,15 +404,12 @@ pub fn encode_a(value: A) -> Json {
 }
 
 pub fn decoder_b() -> Decoder(B) {
-  decode.one_of([decoder_b_b()])
+  decode.one_of(decoder_b_b(), [])
 }
 
 pub fn decoder_b_b() -> Decoder(B) {
-  decode.into({
-    use x <- decode.parameter
-    B(x:)
-  })
-  |> decode.field(\"x\", decode.string)
+  use x <- decode.field(\"x\", decode.string)
+  decode.success(B(x:))
 }
 
 pub fn encode_b(value: B) -> Json {
@@ -476,6 +441,10 @@ pub fn encode_b(value: B) -> Json {
   io.println("")
   io.println("EXPECTED")
   io.println(output)
+  io.println("")
+  io.println("")
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
 
   write.src
   |> should.equal(output)
@@ -698,8 +667,8 @@ pub type DateTimeExamples {
 
   let output = string.trim("
 import birl.{type Time}
-import decode.{type Decoder}
 import deriv/util
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type DateTimeExamples {
@@ -716,29 +685,20 @@ pub type DateTimeExamples {
 }
 
 pub fn decoder_date_time_examples() -> Decoder(DateTimeExamples) {
-  decode.one_of([decoder_date_time_examples_date_time_examples()])
+  decode.one_of(decoder_date_time_examples_date_time_examples(), [])
 }
 
 pub fn decoder_date_time_examples_date_time_examples() -> Decoder(
   DateTimeExamples,
 ) {
-  decode.into({
-    use t0 <- decode.parameter
-    use t1 <- decode.parameter
-    use t2 <- decode.parameter
-    use t3 <- decode.parameter
-    use t4 <- decode.parameter
-    use t5 <- decode.parameter
-    use t6 <- decode.parameter
-    DateTimeExamples(t0:, t1:, t2:, t3:, t4:, t5:, t6:)
-  })
-  |> decode.field(\"t0\", util.decoder_birl_parse())
-  |> decode.field(\"t1\", util.decoder_birl_parse())
-  |> decode.field(\"t2\", util.decoder_birl_from_naive())
-  |> decode.field(\"t3\", util.decoder_birl_from_http())
-  |> decode.field(\"t4\", util.decoder_birl_from_unix())
-  |> decode.field(\"t5\", util.decoder_birl_from_unix_milli())
-  |> decode.field(\"t6\", util.decoder_birl_from_unix_micro())
+  use t0 <- decode.field(\"t0\", util.decoder_birl_parse())
+  use t1 <- decode.field(\"t1\", util.decoder_birl_parse())
+  use t2 <- decode.field(\"t2\", util.decoder_birl_from_naive())
+  use t3 <- decode.field(\"t3\", util.decoder_birl_from_http())
+  use t4 <- decode.field(\"t4\", util.decoder_birl_from_unix())
+  use t5 <- decode.field(\"t5\", util.decoder_birl_from_unix_milli())
+  use t6 <- decode.field(\"t6\", util.decoder_birl_from_unix_micro())
+  decode.success(DateTimeExamples(t0:, t1:, t2:, t3:, t4:, t5:, t6:))
 }
 
 pub fn encode_date_time_examples(value: DateTimeExamples) -> Json {
@@ -782,6 +742,10 @@ pub fn encode_date_time_examples(value: DateTimeExamples) -> Json {
   io.println("")
   io.println("EXPECTED")
   io.println(output)
+  io.println("")
+  io.println("")
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -801,7 +765,7 @@ pub type DictFieldType {
 ")
 
   let output = string.trim("
-import decode.{type Decoder}
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type DictFieldType {
@@ -812,15 +776,12 @@ pub type DictFieldType {
 }
 
 pub fn decoder_dict_field_type() -> Decoder(DictFieldType) {
-  decode.one_of([decoder_dict_field_type_dict_field_type()])
+  decode.one_of(decoder_dict_field_type_dict_field_type(), [])
 }
 
 pub fn decoder_dict_field_type_dict_field_type() -> Decoder(DictFieldType) {
-  decode.into({
-    use dict <- decode.parameter
-    DictFieldType(dict:)
-  })
-  |> decode.field(\"dict\", decode.dict(decode.string, decode.int))
+  use dict <- decode.field(\"dict\", decode.dict(decode.string, decode.int))
+  decode.success(DictFieldType(dict:))
 }
 
 pub fn encode_dict_field_type(value: DictFieldType) -> Json {
@@ -859,6 +820,10 @@ pub fn encode_dict_field_type(value: DictFieldType) -> Json {
   io.println("")
   io.println("EXPECTED")
   io.println(output)
+  io.println("")
+  io.println("")
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -879,7 +844,7 @@ pub type Unnested {
   |> string.trim
 
  let output = "
-import decode.{type Decoder}
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type Unnested {
@@ -890,15 +855,12 @@ pub type Unnested {
 }
 
 pub fn decoder_unnested() -> Decoder(Unnested) {
-  decode.one_of([decoder_unnested_unnested()])
+  decode.one_of(decoder_unnested_unnested(), [])
 }
 
 pub fn decoder_unnested_unnested() -> Decoder(Unnested) {
-  decode.into({
-    use unnested <- decode.parameter
-    Unnested(unnested:)
-  })
-  |> decode.subfield([\"foo\", \"bar\", \"baz\"], decode.int)
+  use unnested <- decode.subfield([\"foo\", \"bar\", \"baz\"], decode.int)
+  decode.success(Unnested(unnested:))
 }
 
 pub fn encode_unnested(value: Unnested) -> Json {
@@ -942,6 +904,10 @@ pub fn encode_unnested(value: Unnested) -> Json {
   io.println("")
   io.println("EXPECTED")
   io.println(output)
+  io.println("")
+  io.println("")
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -974,7 +940,8 @@ pub type Maybe {
   |> string.trim
 
  let output = "
-import decode.{type Decoder}
+import gleam/dynamic/decode.{type Decoder}
+import gleam/option.{None}
 
 pub type Maybe {
   //$ derive json decode
@@ -985,15 +952,12 @@ pub type Maybe {
 }
 
 pub fn decoder_maybe() -> Decoder(Maybe) {
-  decode.one_of([decoder_maybe_maybe()])
+  decode.one_of(decoder_maybe_maybe(), [])
 }
 
 pub fn decoder_maybe_maybe() -> Decoder(Maybe) {
-  decode.into({
-    use name <- decode.parameter
-    Maybe(name:)
-  })
-  |> decode.field(\"name\", decoder_name())
+  use name <- decode.optional_field(\"name\", None, decoder_name())
+  decode.success(Maybe(name:))
 }
   "
   |> string.trim
@@ -1019,6 +983,10 @@ pub fn decoder_maybe_maybe() -> Decoder(Maybe) {
   io.println("")
   io.println("EXPECTED")
   io.println(output)
+  io.println("")
+  io.println("")
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
 
   write.src
   |> should.equal(output)
@@ -1146,6 +1114,10 @@ pub fn authe_b(value: AutheB) -> AutheTokens {
   io.println("")
   io.println("EXPECTED")
   io.println(output)
+  io.println("")
+  io.println("")
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -1352,6 +1324,10 @@ pub fn pet(value: Pet) -> Friend {
   io.println("")
   io.println("EXPECTED")
   io.println(output)
+  io.println("")
+  io.println("")
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")

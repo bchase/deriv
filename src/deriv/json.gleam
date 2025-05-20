@@ -4,7 +4,7 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
-import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture}
+import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, PatternDiscard, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture}
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt}
 import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
@@ -49,7 +49,7 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
       #("decode", [
         // import decode.{type Decoder}
         Import(
-          module: "decode",
+          module: "gleam/dynamic/decode",
           alias: None,
           unqualified_types: [
             UnqualifiedImport(
@@ -59,7 +59,12 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
           ],
           unqualified_values: [],
         ),
-      ]),
+      ] |> list.append({
+        case are_any_fields_options(type_) {
+          True -> [none_constr_import()]
+          False -> []
+        }
+      })),
       #("encode", [
         // import gleam/json.{type Json}
         Import(
@@ -119,6 +124,35 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
       }
     )
   }
+}
+
+fn none_constr_import() -> Import {
+  Import(
+    module: "gleam/option",
+    alias: None,
+    unqualified_values: [
+      UnqualifiedImport(
+        name: "None",
+        alias: None,
+      ),
+    ],
+    unqualified_types: [],
+  )
+}
+
+fn are_any_fields_options(
+  type_: CustomType,
+) -> Bool {
+  type_.variants
+  |> list.any(fn(variant) {
+    variant.fields
+    |> list.any(fn(field) {
+      case field.item {
+        NamedType(name:, ..) if name == "Option" -> True
+        _ -> False
+      }
+    })
+  })
 }
 
 fn needs_util_import(type_: CustomType) -> Bool {
@@ -497,18 +531,26 @@ fn decoder_type_func(
     type_.variants
     |> list.map(decoder_type_variant_func(type_, _, all_field_opts))
 
-  let decoder_call_exprs =
-    variant_funcs
-    |> list.map(fn(func) {
-      Call(Variable(util.func_name(func)), [])
-    })
+  let body = {
+    let #(first_decoder_call_expr, rest_decoder_call_exprs) =
+      variant_funcs
+      |> list.map(fn(func) {
+        Call(Variable(util.func_name(func)), [])
+      })
+      |> fn(exprs) {
+        case exprs {
+          [first, ..rest] -> #(first, rest)
+          _ -> panic as { "No decoder expressions generated for: " <> string.inspect(type_) }
+        }
+      }
 
-  let body =
     [
       Expression(Call(FieldAccess(Variable("decode"), "one_of"), [
-        UnlabelledField(List(decoder_call_exprs, None))
+        UnlabelledField(first_decoder_call_expr),
+        UnlabelledField(List(rest_decoder_call_exprs, None)),
       ]))
     ]
+  }
 
   let type_func =
     Definition([], Function(
@@ -532,7 +574,7 @@ fn decode_field_expr(
   variant: Variant,
   field: VariantField,
   all_field_opts: DerivFieldOpts,
-) -> #(String, Option(String), Expression) {
+) -> #(String, Bool, Option(String), Expression) {
   let field = variant_field(field)
 
   let t = jtype(field.type_)
@@ -615,7 +657,13 @@ fn decode_field_expr(
     |> util.get_field_opts(type_, variant, field.name)
     |> json_field_name(field, _)
 
-  #(field.name, Some(json_field_name), expr) // TODO always `Some`
+  let is_option =
+    case field.type_ {
+      NamedType(name:, ..) if name == "Option" -> True
+      _ -> False
+    }
+
+  #(field.name, is_option, Some(json_field_name), expr) // TODO always `Some`
 }
 
 fn decoder_type_variant_func(
@@ -628,101 +676,125 @@ fn decoder_type_variant_func(
   let parameters: List(glance.FunctionParameter) = []
   let return: Option(Type) = Some(NamedType("Decoder", None, [NamedType(type_.name, None, [])]))
 
-  let pipe_exprs: List(#(String, Option(String), Expression)) =
+  let pipe_exprs: List(#(String, Bool, Option(String), Expression)) =
     variant.fields
     |> list.map(decode_field_expr(type_, variant, _, all_field_opts))
 
-  let fields =
-    pipe_exprs
-    |> list.map(fn(x) {
-      let #(field, _, _) = x
-      field
-    })
-
-  let use_exprs =
-    fields
-    |> list.map(fn(field) {
-      Use([PatternVariable(field)], FieldAccess(Variable("decode"), "parameter"))
-    })
-
-  let use_exprs =
-    case is_multi_variant(type_) {
-      True ->
-        Use([PatternVariable("_deriv_var_constr")], FieldAccess(Variable("decode"), "parameter"))
-        |> list.wrap
-        |> list.append(use_exprs)
-
-      False ->
-        use_exprs
-    }
-
-  let constr_args = fields |> list.map(ShorthandField)
-
-  let decode_into_call: Expression =
-    Call(FieldAccess(Variable("decode"), "into"), [UnlabelledField(
-      Block(use_exprs |> list.append([
-        Expression(Call(
-          function: Variable(variant.name),
-          arguments: constr_args,
-        ))
-      ]))
-    )])
-
-  let initial_body =
-    case is_multi_variant(type_) {
-      True -> {
-        let call =
-          Call(
-            function: FieldAccess(Variable("decode"), "field"),
-            arguments: [
-              UnlabelledField(String(deriv_variant_json_key)),
-              UnlabelledField(Call(
-                function: FieldAccess(Variable("util"), "is"),
-                arguments: [
-                  UnlabelledField(String(variant.name)),
-                ]
-              )),
-            ],
-          )
-
-        decode_into_call
-        |> BinaryOperator(Pipe, _, call)
-      }
-
-      False ->
-        decode_into_call
-    }
-
-  let body: List(Statement) =
-    list.fold(pipe_exprs, initial_body, fn(acc, x) {
-      let #(field, json_field, expr) = x
+  let use_decode_field_exprs: List(Statement) =
+    list.fold(pipe_exprs, [], fn(acc, x) {
+      let #(field, is_option, json_field, expr) = x
 
       let json_field = json_field |> option.unwrap(field)
 
       let call =
         case string.split(json_field, ".") {
           [] -> panic
+
           [json_field] ->
-            Call(FieldAccess(Variable("decode"), "field"), [UnlabelledField(String(json_field)), UnlabelledField(expr)])
+            case is_option {
+              True ->
+                Use(patterns: [PatternVariable(field)], function: {
+                  Call(
+                    function: FieldAccess(Variable("decode"), "optional_field"),
+                    arguments: [
+                      UnlabelledField(String(json_field)),
+                      UnlabelledField(Variable("None")),
+                      UnlabelledField(expr),
+                    ])
+                  })
+
+              False ->
+                Use(patterns: [PatternVariable(field)], function: {
+                  Call(
+                    function: FieldAccess(Variable("decode"), "field"),
+                    arguments: [
+                      UnlabelledField(String(json_field)),
+                      UnlabelledField(expr),
+                    ])
+                  })
+            }
+
           json_fields -> {
             let json_fields =
               json_fields
               |> list.map(fn(str) { String(str) })
 
-            Call(
-              function: FieldAccess(Variable("decode"), "subfield"),
-              arguments: [
-                UnlabelledField(List(json_fields, None)),
-                UnlabelledField(expr),
-              ]
-            )
+            case is_option {
+              True ->
+                Call(
+                  function: FieldAccess(Variable("decode"), "then"),
+                  arguments: [
+                    Call(
+                      function: FieldAccess(Variable("decode"), "optionally_at"),
+                      arguments: [
+                        UnlabelledField(List(json_fields, None)),
+                        UnlabelledField(Variable("None")),
+                        UnlabelledField(expr),
+                      ]
+                    )
+                    |> UnlabelledField
+                  ]
+                )
+                |> Use(patterns: [PatternVariable(field)], function: _)
+
+              False ->
+                Call(
+                  function: FieldAccess(Variable("decode"), "subfield"),
+                  arguments: [
+                    UnlabelledField(List(json_fields, None)),
+                    UnlabelledField(expr),
+                  ]
+                )
+                |> Use(patterns: [PatternVariable(field)], function: _)
+            }
           }
         }
 
-      BinaryOperator(Pipe, acc, call)
+      list.append(acc, [call])
     })
+
+  let constr_args =
+    pipe_exprs
+    |> list.map(fn(x) {
+      let #(field, _, _, _) = x
+      field
+    })
+    |> list.map(ShorthandField)
+
+  let decode_success_call: Statement =
+    Call(FieldAccess(Variable("decode"), "success"), [
+      UnlabelledField(
+        Call(
+          function: Variable(variant.name),
+          arguments: constr_args,
+        )
+      )
+    ])
     |> Expression
-    |> list.wrap
+
+  let use_decode_multi_var_type_exprs =
+    case is_multi_variant(type_) {
+      True -> [
+        Call(
+          function: FieldAccess(Variable("decode"), "field"),
+          arguments: [
+            UnlabelledField(String("_var")),
+            UnlabelledField(Call(FieldAccess(Variable("util"), "is"), [
+              UnlabelledField(String(variant.name)),
+            ])),
+          ]
+        )
+        |> Use(patterns: [PatternDiscard("deriv_var_constr")], function: _)
+      ]
+      False -> []
+    }
+
+  let body: List(Statement) =
+    list.flatten([
+      use_decode_multi_var_type_exprs,
+      use_decode_field_exprs,
+      [decode_success_call]
+    ])
 
   Definition([],
     Function(

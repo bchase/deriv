@@ -4,7 +4,7 @@ import gleam/string
 import gleam/json.{type Json}
 import gleam/result
 import gleam/regexp.{type Regexp}
-import decode.{type Decoder}
+import gleam/dynamic/decode.{type Decoder}
 import youid/uuid.{type Uuid}
 import glance.{type Module, type Definition, type Function, Module, Definition, Function, type CustomType, type Variant}
 import glance_printer
@@ -14,31 +14,34 @@ import birl.{type Time}
 import deriv/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField, type ModuleReader, type ModuleReaderErr}
 import gleam/io
 
-pub fn decode_type_field(
-  variant variant: String,
-  json_field json_field: String,
-  pass decoder: Decoder(t),
-) -> Decoder(t) {
-  decode.into({
-    use type_field <- decode.parameter
-    type_field
-  })
-  |> decode.field(json_field, decode.string)
-  |> decode.then(fn(type_field) {
-    case type_field == variant {
-      True -> decoder
-      False ->
-        { "`" <> variant <> "` failed to match `" <> json_field <> "`" }
-        |> decode.fail
-    }
-  })
-}
+// pub fn decode_type_field(
+//   variant variant: String,
+//   json_field json_field: String,
+//   pass decoder: Decoder(t),
+// ) -> Decoder(t) {
+//   decode.success({
+//     use type_field <- decode.parameter
+//     type_field
+//   })
+//   |> decode.field(json_field, decode.string)
+//   |> decode.then(fn(type_field) {
+//     case type_field == variant {
+//       True -> decoder
+//       False ->
+//         { "`" <> variant <> "` failed to match `" <> json_field <> "`" }
+//         |> decode.fail
+//     }
+//   })
+// }
 
 pub fn decoder_uuid() -> Decoder(Uuid) {
   use str <- decode.then(decode.string)
   case uuid.from_string(str) {
-    Ok(uuid) -> decode.into(uuid)
-    Error(Nil) -> decode.fail("Failed to parse UUID")
+    Ok(uuid) -> decode.success(uuid)
+    Error(Nil) -> {
+      let assert Ok(uuid) = uuid.from_string("00000000-0000-0000-0000-000000000000")
+      decode.failure(uuid, "Failed to parse UUID")
+    }
   }
 }
 
@@ -335,8 +338,8 @@ pub fn is(
   decode.string
   |> decode.then(fn(str) {
     case str == value {
-      True -> decode.into(Nil)
-      False -> decode.fail("failed to match for value: " <> value)
+      True -> decode.success(Nil)
+      False -> decode.failure(todo, "failed to match for value: " <> value)
     }
   })
 }
@@ -417,8 +420,8 @@ fn decoder_birl_string_to_result(
   decode.string
   |> decode.then(fn(str) {
     case func(str) {
-      Ok(time) -> decode.into(time)
-      Error(_) -> decode.fail("Failed to `" <> func_name <> "`: " <> str)
+      Ok(time) -> decode.success(time)
+      Error(_) -> decode.failure(birl.from_unix(0), "Failed to `" <> func_name <> "`: " <> str)
     }
   })
 }
@@ -430,7 +433,7 @@ fn decoder_birl_int_to_time(
   |> decode.then(fn(int) {
     int
     |> func
-    |> decode.into
+    |> decode.success
   })
 }
 
@@ -546,4 +549,35 @@ fn find_function(
   module.functions
   |> list.find(fn(func) { func.definition.name == ref })
   |> result.replace_error(types.NotFoundErr(ref))
+}
+
+pub fn diff(
+  str1: String,
+  str2: String,
+) -> String {
+  let assert Ok(file_prefix) = shellout.command(
+    run: "date",
+    with: ["+%s"],
+    in: ".",
+    opt: []
+  )
+
+  let assert Ok(file_prefix) = file_prefix |> string.split("\n") |> list.first
+  let file_prefix = "/tmp/" <>  file_prefix
+  let file_name1 = file_prefix <> "1"
+  let file_name2 = file_prefix <> "2"
+
+  let assert Ok(_) = simplifile.write(to: file_name1, contents: str1)
+  let assert Ok(_) = simplifile.write(to: file_name2, contents: str2)
+
+  let diff =
+    case shellout.command(run: "diff", with: [file_name1, file_name2], in: ".", opt: []) {
+      Ok(diff) -> diff
+      Error(#(_, diff)) -> diff
+    }
+
+  let assert Ok(_) = simplifile.delete(file_name1)
+  let assert Ok(_) = simplifile.delete(file_name2)
+
+  diff
 }
