@@ -10,7 +10,6 @@ import deriv/parser
 import deriv
 import deriv/util
 import gleam/io
-import deriv/example/unify
 
 import simplifile
 import glance.{Import, UnqualifiedImport, Named}
