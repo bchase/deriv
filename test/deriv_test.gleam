@@ -11,7 +11,6 @@ import deriv
 import deriv/util
 import youid/uuid
 import gleam/io
-// import deriv/example/unify
 import shellout
 import simplifile
 import glance.{Import, UnqualifiedImport, Named}
@@ -484,6 +483,46 @@ type Bar {
 }")
 
   util.replace_function(src, func_name: "foo", func_src: new)
+  |> should.equal(expected)
+}
+
+pub fn replace_type_test() {
+  let src = string.trim("
+import gleam/string
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}
+
+fn foo(str: String) -> String {
+  str
+}")
+
+  let new = string.trim("
+type Foo {
+  Hoge(
+    asdf: Int,
+  )
+}
+")
+
+  let expected = string.trim("
+import gleam/string
+
+type Foo {
+  Hoge(
+    asdf: Int,
+  )
+}
+
+fn foo(str: String) -> String {
+  str
+}")
+
+  util.replace_type(src, type_name: "Bar", type_src: new)
+  |> string.trim
   |> should.equal(expected)
 }
 
@@ -1079,6 +1118,104 @@ pub fn authe_b(value: AutheB) -> AutheTokens {
   io.println("")
   io.println("DIFF (<expected >generated)")
   io.println(util.diff(output, write.src))
+
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
+
+  write.src
+  |> should.equal(output)
+}
+
+pub fn into_test() {
+  // glance.module("
+// pub fn foo() {
+  // f.Foo
+// }
+  // " |> string.trim)
+  // |> io.debug
+  // |> io.debug
+  // |> io.debug
+  // |> io.debug
+  // |> io.debug
+
+  let foo_src = "
+pub type Foo {
+  Foo(
+    name: String,
+    count: Int,
+  )
+}
+  " |> string.trim
+
+  let parse = fn(src) {
+    glance.module(src)
+    |> result.map_error(types.GlanceErr)
+  }
+
+  let module_reader: types.ModuleReader = fn(ident) {
+    case ident {
+      "project/asdf/foo" -> parse(foo_src)
+
+      _ -> {
+        io.debug(ident)
+        panic as "`module_reader` miss in `into_test`"
+      }
+    }
+  }
+
+// TODO
+  let input = "
+pub type Bar {
+  //$ derive into project/asdf/foo.Foo as f
+  Bar(
+    title: String,
+    //$ into field project/asdf/foo.Foo name
+    count: Int,
+  )
+}
+  " |> string.trim
+
+ let output = "
+pub type Bar {
+  //$ derive into project/asdf/foo.Foo as f
+  Bar(
+    title: String,
+    //$ into field project/asdf/foo.Foo name
+    count: Int,
+  )
+}
+
+pub fn into_foo(value: Bar) -> f.Foo {
+  f.Foo(name: value.title, count: value.count)
+}
+  "
+  |> string.trim
+
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let writes =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let assert [write] =
+    writes
+
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
