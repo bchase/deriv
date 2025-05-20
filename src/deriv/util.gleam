@@ -1,3 +1,4 @@
+import gleam/option.{None}
 import gleam/dict
 import gleam/list
 import gleam/string
@@ -39,8 +40,7 @@ pub fn decoder_uuid() -> Decoder(Uuid) {
   case uuid.from_string(str) {
     Ok(uuid) -> decode.success(uuid)
     Error(Nil) -> {
-      let assert Ok(uuid) = uuid.from_string("00000000-0000-0000-0000-000000000000")
-      decode.failure(uuid, "Failed to parse UUID")
+      decode.failure(zero_uuid(), "Failed to parse UUID")
     }
   }
 }
@@ -516,4 +516,41 @@ pub fn diff(
   let assert Ok(_) = simplifile.delete(file_name2)
 
   diff
+}
+
+pub fn zero_uuid() -> Uuid {
+  uuid.v7_from_millisec(0)
+}
+
+pub fn zero_time() -> Time {
+  birl.from_unix(0)
+}
+
+pub fn are_any_fields_options(
+  type_: CustomType,
+) -> Bool {
+  type_.variants
+  |> list.any(fn(variant) {
+    variant.fields
+    |> list.any(fn(field) {
+      case field.item {
+        glance.NamedType(name:, ..) if name == "Option" -> True
+        _ -> False
+      }
+    })
+  })
+}
+
+pub fn none_constr_import() -> glance.Import {
+  glance.Import(
+    module: "gleam/option",
+    alias: None,
+    unqualified_values: [
+      glance.UnqualifiedImport(
+        name: "None",
+        alias: None,
+      ),
+    ],
+    unqualified_types: [],
+  )
 }

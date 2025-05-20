@@ -1198,3 +1198,95 @@ pub fn pet(value: Pet) -> Friend {
   write.src
   |> should.equal(output)
 }
+
+pub fn zero_test() {
+  let input = "
+import birl.{type Time}
+import gleam/option.{type Option}
+import youid/uuid.{type Uuid}
+
+pub type Player {
+  //$ derive zero
+  Player(
+    id: Uuid,
+    name: String,
+    alias: Option(String),
+    bday: Time,
+    age: Int,
+    kd: Float,
+    hobbies: List(String),
+    active: Bool,
+  )
+}
+  " |> string.trim
+
+  let module_reader: types.ModuleReader = fn(ident) {
+    case ident {
+      _ -> {
+        io.debug(ident)
+        panic as "`module_reader` miss in `zero_test`"
+      }
+    }
+  }
+
+ let output = "
+import birl.{type Time}
+import gleam/option.{type Option, None}
+import youid/uuid.{type Uuid}
+
+pub type Player {
+  //$ derive zero
+  Player(
+    id: Uuid,
+    name: String,
+    alias: Option(String),
+    bday: Time,
+    age: Int,
+    kd: Float,
+    hobbies: List(String),
+    active: Bool,
+  )
+}
+
+pub fn zero_player() -> Player {
+  Player(util.zero_uuid(), \"\", None, util.zero_time(), 0, 0.0, [], False)
+}
+  "
+  |> string.trim
+
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let writes =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let assert [write] =
+    writes
+
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
+  io.println("")
+  io.println("")
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
+
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
+
+  write.src
+  |> should.equal(output)
+}
