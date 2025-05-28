@@ -261,6 +261,21 @@ fn type_encode_expr(
       "Bool", _ -> FieldAccess(Variable("json"), "bool")
       "Uuid", _ -> FieldAccess(Variable("util"), "encode_uuid")
       "Time", _ -> birl_time_encode_expr(birl_time_kind)
+      "Option", params -> {
+        let params =
+          [
+            UnlabelledField(FieldAccess(Variable("value"), field.name))
+          ]
+          |> list.append({
+            params
+            |> list.map(type_encode_expr(_, field, birl_time_kind, wrap: None, encode_param: {
+              Some(UnlabelledField(Variable("_")))
+            }))
+            |> list.map(UnlabelledField)
+          })
+
+        Call(FieldAccess(Variable("json"), "nullable"), params)
+      }
       "List", params -> {
         let params =
           [
@@ -271,7 +286,6 @@ fn type_encode_expr(
             |> list.map(type_encode_expr(_, field, birl_time_kind, wrap: None, encode_param: {
               Some(UnlabelledField(Variable("_")))
             }))
-            // |> list.map(type_encode_expr(_, field, birl_time_kind, Some(glance.Discarded("")), wrap))
             |> list.map(UnlabelledField)
           })
 
@@ -292,7 +306,7 @@ fn type_encode_expr(
               [
                 case encode_param {
                   Some(encode_param) ->
-                    encode_param |> echo
+                    encode_param
 
                   None ->
                     UnlabelledField(FieldAccess(Variable("value"), field.name))
