@@ -253,6 +253,15 @@ fn type_encode_expr(
   encode_param encode_param: Option(Field(Expression)),
   wrap wrap: Option(fn(Expression) -> Expression)
 ) -> Expression {
+  let arg =
+    case encode_param {
+      Some(encode_param) ->
+        encode_param
+
+      None ->
+        UnlabelledField(FieldAccess(Variable("value"), field.name))
+    }
+
   let expr =
     case type_.name, type_.parameters {
       "Int", _ -> FieldAccess(Variable("json"), "int")
@@ -264,13 +273,13 @@ fn type_encode_expr(
       "Option", params -> {
         let params =
           [
-            UnlabelledField(FieldAccess(Variable("value"), field.name))
+            arg,
           ]
           |> list.append({
             params
-            |> list.map(type_encode_expr(_, field, birl_time_kind, wrap: None, encode_param: {
-              Some(UnlabelledField(Variable("_")))
-            }))
+            |> list.map(type_encode_expr(_, field, birl_time_kind, wrap: None, encode_param: Some(
+              UnlabelledField(Variable("_"))
+            )))
             |> list.map(UnlabelledField)
           })
 
@@ -279,13 +288,13 @@ fn type_encode_expr(
       "List", params -> {
         let params =
           [
-            UnlabelledField(FieldAccess(Variable("value"), field.name))
+            arg,
           ]
           |> list.append({
             params
-            |> list.map(type_encode_expr(_, field, birl_time_kind, wrap: None, encode_param: {
-              Some(UnlabelledField(Variable("_")))
-            }))
+            |> list.map(type_encode_expr(_, field, birl_time_kind, wrap: None, encode_param: Some(
+              UnlabelledField(Variable("_"))
+            )))
             |> list.map(UnlabelledField)
           })
 
@@ -304,18 +313,11 @@ fn type_encode_expr(
           params -> {
             let params =
               [
-                case encode_param {
-                  Some(encode_param) ->
-                    encode_param
-
-                  None ->
-                    UnlabelledField(FieldAccess(Variable("value"), field.name))
-                }
+                arg,
               ]
-
               |> list.append({
                 params
-                |> list.map(type_encode_expr(_, field, birl_time_kind, None, None))
+                |> list.map(type_encode_expr(_, field, birl_time_kind, wrap: None, encode_param: None))
                 |> list.map(UnlabelledField)
               })
 
