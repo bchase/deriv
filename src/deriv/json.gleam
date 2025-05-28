@@ -36,7 +36,17 @@ pub fn gen(
         gen_imports(opts, type_)
 
       deriv.TypeAlias(..) ->
-        []
+        default_imports
+        |> dict.from_list
+        |> fn(imports) {
+          opts
+          |> list.fold([], fn(acc, opt) {
+            imports
+            |> dict.get(opt)
+            |> result.unwrap([])
+            |> list.append(acc, _)
+          })
+        }
     }
 
   let funcs =
@@ -54,6 +64,7 @@ pub fn gen(
 }
 
 fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
+  // TODO use `default_imports`
   let json_imports =
     [
       #("decode", [
@@ -135,6 +146,38 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
     )
   }
 }
+
+const default_imports =
+  [
+    #("decode", [
+      // import decode.{type Decoder}
+      Import(
+        module: "gleam/dynamic/decode",
+        alias: None,
+        unqualified_types: [
+          UnqualifiedImport(
+            name: "Decoder",
+            alias: None,
+          ),
+        ],
+        unqualified_values: [],
+      ),
+    ]),
+    #("encode", [
+      // import gleam/json.{type Json}
+      Import(
+        module: "gleam/json",
+        alias: None,
+        unqualified_types: [
+          UnqualifiedImport(
+            name: "Json",
+            alias: None,
+          ),
+        ],
+        unqualified_values: [],
+      ),
+    ]),
+  ]
 
 fn needs_util_import(type_: CustomType) -> Bool {
   is_multi_variant(type_) || uses_uuid(type_) || uses_birl_time(type_)

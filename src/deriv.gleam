@@ -144,7 +144,7 @@ pub fn gen_derivs(
 
       let type_aliases_gens =
         file
-        |> parse_types_and_derivations
+        |> parse_type_aliases_and_derivations
         |> list.flat_map(gen_type_derivs(_, file, gen_funcs, module_reader))
 
       [
@@ -221,10 +221,18 @@ fn to_deriv_type(
 ) -> #(deriv.Type, List(Derivation), DerivFieldOpts) {
     let #(type_, derivs, opts) = t
 
-    #(deriv.Type(type_), derivs, opts)
+    #(deriv.Type(type_:), derivs, opts)
 }
 
-fn parse_type_aliases_and_derivations(file: File) -> List(#(TypeAlias, List(Derivation), DerivFieldOpts)) {
+fn to_deriv_type_alias(
+  t: #(TypeAlias, List(Derivation), DerivFieldOpts),
+) -> #(deriv.Type, List(Derivation), DerivFieldOpts) {
+    let #(type_alias, derivs, opts) = t
+
+    #(deriv.TypeAlias(type_alias:), derivs, opts)
+}
+
+fn parse_type_aliases_and_derivations(file: File) -> List(#(deriv.Type, List(Derivation), DerivFieldOpts)) {
   let parsed =
     case glance.module(file.src) {
       Error(err) -> {
@@ -239,6 +247,7 @@ fn parse_type_aliases_and_derivations(file: File) -> List(#(TypeAlias, List(Deri
   parsed.type_aliases
   |> list.map(fn(ta) { ta.definition })
   |> list.map(parser.parse_type_aliases_with_derivations(_, file.src))
+  |> list.map(result.map(_, to_deriv_type_alias))
   |> result.values
 }
 

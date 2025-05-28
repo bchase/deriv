@@ -1765,6 +1765,10 @@ pub type Fields =
  let output = "
 import gleam/dynamic/decode.{type Decoder}
 
+pub type Fields =
+  //$ derive json decode
+  Dict(String, String)
+
 pub fn decoder_fields() -> Decoder(Fields) {
   decode.dict(decode.string, decode.string)
 }
