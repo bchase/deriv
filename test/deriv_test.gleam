@@ -1757,20 +1757,46 @@ pub fn json_decoder_local_type_alias_test() {
 
 // TODO
   let input = "
+// simple type alias
 pub type Fields =
   //$ derive json decode
   Dict(String, String)
+
+// recursive type aliases
+pub type Foo =
+  //$ derive json decode
+  Bar
+pub type Bar =
+  //$ derive json decode
+  String
   " |> string.trim
 
  let output = "
 import gleam/dynamic/decode.{type Decoder}
 
+// simple type alias
 pub type Fields =
   //$ derive json decode
   Dict(String, String)
 
+// recursive type aliases
+pub type Foo =
+  //$ derive json decode
+  Bar
+pub type Bar =
+  //$ derive json decode
+  String
+
 pub fn decoder_fields() -> Decoder(Fields) {
   decode.dict(decode.string, decode.string)
+}
+
+pub fn decoder_foo() -> Decoder(Foo) {
+  decode.string
+}
+
+pub fn decoder_bar() -> Decoder(Bar) {
+  decode.string
 }
   "
   |> string.trim

@@ -4,7 +4,7 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
-import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, VariableType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, type FunctionParameter, type Field, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, PatternDiscard, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture, FunctionType, type TypeAlias}
+import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, VariableType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, type FunctionParameter, type Field, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, PatternDiscard, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture, FunctionType, type TypeAlias, TypeAlias}
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt} as deriv
 import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
@@ -227,15 +227,18 @@ fn uses_list(type_: CustomType) -> Bool {
 fn gen_json_decoders(
   type_: deriv.Type,
   field_opts: DerivFieldOpts,
-  _file: File,
+  file: File,
 ) -> List(Definition(Function)) {
+  let assert Ok(glance.Module(type_aliases:, ..)) = glance.module(file.src)
+  let type_aliases = type_aliases |> list.map(fn(ta) { ta.definition })
+
   case type_ {
     deriv.TypeAlias(type_alias:)  ->
-      decoder_type_alias_func(type_alias, field_opts)
+      decoder_type_alias_func(type_alias, field_opts, type_aliases)
       |> list.wrap
 
     deriv.Type(type_:)  ->
-      decoder_type_func(type_, field_opts)
+      decoder_type_func(type_, field_opts, type_aliases)
   }
 }
 
@@ -707,10 +710,11 @@ fn type_params(
 fn decoder_type_func(
   type_: CustomType,
   all_field_opts: DerivFieldOpts,
+  type_aliases: List(TypeAlias),
 ) -> List(Definition(Function)) {
   let variant_funcs =
     type_.variants
-    |> list.map(decoder_type_variant_func(type_, _, all_field_opts))
+    |> list.map(decoder_type_variant_func(type_, _, all_field_opts, type_aliases))
 
   let TypeParams(
     decoder_func_params:,
@@ -765,6 +769,7 @@ fn decode_field_expr(
   field: VariantField,
   all_field_opts: DerivFieldOpts,
   local_decoders: List(String),
+  type_aliases: List(TypeAlias),
 ) -> #(String, Bool, Option(String), Expression) {
   let field = variant_field(field)
 
@@ -833,10 +838,10 @@ fn decode_field_expr(
           }
 
           _, _ ->
-            type_decode_expr(t, birl_time_kind, opts, local_decoders)
+            type_decode_expr(t, type_aliases, birl_time_kind, opts, local_decoders)
         }
       _, _, _ ->
-        type_decode_expr(t, birl_time_kind, opts, local_decoders)
+        type_decode_expr(t, type_aliases, birl_time_kind, opts, local_decoders)
     }
 
   let json_field_name =
@@ -869,6 +874,7 @@ fn decoder_type_variant_func(
   type_: CustomType,
   variant: Variant,
   all_field_opts: DerivFieldOpts,
+  type_aliases: List(TypeAlias),
 ) -> Definition(Function) {
   let name = decoder_type_variant_func_name(type_, variant)
 
@@ -884,7 +890,7 @@ fn decoder_type_variant_func(
 
   let pipe_exprs: List(#(String, Bool, Option(String), Expression)) =
     variant.fields
-    |> list.map(decode_field_expr(type_, variant, _, all_field_opts, decoder_names))
+    |> list.map(decode_field_expr(type_, variant, _, all_field_opts, decoder_names, type_aliases))
 
   let use_decode_field_exprs: List(Statement) =
     list.fold(pipe_exprs, [], fn(acc, x) {
@@ -1018,6 +1024,7 @@ fn decoder_type_variant_func(
 pub fn decoder_type_alias_func(
   type_alias: TypeAlias,
   _opt: DerivFieldOpts,
+  type_aliases: List(TypeAlias),
 ) -> Definition(Function) {
   let name = "decoder_" <> util.snake_case(type_alias.name)
 
@@ -1034,7 +1041,7 @@ pub fn decoder_type_alias_func(
 
   let body: List(Statement) =
     [Expression(
-      type_decode_expr(jtype(type_alias.aliased), birl_time_kind, [], [])
+      type_decode_expr(jtype(type_alias.aliased), type_aliases, birl_time_kind, [], [])
     )]
 
   Definition([],
@@ -1077,6 +1084,7 @@ fn unparameterized_type_decode_expr(
 
 fn type_decode_expr(
   type_: JType,
+  type_aliases: List(TypeAlias),
   birl_time_kind: BirlTimeKind,
   opts: List(DerivFieldOpt),
   local_decoders: List(String),
@@ -1093,7 +1101,7 @@ fn type_decode_expr(
       "Dict", params -> {
         let params =
           params
-          |> list.map(type_decode_expr(_, birl_time_kind, opts, local_decoders))
+          |> list.map(type_decode_expr(_, type_aliases, birl_time_kind, opts, local_decoders))
           |> list.map(UnlabelledField)
 
         Call(FieldAccess(Variable("decode"), "dict"), params)
@@ -1101,7 +1109,7 @@ fn type_decode_expr(
       "List", params -> {
         let params =
           params
-          |> list.map(type_decode_expr(_, birl_time_kind, opts, local_decoders))
+          |> list.map(type_decode_expr(_, type_aliases, birl_time_kind, opts, local_decoders))
           |> list.map(UnlabelledField)
 
         Call(FieldAccess(Variable("decode"), "list"), params)
@@ -1109,15 +1117,23 @@ fn type_decode_expr(
       "Option", params -> {
         let params =
           params
-          |> list.map(type_decode_expr(_, birl_time_kind, opts, local_decoders))
+          |> list.map(type_decode_expr(_, type_aliases, birl_time_kind, opts, local_decoders))
           |> list.map(UnlabelledField)
 
         Call(FieldAccess(Variable("decode"), "optional"), params)
       }
-      _, [] -> panic as {
-        "`deriv/json.type_decode_expr` doesn't know what to do with type: "
-          <> type_.name <> "\n" <> string.inspect(type_)
-      }
+      type_name, [] ->
+        case attempt_to_resolve_type_alias(type_name, type_aliases) {
+          Ok(TypeAlias(aliased: NamedType(..) as type_, ..)) ->
+            // panic as string.inspect(type_alias)
+            type_decode_expr(jtype(type_), type_aliases, birl_time_kind, opts, local_decoders)
+
+          _ ->
+            panic as {
+              "`deriv/json.type_decode_expr` doesn't know what to do with type: "
+                <> type_.name <> "\n" <> string.inspect(type_)
+            }
+        }
       _, params -> {
         let decoder_name = "decoder_" <> util.snake_case(type_.name)
 
@@ -1128,7 +1144,7 @@ fn type_decode_expr(
           False -> {
             let params =
               params
-              |> list.map(type_decode_expr(_, birl_time_kind, opts, local_decoders))
+              |> list.map(type_decode_expr(_, type_aliases, birl_time_kind, opts, local_decoders))
               |> list.map(UnlabelledField)
 
             Call(Variable(decoder_name), params)
@@ -1140,7 +1156,13 @@ fn type_decode_expr(
   // |> result.unwrap_both
 }
 
-
+fn attempt_to_resolve_type_alias(
+  type_name: String,
+  type_aliases: List(TypeAlias),
+) -> Result(TypeAlias, Nil) {
+  type_aliases
+  |> list.find(fn(ta) { ta.name == type_name })
+}
 
 // fn unparameterized_type_decode_expr_(
 //   opts: List(DerivFieldOpt),
