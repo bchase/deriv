@@ -11,7 +11,7 @@ import deriv/types.{type Derivation, Derivation, DerivField, type DerivFieldOpt,
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
 pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType, List(Derivation), DerivFieldOpts), Nil) {
-  let assert Ok(type_line_re) = regexp.compile("^(pub )?type\\s+?" <> type_.name <> "\\s*?[{]", regexp.Options(case_insensitive: False, multi_line: True))
+  let assert Ok(type_line_re) = regexp.compile("^(pub )?type\\s+?" <> type_.name, regexp.Options(case_insensitive: False, multi_line: True))
 
   case regexp.check(type_line_re, src) {
     False -> Error(Nil)
