@@ -5,39 +5,46 @@ import gleam/list
 import gleam/result
 import gleam/string
 import glance.{type CustomType, type Definition, type Function, type Variant, LabelledVariantField, Definition, Function, Public, FunctionParameter, Named, NamedType, Expression, Call, Variable, LabelledField, FieldAccess, Span}
-import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type DerivFieldOpt, type DerivField, DerivFieldOpt}
+import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type DerivFieldOpt, type DerivField, DerivFieldOpt} as deriv
 import deriv/util
 
 pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File) -> Gen
 
 pub fn gen(
-  type_: CustomType,
+  t: deriv.Type,
   deriv: Derivation,
   field_opts: DerivFieldOpts,
   file: File,
   module_reader: ModuleReader,
 ) -> Gen {
-  let overrides = build_field_overrides(field_opts, module_reader)
+  case t {
+    deriv.TypeAlias(..) ->
+      panic as "`deriv.TypeAlias` unimplemented for `deriv/unify` "
 
-  let idents = deriv.opts
+    deriv.Type(type_:) -> {
+      let overrides = build_field_overrides(field_opts, module_reader)
 
-  let imports = []
+      let idents = deriv.opts
 
-  let funcs =
-    unify(
-      type_,
-      idents,
-      overrides,
-      module_reader,
-    )
-    |> list.map(unify_func)
+      let imports = []
 
-  let src =
-    funcs
-    |> list.map(util.func_str)
-    |> string.join("\n\n")
+      let funcs =
+        unify(
+          type_,
+          idents,
+          overrides,
+          module_reader,
+        )
+        |> list.map(unify_func)
 
-  Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
+      let src =
+        funcs
+        |> list.map(util.func_str)
+        |> string.join("\n\n")
+
+      Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
+    }
+  }
 }
 
 fn build_field_overrides(

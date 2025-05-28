@@ -76,15 +76,15 @@ fn type_alias_src_from(
 
 fn type_alias_and_derivs_from(
   lines: List(String),
-) -> Result(#(TypeAlias, List(Derivation)), Nil) {
+) -> Result(#(TypeAlias, List(Derivation), DerivFieldOpts), Nil) {
   use #(type_alias, src) <- result.try(type_alias_src_from(lines))
 
   let derivs = parse_derivations_from_inside_type_def_lines(string.split(src, "\n"))
 
-  Ok(#(type_alias, derivs))
+  Ok(#(type_alias, derivs, dict.new()))
 }
 
-pub fn parse_type_aliases_with_derivations(type_: TypeAlias, src: String) -> Result(#(TypeAlias, List(Derivation)), Nil) {
+pub fn parse_type_aliases_with_derivations(type_: TypeAlias, src: String) -> Result(#(TypeAlias, List(Derivation), DerivFieldOpts), Nil) {
   let assert Ok(type_line_re) = regexp.compile("^(pub )?type\\s+?" <> type_.name <> "([(]|\\s|[=])", regexp.Options(case_insensitive: False, multi_line: True))
 
   case regexp.check(type_line_re, src) {

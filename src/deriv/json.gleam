@@ -5,7 +5,7 @@ import gleam/list
 import gleam/string
 import gleam/io
 import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, VariableType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, type FunctionParameter, type Field, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, PatternDiscard, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture, FunctionType, type TypeAlias}
-import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt}
+import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt} as deriv
 import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
 // TODO refactor
@@ -15,36 +15,43 @@ import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTi
 const deriv_variant_json_key = "_var"
 
 pub fn gen(
-  type_: CustomType,
+  t: deriv.Type,
   deriv: Derivation,
   field_opts: DerivFieldOpts,
   file: File,
   _module_reader: ModuleReader,
 ) -> Gen {
-  let opts = deriv.opts
+  case t {
+    deriv.TypeAlias(..) ->
+      panic as "`deriv.TypeAlias` unimplemented for `deriv/json` "
 
-  let gen_funcs_for_opts =
-    [
-      #("decode", gen_json_decoders),
-      #("encode", gen_json_encoders),
-    ]
-    |> dict.from_list
+    deriv.Type(type_:) -> {
+      let opts = deriv.opts
 
-  let imports =
-    gen_imports(opts, type_)
+      let gen_funcs_for_opts =
+        [
+          #("decode", gen_json_decoders),
+          #("encode", gen_json_encoders),
+        ]
+        |> dict.from_list
 
-  let funcs =
-    opts
-    |> list.map(dict.get(gen_funcs_for_opts, _))
-    |> result.values
-    |> list.flat_map(fn(f) { f(type_, field_opts, file)})
+      let imports =
+        gen_imports(opts, type_)
 
-  let src =
-    funcs
-    |> list.map(util.func_str)
-    |> string.join("\n\n")
+      let funcs =
+        opts
+        |> list.map(dict.get(gen_funcs_for_opts, _))
+        |> result.values
+        |> list.flat_map(fn(f) { f(type_, field_opts, file)})
 
-  Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
+      let src =
+        funcs
+        |> list.map(util.func_str)
+        |> string.join("\n\n")
+
+      Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
+    }
+  }
 }
 
 fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
@@ -962,7 +969,6 @@ pub fn decoder_type_alias_func(
   let TypeParams(
     decoder_func_params:,
     decoder_inner_type_params:,
-    decoder_names:,
     ..
   ) = type_params(type_alias.parameters)
 
