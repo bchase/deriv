@@ -72,11 +72,6 @@ const all_type_gen_funcs: List(#(String, GenFunc)) =
     #("into", deriv_into.gen),
   ]
 
-// const all_type_alias_gen_funcs: List(#(String, GenFunc)) =
-//   [
-//     #("json", deriv_json.gen_for_aliases),
-//   ]
-
 pub fn main() {
   // let r1 =
   //   [
@@ -147,12 +142,16 @@ pub fn gen_derivs(
         |> parse_types_and_derivations
         |> list.flat_map(gen_type_derivs(_, file, gen_funcs, module_reader))
 
-      // let type_aliases_gens =
-      //   file
-      //   |> parse_types_and_derivations
-      //   |> list.flat_map(gen_type_derivs(_, file, gen_funcs, module_reader))
+      let type_aliases_gens =
+        file
+        |> parse_types_and_derivations
+        |> list.flat_map(gen_type_derivs(_, file, gen_funcs, module_reader))
 
-      custom_type_gens
+      [
+        custom_type_gens,
+        type_aliases_gens,
+      ]
+      |> list.flatten
     })
     |> list.map(fn(gen) {
       Gen(..gen, meta: dict.from_list([#("source", "inline")]))

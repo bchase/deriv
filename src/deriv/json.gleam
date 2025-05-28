@@ -15,43 +15,42 @@ import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTi
 const deriv_variant_json_key = "_var"
 
 pub fn gen(
-  t: deriv.Type,
+  type_: deriv.Type,
   deriv: Derivation,
   field_opts: DerivFieldOpts,
   file: File,
   _module_reader: ModuleReader,
 ) -> Gen {
-  case t {
-    deriv.TypeAlias(..) ->
-      panic as "`deriv.TypeAlias` unimplemented for `deriv/json` "
+  let opts = deriv.opts
 
-    deriv.Type(type_:) -> {
-      let opts = deriv.opts
+  let gen_funcs_for_opts =
+    [
+      #("decode", gen_json_decoders),
+      #("encode", gen_json_encoders),
+    ]
+    |> dict.from_list
 
-      let gen_funcs_for_opts =
-        [
-          #("decode", gen_json_decoders),
-          #("encode", gen_json_encoders),
-        ]
-        |> dict.from_list
-
-      let imports =
+  let imports =
+    case type_ {
+      deriv.Type(type_:) ->
         gen_imports(opts, type_)
 
-      let funcs =
-        opts
-        |> list.map(dict.get(gen_funcs_for_opts, _))
-        |> result.values
-        |> list.flat_map(fn(f) { f(type_, field_opts, file)})
-
-      let src =
-        funcs
-        |> list.map(util.func_str)
-        |> string.join("\n\n")
-
-      Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
+      deriv.TypeAlias(..) ->
+        []
     }
-  }
+
+  let funcs =
+    opts
+    |> list.map(dict.get(gen_funcs_for_opts, _))
+    |> result.values
+    |> list.flat_map(fn(f) { f(type_, field_opts, file)})
+
+  let src =
+    funcs
+    |> list.map(util.func_str)
+    |> string.join("\n\n")
+
+  Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
 }
 
 fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
@@ -182,23 +181,35 @@ fn uses_list(type_: CustomType) -> Bool {
   })
 }
 
-
 fn gen_json_decoders(
-  type_: CustomType,
+  type_: deriv.Type,
   field_opts: DerivFieldOpts,
   _file: File,
 ) -> List(Definition(Function)) {
-  decoder_type_func(type_, field_opts)
+  case type_ {
+    deriv.TypeAlias(type_alias:)  ->
+      decoder_type_alias_func(type_alias, field_opts)
+      |> list.wrap
+
+    deriv.Type(type_:)  ->
+      decoder_type_func(type_, field_opts)
+  }
 }
 
 fn gen_json_encoders(
-  type_: CustomType,
+  type_: deriv.Type,
   all_field_opts: DerivFieldOpts,
   _file: File,
 ) -> List(Definition(Function)) {
   // TODO qualify imports using `file` (`idx`)
-  encode_type_func(type_, all_field_opts)
-  |> fn(func) { [ func ] }
+  case type_ {
+    deriv.TypeAlias(type_alias:)  ->
+      panic as "IMPLEMENT"
+
+    deriv.Type(type_:)  ->
+      encode_type_func(type_, all_field_opts)
+      |> fn(func) { [ func ] }
+  }
 }
 
 type VarField {
@@ -963,6 +974,7 @@ fn decoder_type_variant_func(
 // TODO priv
 pub fn decoder_type_alias_func(
   type_alias: TypeAlias,
+  _opt: DerivFieldOpts,
 ) -> Definition(Function) {
   let name = "decoder_" <> util.snake_case(type_alias.name)
 
