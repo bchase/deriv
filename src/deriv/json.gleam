@@ -4,7 +4,7 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
-import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, VariableType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, type FunctionParameter, type Field, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, PatternDiscard, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture}
+import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, VariableType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, type FunctionParameter, type Field, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, PatternDiscard, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture, FunctionType}
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt}
 import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
@@ -455,13 +455,28 @@ fn encode_variant_json_object_expr(
   )
 }
 
+// Ok(Module([Definition([], Import("gleam/json", None, [UnqualifiedImport("Json", None)], []))], [Definition([], CustomType("Field", Public, False, ["key", "val"], [Variant("Field", [LabelledVariantField(VariableType("key"), "key"), LabelledVariantField(VariableType("val"), "val")])]))], [], [], [Definition([], Function("encode_field", Public, [FunctionParameter(None, Named("value"), Some(NamedType("Field", None, [VariableType("key"), VariableType("val")]))), FunctionParameter(None, Named("encode_key"), Some(FunctionType([VariableType("key")], NamedType("Json", None, [])))), FunctionParameter(None, Named("encode_val"), Some(FunctionType([VariableType("val")], NamedType("Json", None, []))))], Some(NamedType("Json", None, [])), [Expression(Case([Variable("value")], [Clause([[PatternAssignment(PatternConstructor(None, "Field", [], True), "value")]], None, Call(FieldAccess(Variable("json"), "object"), [UnlabelledField(List([Tuple([String("key"), Call(Variable("encode_key"), [UnlabelledField(FieldAccess(Variable("value"), "key"))])]), Tuple([String("val"), Call(Variable("encode_val"), [UnlabelledField(FieldAccess(Variable("value"), "val"))])])], None))]))]))], Span(391, 669)))]))
+
 fn encode_type_func(
   type_: CustomType,
   all_field_opts all_field_opts: DerivFieldOpts,
 ) -> Definition(Function) {
   let name = "encode_" <> util.snake_case(type_.name)
 
-  let parameters = [FunctionParameter(None, Named("value"), Some(NamedType(type_.name, None, [])))]
+  let parameters =
+    [FunctionParameter(None, Named("value"), Some(NamedType(type_.name, None,
+      type_.parameters
+      |> list.map(VariableType)
+    )))]
+    |> list.append({
+      type_.parameters
+      |> list.map(fn(param_type_name) {
+        FunctionParameter(None, Named("encode_" <> param_type_name),
+          Some(FunctionType([VariableType(param_type_name)], NamedType("Json", None, [])))
+        )
+      })
+    })
+
   let return = Some(NamedType("Json", None, []))
 
   let encode_variant_clause_exprs =
