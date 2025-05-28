@@ -197,6 +197,11 @@ fn parse_types_and_derivations(file: File) -> List(#(CustomType, List(Derivation
       Ok(x) -> x
     }
 
+  parsed.type_aliases
+  |> list.map(fn(ta) { ta.definition })
+  |> list.map(parser.parse_type_aliases_with_derivations(_, file.src))
+  |> echo
+
   parsed.custom_types
   |> list.map(fn(ct) { ct.definition })
   |> list.map(parser.parse_type_with_derivations(_, file.src))

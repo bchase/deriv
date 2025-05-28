@@ -1,3 +1,4 @@
+import gleam/pair
 import gleam/option.{type Option, Some, None}
 import gleam/io
 import gleam/dict
@@ -5,13 +6,13 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/regexp.{Match}
-import glance.{type CustomType}
+import glance.{type CustomType, type TypeAlias}
 import deriv/types.{type Derivation, Derivation, DerivField, type DerivFieldOpt, DerivFieldOpt, type DerivFieldOpts}
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
 pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType, List(Derivation), DerivFieldOpts), Nil) {
-  let assert Ok(type_line_re) = regexp.compile("^(pub )?type\\s+?" <> type_.name, regexp.Options(case_insensitive: False, multi_line: True))
+  let assert Ok(type_line_re) = regexp.compile("^(pub )?type\\s+?" <> type_.name <> "([(]|\\s|[{])", regexp.Options(case_insensitive: False, multi_line: True))
 
   case regexp.check(type_line_re, src) {
     False -> Error(Nil)
@@ -53,6 +54,69 @@ pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(C
     }
   }
 }
+
+fn type_alias_src_from(
+  lines: List(String),
+) -> Result(#(TypeAlias, String), Nil) {
+  lines
+  |> list.fold_until(#(Error(Nil), ""), fn(acc, line) {
+    let #(_result, src) = acc
+    let src = string.join([src, line], "\n")
+
+    {
+      use module <- result.try(glance.module(src) |> result.replace_error(Nil))
+      use type_alias <- result.try(module.type_aliases |> list.first())
+
+      Ok(list.Stop(#(Ok(#(type_alias.definition, src)), src)))
+    }
+    |> result.unwrap(list.Continue(#(Error(Nil), src)))
+  })
+  |> pair.first
+}
+
+fn type_alias_and_derivs_from(
+  lines: List(String),
+) -> Result(#(TypeAlias, List(Derivation)), Nil) {
+  use #(type_alias, src) <- result.try(type_alias_src_from(lines))
+
+  let derivs = parse_derivations_from_inside_type_def_lines(string.split(src, "\n"))
+
+  Ok(#(type_alias, derivs))
+}
+
+pub fn parse_type_aliases_with_derivations(type_: TypeAlias, src: String) -> Result(#(TypeAlias, List(Derivation)), Nil) {
+  let assert Ok(type_line_re) = regexp.compile("^(pub )?type\\s+?" <> type_.name <> "([(]|\\s|[=])", regexp.Options(case_insensitive: False, multi_line: True))
+
+  case regexp.check(type_line_re, src) {
+    False -> Error(Nil)
+    True -> {
+      let lines_from_type_alias_start_to_eof =
+        src
+        |> string.split("\n")
+        |> list.drop_while(fn(line) {
+          !regexp.check(type_line_re, line)
+        })
+
+      type_alias_and_derivs_from(lines_from_type_alias_start_to_eof)
+    }
+  }
+}
+
+// fn parse_derivations_for_type_alias(lines: List(String)) -> List(Derivation) {
+//   lines
+//   |> list.map(fn(line) {
+//     case string.split(line, "//$") {
+//       [_, mc] ->
+//         parse_derivations(mc)
+//         |> result.unwrap([])
+
+//       _ ->
+//         []
+//     }
+//   })
+//   |> list.flatten
+//   |> list.reverse
+// }
 
 fn parse_derivations_from_inside_type_def_lines(lines: List(String)) -> List(Derivation) {
   lines
