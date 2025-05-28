@@ -1,3 +1,4 @@
+import gleam/pair
 import gleam/option.{Some, None}
 import gleam/dict.{type Dict}
 import gleam/int
@@ -200,6 +201,8 @@ fn parse_types_and_derivations(file: File) -> List(#(CustomType, List(Derivation
   parsed.type_aliases
   |> list.map(fn(ta) { ta.definition })
   |> list.map(parser.parse_type_aliases_with_derivations(_, file.src))
+  |> list.map(result.map(_, pair.first))
+  |> list.map(result.map(_, deriv_json.decoder_type_alias_func))
   |> echo
 
   parsed.custom_types

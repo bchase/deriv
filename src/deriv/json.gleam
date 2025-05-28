@@ -4,7 +4,7 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/io
-import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, VariableType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, type FunctionParameter, type Field, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, PatternDiscard, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture, FunctionType}
+import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, VariableType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, type FunctionParameter, type Field, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, PatternDiscard, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture, FunctionType, type TypeAlias}
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt}
 import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
@@ -609,10 +609,10 @@ type TypeParams {
 }
 
 fn type_params(
-  type_: CustomType,
+  type_parameters: List(String),
 ) -> TypeParams {
   let decoder_names =
-    type_.parameters
+    type_parameters
     |> list.map(fn(param_type_name) {
       "decoder_" <> param_type_name
     })
@@ -624,11 +624,11 @@ fn type_params(
     })
 
   let decoder_inner_type_params =
-    type_.parameters
+    type_parameters
     |> list.map(VariableType)
 
   let decoder_func_params =
-    type_.parameters
+    type_parameters
     |> list.map(fn(param_type_name) {
       let decoder_type = NamedType("Decoder", None, [VariableType(param_type_name)])
       let param_name = Named("decoder_" <> param_type_name)
@@ -656,7 +656,7 @@ fn decoder_type_func(
     decoder_inner_type_params:,
     decoder_calls:,
     ..
-  ) = type_params(type_)
+  ) = type_params(type_.parameters)
 
   let body = {
     let #(first_decoder_call_expr, rest_decoder_call_exprs) =
@@ -816,7 +816,7 @@ fn decoder_type_variant_func(
     decoder_inner_type_params:,
     decoder_names:,
     ..
-  ) = type_params(type_)
+  ) = type_params(type_.parameters)
 
   let parameters: List(glance.FunctionParameter) = decoder_func_params
   let return: Option(Type) = Some(NamedType("Decoder", None, [NamedType(type_.name, None, decoder_inner_type_params)]))
@@ -953,6 +953,41 @@ fn decoder_type_variant_func(
   )
 }
 
+// TODO priv
+pub fn decoder_type_alias_func(
+  type_alias: TypeAlias,
+) -> Definition(Function) {
+  let name = "decoder_" <> util.snake_case(type_alias.name)
+
+  let TypeParams(
+    decoder_func_params:,
+    decoder_inner_type_params:,
+    decoder_names:,
+    ..
+  ) = type_params(type_alias.parameters)
+
+  let parameters: List(glance.FunctionParameter) = decoder_func_params
+  let return: Option(Type) = Some(NamedType("Decoder", None, [NamedType(type_alias.name, None, decoder_inner_type_params)]))
+
+  let birl_time_kind = BirlTimeISO8601 // TODO (?) allow deriv opt?
+
+  let body: List(Statement) =
+    [Expression(
+      type_decode_expr(jtype(type_alias.aliased), birl_time_kind, [], [])
+    )]
+
+  Definition([],
+    Function(
+      location: dummy_location(),
+      publicity: Public,
+      name:,
+      parameters:,
+      return:,
+      body:,
+    )
+  )
+}
+
 fn unparameterized_type_decode_expr(
   type_name: String,
   birl_time_kind: BirlTimeKind,
@@ -994,6 +1029,14 @@ fn type_decode_expr(
       "Bool", _ -> FieldAccess(Variable("decode"), "bool")
       "Uuid", _ -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
       "Time", _ -> birl_time_decode_expr(birl_time_kind)
+      "Dict", params -> {
+        let params =
+          params
+          |> list.map(type_decode_expr(_, birl_time_kind, opts, local_decoders))
+          |> list.map(UnlabelledField)
+
+        Call(FieldAccess(Variable("decode"), "dict"), params)
+      }
       "List", params -> {
         let params =
           params
