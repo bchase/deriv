@@ -10,6 +10,7 @@ import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTi
 
 // TODO refactor
 //   - `unparameterized_type_decode_expr` should be able to be replaced with `type_decode_expr`
+//   - `unparameterized_type_encode_expr` should be able to be replaced with `type_encode_expr`
 
 const deriv_variant_json_key = "_var"
 
@@ -245,13 +246,58 @@ fn json_field_name(field: VarField, field_opts: List(DerivFieldOpt)) -> String {
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
- fn unparameterized_type_encode_expr(
-   type_name: String,
-   birl_time_kind: BirlTimeKind,
-   wrap wrap: Option(fn(Expression) -> Expression)
+fn type_encode_expr(
+  type_: JType,
+  field: VarField,
+  birl_time_kind: BirlTimeKind,
+  wrap wrap: Option(fn(Expression) -> Expression)
 ) -> Expression {
   let expr =
-     case type_name {
+    case type_.name, type_.parameters {
+      "Int", _ -> FieldAccess(Variable("json"), "int")
+      "Float", _ -> FieldAccess(Variable("json"), "float")
+      "String", _ -> FieldAccess(Variable("json"), "string")
+      "Bool", _ -> FieldAccess(Variable("json"), "bool")
+      "Uuid", _ -> FieldAccess(Variable("util"), "encode_uuid")
+      "Time", _ -> birl_time_encode_expr(birl_time_kind)
+      // _, [] -> panic as {
+      //   "`deriv/json.type_encode_expr` doesn't know what to do with type: "
+      //     <> type_.name <> "\n" <> string.inspect(type_)
+      // }
+      _, params -> {
+        let encoder_name = "encode_" <> util.snake_case(type_.name)
+        case params {
+          [] ->
+            Variable(encoder_name)
+
+          params -> {
+            let params =
+              [UnlabelledField(FieldAccess(Variable("value"), field.name))]
+              |> list.append({
+                params
+                |> list.map(type_encode_expr(_, field, birl_time_kind, wrap))
+                |> list.map(UnlabelledField)
+              })
+
+            Call(Variable(encoder_name), params)
+          }
+        }
+      }
+    }
+
+  case wrap {
+    None -> expr
+    Some(f) -> f(expr)
+  }
+}
+
+fn unparameterized_type_encode_expr(
+  type_name: String,
+  birl_time_kind: BirlTimeKind,
+  wrap wrap: Option(fn(Expression) -> Expression)
+) -> Expression {
+  let expr =
+    case type_name {
       "Int" -> FieldAccess(Variable("json"), "int")
       "Float" -> FieldAccess(Variable("json"), "float")
       "String" -> FieldAccess(Variable("json"), "string")
@@ -259,7 +305,7 @@ pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
       "Uuid" -> FieldAccess(Variable("util"), "encode_uuid")
       "Time" -> birl_time_encode_expr(birl_time_kind)
       _ -> Variable("encode_" <> util.snake_case(type_name))
-     }
+    }
 
   case wrap {
     None -> expr
@@ -354,16 +400,12 @@ fn encode_field(
             ]
           )
         }
-        _, _ -> {
-          io.debug(ftype)
-          panic as "Not yet implemented for type printed above"
-        }
+        _, _ ->
+          type_encode_expr(ftype, field, birl_time_kind, None)
       }
 
-    _, _ -> {
-      io.debug(ftype)
-      panic as "Not yet implemented for type printed above"
-    }
+    _, _ ->
+      type_encode_expr(ftype, field, birl_time_kind, None)
   }
 }
 
@@ -927,7 +969,7 @@ fn type_decode_expr(
         Call(FieldAccess(Variable("decode"), "optional"), params)
       }
       _, [] -> panic as {
-        "`deriv.type_decode_expr` doesn't know what to do with type: "
+        "`deriv/json.type_decode_expr` doesn't know what to do with type: "
           <> type_.name <> "\n" <> string.inspect(type_)
       }
       _, params -> {

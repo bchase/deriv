@@ -1619,15 +1619,15 @@ pub type Field(key, val) {
   )
 }
 
-// pub type Foo {
-//   //$ derive json encode
-//   Foo(
-//     scalar: Field(String, String),
-//     //  list: List(Field(String, String)),
-//     //  option: Option(Field(String, String)),
-//     //  option_list: Option(List(Field(String, String))),
-//   )
-// }
+pub type Foo {
+  //$ derive json encode
+  Foo(
+    scalar: Field(String, String),
+    //  list: List(Field(String, String)),
+    //  option: Option(Field(String, String)),
+    //  option_list: Option(List(Field(String, String))),
+  )
+}
   " |> string.trim
 
  let output = "
@@ -1641,15 +1641,15 @@ pub type Field(key, val) {
   )
 }
 
-// pub type Foo {
-//   //$ derive json encode
-//   Foo(
-//     scalar: Field(String, String),
-//     //  list: List(Field(String, String)),
-//     //  option: Option(Field(String, String)),
-//     //  option_list: Option(List(Field(String, String))),
-//   )
-// }
+pub type Foo {
+  //$ derive json encode
+  Foo(
+    scalar: Field(String, String),
+    //  list: List(Field(String, String)),
+    //  option: Option(Field(String, String)),
+    //  option_list: Option(List(Field(String, String))),
+  )
+}
 
 pub fn encode_field(
   value: Field(key, val),
@@ -1661,6 +1661,15 @@ pub fn encode_field(
       json.object([
         #(\"key\", encode_key(value.key)),
         #(\"val\", encode_val(value.val)),
+      ])
+  }
+}
+
+pub fn encode_foo(value: Foo) -> Json {
+  case value {
+    Foo(..) as value ->
+      json.object([
+        #(\"scalar\", encode_field(value.scalar, json.string, json.string)),
       ])
   }
 }
