@@ -1575,6 +1575,8 @@ pub type Foo {
   Foo(
     scalar: Field(String, String),
     list: List(Field(String, String)),
+    option: Option(Field(String, String)),
+    option_list: Option(List(Field(String, String))),
   )
 }
   " |> string.trim
@@ -1582,6 +1584,7 @@ pub type Foo {
  let output = "
 import gleam/dynamic/decode.{type Decoder}
 import gleam/list
+import gleam/option.{None}
 
 pub type Field(key, val) {
   //$ derive json decode
@@ -1596,6 +1599,8 @@ pub type Foo {
   Foo(
     scalar: Field(String, String),
     list: List(Field(String, String)),
+    option: Option(Field(String, String)),
+    option_list: Option(List(Field(String, String))),
   )
 }
 
@@ -1628,7 +1633,17 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     \"list\",
     decode.list(decoder_field(decode.string, decode.string)),
   )
-  decode.success(Foo(scalar:, list:))
+  use option <- decode.optional_field(
+    \"option\",
+    None,
+    decode.optional(decoder_field(decode.string, decode.string)),
+  )
+  use option_list <- decode.optional_field(
+    \"option_list\",
+    None,
+    decode.optional(decode.list(decoder_field(decode.string, decode.string))),
+  )
+  decode.success(Foo(scalar:, list:, option:, option_list:))
 }
   "
   |> string.trim
@@ -1719,7 +1734,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
       decode.string,
     ))
   )
-  use option <- decode.optional_field("list", None,
+  use option <- decode.optional_field("option", None,
     decode.optional(
       decoder_field(
         decode.string,

@@ -903,6 +903,14 @@ fn type_decode_expr(
 
         Call(FieldAccess(Variable("decode"), "list"), params)
       }
+      "Option", params -> {
+        let params =
+          params
+          |> list.map(type_decode_expr(_, birl_time_kind, opts, local_decoders))
+          |> list.map(UnlabelledField)
+
+        Call(FieldAccess(Variable("decode"), "optional"), params)
+      }
       _, [] -> panic as {
         "`deriv.type_decode_expr` doesn't know what to do with type: "
           <> type_.name <> "\n" <> string.inspect(type_)
