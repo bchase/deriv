@@ -1429,7 +1429,7 @@ pub fn main() {
 //  |> should.equal(output)
 //}
 
-pub fn parameterized_type_test() {
+pub fn json_parameterized_type_decoder_test() {
   let module_reader: types.ModuleReader = fn(ident) {
     case ident {
       // "project/asdf/foo" -> {
@@ -1530,4 +1530,212 @@ pub fn decoder_field_field(
 
   write.src
   |> should.equal(output)
+}
+
+pub fn json_parameterized_type_decoder_instance_test() {
+  let module_reader: types.ModuleReader = fn(ident) {
+    case ident {
+      // "project/asdf/foo" -> {
+      //   let foo_src = "
+// pub type Field(t) {
+  // Field(
+    // id: String,
+    // value: t,
+  // )
+// }
+      //   " |> string.trim
+
+      //   let parse = fn(src) {
+      //     glance.module(src)
+      //     |> result.map_error(types.GlanceErr)
+      //   }
+
+      //   parse(foo_src)
+      // }
+
+      _ -> {
+        io.debug(ident)
+        panic as "`module_reader` miss in `parameterized_type_test`"
+      }
+    }
+  }
+
+// TODO
+  let input = "
+pub type Field(key, val) {
+  //$ derive json decode
+  Field(
+    key: key,
+    val: val,
+  )
+}
+
+pub type Foo {
+  //$ derive json decode
+  Foo(
+    scalar: Field(String, String),
+    list: List(Field(String, String)),
+  )
+}
+  " |> string.trim
+
+ let output = "
+import gleam/dynamic/decode.{type Decoder}
+import gleam/list
+
+pub type Field(key, val) {
+  //$ derive json decode
+  Field(
+    key: key,
+    val: val,
+  )
+}
+
+pub type Foo {
+  //$ derive json decode
+  Foo(
+    scalar: Field(String, String),
+    list: List(Field(String, String)),
+  )
+}
+
+pub fn decoder_field(
+  decoder_key: Decoder(key),
+  decoder_val: Decoder(val),
+) -> Decoder(Field(key, val)) {
+  decode.one_of(decoder_field_field(decoder_key, decoder_val), [])
+}
+
+pub fn decoder_field_field(
+  decoder_key: Decoder(key),
+  decoder_val: Decoder(val),
+) -> Decoder(Field(key, val)) {
+  use key <- decode.field(\"key\", decoder_key)
+  use val <- decode.field(\"val\", decoder_val)
+  decode.success(Field(key:, val:))
+}
+
+pub fn decoder_foo() -> Decoder(Foo) {
+  decode.one_of(decoder_foo_foo(), [])
+}
+
+pub fn decoder_foo_foo() -> Decoder(Foo) {
+  use scalar <- decode.field(
+    \"scalar\",
+    decoder_field(decode.string, decode.string),
+  )
+  use list <- decode.field(
+    \"list\",
+    decode.list(decoder_field(decode.string, decode.string)),
+  )
+  decode.success(Foo(scalar:, list:))
+}
+  "
+  |> string.trim
+
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let writes =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let assert [write] =
+    writes
+
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
+
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
+
+  write.src
+  |> should.equal(output)
+}
+
+pub type Field(key, val) {
+  //$ derive json decode
+  Field(
+    key: key,
+    val: val,
+  )
+}
+
+pub type Foo {
+  //$ derive json decode
+  Foo(
+    scalar: Field(String, String),
+    list: List(Field(String, String)),
+    option: Option(Field(String, String)),
+    option_list: Option(List(Field(String, String))),
+  )
+}
+
+pub fn decoder_field(
+  decoder_key: Decoder(key),
+  decoder_val: Decoder(val),
+) -> Decoder(Field(key, val)) {
+  decode.one_of(decoder_field_field(decoder_key, decoder_val), [])
+}
+
+pub fn decoder_field_field(
+  decoder_key: Decoder(key),
+  decoder_val: Decoder(val),
+) -> Decoder(Field(key, val)) {
+  use key <- decode.field("key", decoder_key)
+  use val <- decode.field("val", decoder_val)
+  decode.success(Field(key:, val:))
+}
+
+pub fn decoder_foo() -> Decoder(Foo) {
+  decode.one_of(decoder_foo_foo(), [])
+}
+
+pub fn decoder_foo_foo() -> Decoder(Foo) {
+  use scalar <- decode.field("scalar",
+    decoder_field(
+      decode.string,
+      decode.string,
+    )
+  )
+  use list <- decode.field("list",
+    decode.list(decoder_field(
+      decode.string,
+      decode.string,
+    ))
+  )
+  use option <- decode.optional_field("list", None,
+    decode.optional(
+      decoder_field(
+        decode.string,
+        decode.string,
+      )
+    )
+  )
+  use option_list <- decode.optional_field("option_list", None,
+    decode.optional(
+      decode.list(
+        decoder_field(
+          decode.string,
+          decode.string,
+        )
+      )
+    )
+  )
+  decode.success(Foo(scalar:, list:, option:, option_list:))
 }

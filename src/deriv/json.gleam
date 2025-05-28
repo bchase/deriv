@@ -8,6 +8,9 @@ import glance.{type CustomType, type Variant, type VariantField, LabelledVariant
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt}
 import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
+// TODO refactor
+//   - `unparameterized_type_decode_expr` should be able to be replaced with `type_decode_expr`
+
 const deriv_variant_json_key = "_var"
 
 pub fn gen(
@@ -626,7 +629,7 @@ fn decode_field_expr(
           UnlabelledField(Call(FieldAccess(Variable("decode"), "list"), [inner]))
         ])
       }
-      _,_,  [] -> unparameterized_type_decode_expr(t.name, birl_time_kind, opts, local_decoders)
+      _, _, [] -> unparameterized_type_decode_expr(t.name, birl_time_kind, opts, local_decoders)
       _, _, [JType(parameters: [], ..) as param] ->
         case t.name {
           "List" -> {
@@ -652,7 +655,7 @@ fn decode_field_expr(
             panic as "unimplemented"
           }
         }
-      _, _, [
+      _no_decoder_specified, _jtype_parameterized, [
         JType(parameters: [], ..) as key_param,
         JType(parameters: [], ..) as val_param,
       ] ->
@@ -669,15 +672,11 @@ fn decode_field_expr(
             )
           }
 
-          _, _ -> {
-            io.debug(field)
-            panic as "unimplemented"
-          }
+          _, _ ->
+            type_decode_expr(t, birl_time_kind, opts, local_decoders)
         }
-      _, _, _ -> {
-        io.debug(field)
-        panic as "unimplemented"
-      }
+      _, _, _ ->
+        type_decode_expr(t, birl_time_kind, opts, local_decoders)
     }
 
   let json_field_name =
@@ -693,6 +692,18 @@ fn decode_field_expr(
 
   #(field.name, is_option, Some(json_field_name), expr) // TODO always `Some`
 }
+
+// fn decode_field_expr_for_parameterized_type(
+//   t: JType,
+//   // field: VarField,
+// ) -> Expression {
+// // JType("Field", None, [JType("String", None, []), JType("String", None, [])])
+// // VarField("scalar", NamedType("Field", None, [NamedType("String", None, []), NamedType("String", None, [])]))
+//   case t.name, t.module, t.parameters {
+//     _, _, _ -> todo
+//   }
+//   // Call(FieldAccess(Variable("decode"), "list"), [inner])
+// }
 
 fn decoder_type_variant_func(
   type_: CustomType,
@@ -849,29 +860,76 @@ fn unparameterized_type_decode_expr(
   _opts: List(DerivFieldOpt),
   local_decoders: List(String),
 ) -> Expression {
+  case type_name {
+    "Int" -> FieldAccess(Variable("decode"), "int")
+    "Float" -> FieldAccess(Variable("decode"), "float")
+    "String" -> FieldAccess(Variable("decode"), "string")
+    "Bool" -> FieldAccess(Variable("decode"), "bool")
+    "Uuid" -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
+    "Time" -> birl_time_decode_expr(birl_time_kind)
+    _ -> {
+      let decoder_name = "decoder_" <> util.snake_case(type_name)
+      case decoder_name |> list.contains(local_decoders, _) {
+        True ->
+          Variable(decoder_name)
+
+        False ->
+          Call(Variable(decoder_name), [])
+      }
+    }
+  }
+}
+
+fn type_decode_expr(
+  type_: JType,
+  birl_time_kind: BirlTimeKind,
+  opts: List(DerivFieldOpt),
+  local_decoders: List(String),
+) -> Expression {
   // unparameterized_type_decode_expr_(opts)
   // |> result.map_error(fn(_nil) {
-    case type_name {
-      "Int" -> FieldAccess(Variable("decode"), "int")
-      "Float" -> FieldAccess(Variable("decode"), "float")
-      "String" -> FieldAccess(Variable("decode"), "string")
-      "Bool" -> FieldAccess(Variable("decode"), "bool")
-      "Uuid" -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
-      "Time" -> birl_time_decode_expr(birl_time_kind)
-      _ -> {
-        let decoder_name = "decoder_" <> util.snake_case(type_name)
+    case type_.name, type_.parameters {
+      "Int", _ -> FieldAccess(Variable("decode"), "int")
+      "Float", _ -> FieldAccess(Variable("decode"), "float")
+      "String", _ -> FieldAccess(Variable("decode"), "string")
+      "Bool", _ -> FieldAccess(Variable("decode"), "bool")
+      "Uuid", _ -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
+      "Time", _ -> birl_time_decode_expr(birl_time_kind)
+      "List", params -> {
+        let params =
+          params
+          |> list.map(type_decode_expr(_, birl_time_kind, opts, local_decoders))
+          |> list.map(UnlabelledField)
+
+        Call(FieldAccess(Variable("decode"), "list"), params)
+      }
+      _, [] -> panic as {
+        "`deriv.type_decode_expr` doesn't know what to do with type: "
+          <> type_.name <> "\n" <> string.inspect(type_)
+      }
+      _, params -> {
+        let decoder_name = "decoder_" <> util.snake_case(type_.name)
+
         case decoder_name |> list.contains(local_decoders, _) {
           True ->
             Variable(decoder_name)
 
-          False ->
-            Call(Variable(decoder_name), [])
+          False -> {
+            let params =
+              params
+              |> list.map(type_decode_expr(_, birl_time_kind, opts, local_decoders))
+              |> list.map(UnlabelledField)
+
+            Call(Variable(decoder_name), params)
+          }
         }
       }
     }
   // })
   // |> result.unwrap_both
 }
+
+
 
 // fn unparameterized_type_decode_expr_(
 //   opts: List(DerivFieldOpt),
