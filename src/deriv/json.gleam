@@ -250,6 +250,7 @@ fn type_encode_expr(
   type_: JType,
   field: VarField,
   birl_time_kind: BirlTimeKind,
+  encode_param encode_param: Option(Field(Expression)),
   wrap wrap: Option(fn(Expression) -> Expression)
 ) -> Expression {
   let expr =
@@ -260,6 +261,22 @@ fn type_encode_expr(
       "Bool", _ -> FieldAccess(Variable("json"), "bool")
       "Uuid", _ -> FieldAccess(Variable("util"), "encode_uuid")
       "Time", _ -> birl_time_encode_expr(birl_time_kind)
+      "List", params -> {
+        let params =
+          [
+            UnlabelledField(FieldAccess(Variable("value"), field.name))
+          ]
+          |> list.append({
+            params
+            |> list.map(type_encode_expr(_, field, birl_time_kind, wrap: None, encode_param: {
+              Some(UnlabelledField(Variable("_")))
+            }))
+            // |> list.map(type_encode_expr(_, field, birl_time_kind, Some(glance.Discarded("")), wrap))
+            |> list.map(UnlabelledField)
+          })
+
+        Call(FieldAccess(Variable("json"), "array"), params)
+      }
       // _, [] -> panic as {
       //   "`deriv/json.type_encode_expr` doesn't know what to do with type: "
       //     <> type_.name <> "\n" <> string.inspect(type_)
@@ -272,10 +289,19 @@ fn type_encode_expr(
 
           params -> {
             let params =
-              [UnlabelledField(FieldAccess(Variable("value"), field.name))]
+              [
+                case encode_param {
+                  Some(encode_param) ->
+                    encode_param |> echo
+
+                  None ->
+                    UnlabelledField(FieldAccess(Variable("value"), field.name))
+                }
+              ]
+
               |> list.append({
                 params
-                |> list.map(type_encode_expr(_, field, birl_time_kind, wrap))
+                |> list.map(type_encode_expr(_, field, birl_time_kind, None, None))
                 |> list.map(UnlabelledField)
               })
 
@@ -401,11 +427,11 @@ fn encode_field(
           )
         }
         _, _ ->
-          type_encode_expr(ftype, field, birl_time_kind, None)
+          type_encode_expr(ftype, field, birl_time_kind, None, None)
       }
 
     _, _ ->
-      type_encode_expr(ftype, field, birl_time_kind, None)
+      type_encode_expr(ftype, field, birl_time_kind, None, None)
   }
 }
 

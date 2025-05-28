@@ -1623,7 +1623,7 @@ pub type Foo {
   //$ derive json encode
   Foo(
     scalar: Field(String, String),
-    //  list: List(Field(String, String)),
+    list: List(Field(String, String)),
     //  option: Option(Field(String, String)),
     //  option_list: Option(List(Field(String, String))),
   )
@@ -1632,6 +1632,7 @@ pub type Foo {
 
  let output = "
 import gleam/json.{type Json}
+import gleam/list
 
 pub type Field(key, val) {
   //$ derive json encode
@@ -1645,7 +1646,7 @@ pub type Foo {
   //$ derive json encode
   Foo(
     scalar: Field(String, String),
-    //  list: List(Field(String, String)),
+    list: List(Field(String, String)),
     //  option: Option(Field(String, String)),
     //  option_list: Option(List(Field(String, String))),
   )
@@ -1670,6 +1671,10 @@ pub fn encode_foo(value: Foo) -> Json {
     Foo(..) as value ->
       json.object([
         #(\"scalar\", encode_field(value.scalar, json.string, json.string)),
+        #(
+          \"list\",
+          json.array(value.list, encode_field(_, json.string, json.string)),
+        ),
       ])
   }
 }
@@ -1750,6 +1755,7 @@ pub fn encode_foo(
     Foo(..) as value ->
       json.object([
         #("scalar", encode_field(value.scalar, json.string, json.string)),
+        #("list", json.array(value.list, encode_field(_, json.string, json.string))),
       ])
   }
 }
