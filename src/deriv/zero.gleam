@@ -4,28 +4,36 @@ import gleam/list
 import gleam/result
 import gleam/string
 import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type Span, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, Span, List, UnlabelledField, String, Int, Float}
-import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader}
+import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/util
 
+
 pub fn gen(
-  type_: CustomType,
+  t: deriv.Type,
   deriv: Derivation,
   _field_opts: DerivFieldOpts,
   file: File,
   _module_reader: ModuleReader,
 ) -> Gen {
-  let imports = gen_imports(type_)
+  case t {
+    deriv.TypeAlias(..) ->
+      panic as "`deriv.TypeAlias` unimplemented for `deriv/zero` "
 
-  let funcs =
-    zero_func(type_)
-    |> list.wrap
+    deriv.Type(type_:) -> {
+      let imports = gen_imports(type_)
 
-  let src = ""
-    funcs
-    |> list.map(util.func_str)
-    |> string.join("\n\n")
+      let funcs =
+        zero_func(type_)
+        |> list.wrap
 
-  Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
+      let src = ""
+        funcs
+        |> list.map(util.func_str)
+        |> string.join("\n\n")
+
+      Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
+    }
+  }
 }
 
 fn gen_imports(

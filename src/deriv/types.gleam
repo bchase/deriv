@@ -3,7 +3,12 @@ import gleam/dict.{type Dict}
 import glance.{type Module, type CustomType, type Import, type Definition}
 import simplifile
 
-pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File, ModuleReader) -> Gen
+pub type Type {
+  Type(type_: glance.CustomType)
+  TypeAlias(type_alias: glance.TypeAlias)
+}
+
+pub type GenFunc = fn(Type, Derivation, DerivFieldOpts, File, ModuleReader) -> Gen
 
 pub type ModuleReaderErr {
   FileErr(simplifile.FileError)
