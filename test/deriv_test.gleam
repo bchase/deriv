@@ -1759,44 +1759,57 @@ pub fn json_decoder_local_type_alias_test() {
   let input = "
 // simple type alias
 pub type Fields =
-  //$ derive json decode
+  //$ derive json decode encode
   Dict(String, String)
 
 // recursive type aliases
 pub type Foo =
-  //$ derive json decode
+  //$ derive json decode encode
   Bar
 pub type Bar =
-  //$ derive json decode
+  //$ derive json decode encode
   String
   " |> string.trim
 
  let output = "
 import gleam/dynamic/decode.{type Decoder}
+import gleam/json.{type Json}
 
 // simple type alias
 pub type Fields =
-  //$ derive json decode
+  //$ derive json decode encode
   Dict(String, String)
 
 // recursive type aliases
 pub type Foo =
-  //$ derive json decode
+  //$ derive json decode encode
   Bar
 pub type Bar =
-  //$ derive json decode
+  //$ derive json decode encode
   String
 
 pub fn decoder_fields() -> Decoder(Fields) {
   decode.dict(decode.string, decode.string)
 }
 
+pub fn encode_fields(value: Fields) -> Json {
+  json.dict(value, string.inspect, json.string)
+}
+
 pub fn decoder_foo() -> Decoder(Foo) {
   decode.string
 }
 
+pub fn encode_foo(value: Foo) -> Json {
+  encode_bar(value)
+}
+
 pub fn decoder_bar() -> Decoder(Bar) {
   decode.string
+}
+
+pub fn encode_bar(value: Bar) -> Json {
+  json.string(value)
 }
   "
   |> string.trim
@@ -1838,19 +1851,34 @@ pub fn decoder_bar() -> Decoder(Bar) {
 
 // simple type alias
 pub type Fields =
-  //$ derive json decode
+  //$ derive json decode encode
   Dict(String, String)
 pub fn decoder_fields() -> Decoder(Fields) {
   decode.dict(decode.string, decode.string)
 }
+pub fn encode_fields(value: Fields) -> Json {
+  json.dict(value, string.inspect, json.string)
+}
 
 // recursive type aliases
 pub type Foo =
-  //$ derive json decode
+  //$ derive json decode encode
   String
 pub type Bar =
-  //$ derive json decode
+  //$ derive json decode encode
   Foo
+pub fn decoder_foo() -> Decoder(Foo) {
+  decode.string
+}
+pub fn decoder_bar() -> Decoder(Bar) {
+  decode.string
+}
+pub fn encode_foo(value: Foo) -> Json {
+  json.string(value)
+}
+pub fn encode_bar(value: Bar) -> Json {
+  json.string(value)
+}
 
 // pub type Foo {
 //   Foo(

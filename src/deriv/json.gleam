@@ -14,6 +14,13 @@ import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTi
 
 const deriv_variant_json_key = "_var"
 
+// type Context {
+//   Context(
+//     all_field_opts: DerivFieldOpts,
+//     type_aliases: List(TypeAlias),
+//   )
+// }
+
 pub fn gen(
   type_: deriv.Type,
   deriv: Derivation,
@@ -250,7 +257,8 @@ fn gen_json_encoders(
   // TODO qualify imports using `file` (`idx`)
   case type_ {
     deriv.TypeAlias(type_alias:)  ->
-      panic as "IMPLEMENT"
+      encode_type_alias_func(type_alias, all_field_opts)
+      |> fn(func) { [ func ] }
 
     deriv.Type(type_:)  ->
       encode_type_func(type_, all_field_opts)
@@ -312,76 +320,105 @@ pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
 fn type_encode_expr(
   type_: JType,
-  field: VarField,
+  type_alias: Bool,
   birl_time_kind: BirlTimeKind,
-  encode_param encode_param: Option(Field(Expression)),
+  encode_arg encode_arg: Field(Expression),
   wrap wrap: Option(fn(Expression) -> Expression)
 ) -> Expression {
-  let arg =
-    case encode_param {
-      Some(encode_param) ->
-        encode_param
-
-      None ->
-        UnlabelledField(FieldAccess(Variable("value"), field.name))
+  let handle_type_aliases =
+    fn(expr) {
+      case type_alias {
+        True -> Call(expr, [encode_arg])
+        False -> expr
+      }
     }
 
   let expr =
-    case type_.name, type_.parameters {
-      "Int", _ -> FieldAccess(Variable("json"), "int")
-      "Float", _ -> FieldAccess(Variable("json"), "float")
-      "String", _ -> FieldAccess(Variable("json"), "string")
-      "Bool", _ -> FieldAccess(Variable("json"), "bool")
-      "Uuid", _ -> FieldAccess(Variable("util"), "encode_uuid")
-      "Time", _ -> birl_time_encode_expr(birl_time_kind)
-      "Option", params -> {
+    case type_.name {
+      "Int" | "Float" | "String" | "Bool" ->
+        FieldAccess(Variable("json"), type_.name |> string.lowercase)
+        |> handle_type_aliases
+
+      "Uuid" ->
+        FieldAccess(Variable("util"), "encode_uuid")
+        |> handle_type_aliases
+
+      "Time" ->
+        birl_time_encode_expr(birl_time_kind)
+        |> handle_type_aliases
+
+      "Option" -> {
         let params =
           [
-            arg,
+            encode_arg,
           ]
           |> list.append({
-            params
-            |> list.map(type_encode_expr(_, field, birl_time_kind, wrap: None, encode_param: Some(
+            type_.parameters
+            |> list.map(type_encode_expr(_, False, birl_time_kind, wrap: None, encode_arg: {
               UnlabelledField(Variable("_"))
-            )))
+            }))
             |> list.map(UnlabelledField)
           })
 
         Call(FieldAccess(Variable("json"), "nullable"), params)
       }
-      "List", params -> {
+      "List" -> {
         let params =
           [
-            arg,
+            encode_arg,
           ]
           |> list.append({
-            params
-            |> list.map(type_encode_expr(_, field, birl_time_kind, wrap: None, encode_param: Some(
+            type_.parameters
+            |> list.map(type_encode_expr(_, False, birl_time_kind, wrap: None, encode_arg: {
               UnlabelledField(Variable("_"))
-            )))
+            }))
             |> list.map(UnlabelledField)
           })
 
         Call(FieldAccess(Variable("json"), "array"), params)
       }
-      // _, [] -> panic as {
-      //   "`deriv/json.type_encode_expr` doesn't know what to do with type: "
-      //     <> type_.name <> "\n" <> string.inspect(type_)
-      // }
-      _, params -> {
+      "Dict" -> {
+        let _str_keys_only =
+          case type_.parameters {
+            [JType(name: "String", ..), _] -> Nil
+            _ ->  panic as {
+              "`json.dict` only supports `String` keys, got: " <> string.inspect(type_)
+            }
+          }
+
+        let params =
+          [
+            encode_arg,
+            UnlabelledField(FieldAccess(Variable("string"), "inspect"))
+          ]
+          |> list.append({
+            type_.parameters
+            |> list.map(type_encode_expr(_, False, birl_time_kind, wrap: None, encode_arg: {
+              UnlabelledField(Variable("_"))
+            }))
+            |> list.map(UnlabelledField)
+            |> list.reverse
+            |> list.drop(1)
+            |> list.reverse
+          })
+
+        Call(FieldAccess(Variable("json"), "dict"), params)
+      }
+      _ -> {
         let encoder_name = "encode_" <> util.snake_case(type_.name)
-        case params {
+        case type_.parameters {
           [] ->
             Variable(encoder_name)
+            |> handle_type_aliases
 
           params -> {
             let params =
               [
-                arg,
+                encode_arg,
               ]
               |> list.append({
                 params
-                |> list.map(type_encode_expr(_, field, birl_time_kind, wrap: None, encode_param: None))
+                |> list.map(type_encode_expr(_, False, birl_time_kind, wrap: None, encode_arg:))
                 |> list.map(UnlabelledField)
               })
 
@@ -507,11 +544,15 @@ fn encode_field(
           )
         }
         _, _ ->
-          type_encode_expr(ftype, field, birl_time_kind, None, None)
+          type_encode_expr(ftype, False, birl_time_kind, wrap: None, encode_arg: {
+            UnlabelledField(FieldAccess(Variable("value"), field.name))
+          })
       }
 
     _, _ ->
-      type_encode_expr(ftype, field, birl_time_kind, None, None)
+      type_encode_expr(ftype, False, birl_time_kind, wrap: None, encode_arg: {
+        UnlabelledField(FieldAccess(Variable("value"), field.name))
+      })
   }
 }
 
@@ -646,6 +687,60 @@ fn encode_type_func(
       )
     )
     |> fn(expr) { [ expr ] }
+
+  Definition([],
+    Function(
+      location: dummy_location(),
+      publicity: Public,
+      name:,
+      parameters:,
+      return:,
+      body:,
+    )
+  )
+}
+
+fn encode_type_alias_func(
+  type_alias: TypeAlias,
+  all_field_opts all_field_opts: DerivFieldOpts,
+) -> Definition(Function) {
+  let name = "encode_" <> util.snake_case(type_alias.name)
+
+  let parameters =
+    [FunctionParameter(None, Named("value"), Some(NamedType(type_alias.name, None,
+      type_alias.parameters
+      |> list.map(VariableType)
+    )))]
+    |> list.append({
+      type_alias.parameters
+      |> list.map(fn(param_type_name) {
+        FunctionParameter(None, Named("encode_" <> param_type_name),
+          Some(FunctionType([VariableType(param_type_name)], NamedType("Json", None, [])))
+        )
+      })
+    })
+
+  let return = Some(NamedType("Json", None, []))
+
+  // let encode_variant_clause_exprs =
+  //   type_.variants
+  //   |> list.map(fn(variant) {
+  //     let encode_json_object_expr = encode_variant_json_object_expr(type_, variant, all_field_opts)
+
+  //     Clause([[PatternAssignment(PatternConstructor(None, variant.name, [], True), "value")]], None,
+  //       encode_json_object_expr
+  //     )
+  //   })
+
+  let birl_time_kind = BirlTimeISO8601 // TODO (?) allow deriv opt?
+  let expr =
+    type_encode_expr(jtype(type_alias.aliased), True, birl_time_kind, wrap: None, encode_arg: {
+      UnlabelledField(Variable("value"))
+    })
+
+  let body =
+    Expression(expr)
+    |> list.wrap
 
   Definition([],
     Function(
