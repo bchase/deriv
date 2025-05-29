@@ -1771,7 +1771,7 @@ pub type Bar =
   String
 
 pub type Listy(t) =
-  //$ derive json decode
+  //$ derive json decode encode
   List(t)
   " |> string.trim
 
@@ -1793,7 +1793,7 @@ pub type Bar =
   String
 
 pub type Listy(t) =
-  //$ derive json decode
+  //$ derive json decode encode
   List(t)
 
 pub fn decoder_fields() -> Decoder(Fields) {
@@ -1822,6 +1822,10 @@ pub fn encode_bar(value: Bar) -> Json {
 
 pub fn decoder_listy(decoder_t: Decoder(t)) -> Decoder(Listy(t)) {
   decode.list(decoder_t)
+}
+
+pub fn encode_listy(value: Listy(t), encode_t: fn(t) -> Json) -> Json {
+  json.array(value, encode_t)
 }
   "
   |> string.trim
@@ -1897,6 +1901,9 @@ pub type Listy(t) =
   List(t)
 pub fn decoder_listy(decoder_t: Decoder(t)) -> Decoder(Listy(t)) {
   decode.list(decoder_t)
+}
+pub fn encode_listy(value: Listy(t), encode_t: fn(t) -> Json) -> Json {
+  json.array(value, encode_t)
 }
 
 // pub type Foo {
