@@ -1218,15 +1218,21 @@ fn type_decode_expr(
         Call(FieldAccess(Variable("decode"), "optional"), params)
       }
       type_name, [] ->
-        case attempt_to_resolve_type_alias(type_name, type_aliases) {
-          Ok(TypeAlias(aliased: NamedType(..) as type_, ..)) ->
-            // panic as string.inspect(type_alias)
-            type_decode_expr(jtype(type_), type_aliases, birl_time_kind, opts, local_decoders)
+        case string.lowercase(type_name) == type_name {
+          True ->
+            Variable("decoder_" <> type_name)
 
-          _ ->
-            panic as {
-              "`deriv/json.type_decode_expr` doesn't know what to do with type: "
-                <> type_.name <> "\n" <> string.inspect(type_)
+          False ->
+            case attempt_to_resolve_type_alias(type_name, type_aliases) {
+              Ok(TypeAlias(aliased: NamedType(..) as type_, ..)) ->
+                // panic as string.inspect(type_alias)
+                type_decode_expr(jtype(type_), type_aliases, birl_time_kind, opts, local_decoders)
+
+              _ ->
+                panic as {
+                  "`deriv/json.type_decode_expr` doesn't know what to do with type: "
+                    <> type_.name <> "\n" <> string.inspect(type_)
+                }
             }
         }
       _, params -> {

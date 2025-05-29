@@ -1769,6 +1769,10 @@ pub type Foo =
 pub type Bar =
   //$ derive json decode encode
   String
+
+pub type Listy(t) =
+  //$ derive json decode
+  List(t)
   " |> string.trim
 
  let output = "
@@ -1787,6 +1791,10 @@ pub type Foo =
 pub type Bar =
   //$ derive json decode encode
   String
+
+pub type Listy(t) =
+  //$ derive json decode
+  List(t)
 
 pub fn decoder_fields() -> Decoder(Fields) {
   decode.dict(decode.string, decode.string)
@@ -1810,6 +1818,10 @@ pub fn decoder_bar() -> Decoder(Bar) {
 
 pub fn encode_bar(value: Bar) -> Json {
   json.string(value)
+}
+
+pub fn decoder_listy(decoder_t: Decoder(t)) -> Decoder(Listy(t)) {
+  decode.list(decoder_t)
 }
   "
   |> string.trim
@@ -1880,6 +1892,13 @@ pub fn encode_bar(value: Bar) -> Json {
   json.string(value)
 }
 
+pub type Listy(t) =
+  //$ derive json decode
+  List(t)
+pub fn decoder_listy(decoder_t: Decoder(t)) -> Decoder(Listy(t)) {
+  decode.list(decoder_t)
+}
+
 // pub type Foo {
 //   Foo(
 //     fields: Fields,
@@ -1887,7 +1906,7 @@ pub fn encode_bar(value: Bar) -> Json {
 // }
 
 // // type alias of parameterized type test
-//pub type Fields(t) = Dict(String, Field(t))
+// pub type Fields(t) = Dict(String, Field(t))
 
 //pub type Field(t) {
 //  Field(
