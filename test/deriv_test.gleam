@@ -1,3 +1,4 @@
+import gleam/int
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 import gleam/dict.{type Dict}
@@ -1865,67 +1866,109 @@ pub fn encode_listy(value: Listy(t), encode_t: fn(t) -> Json) -> Json {
   |> should.equal(output)
 }
 
-// simple type alias
-pub type Fields =
-  //$ derive json decode encode
-  Dict(String, String)
-pub fn decoder_fields() -> Decoder(Fields) {
-  decode.dict(decode.string, decode.string)
-}
-pub fn encode_fields(value: Fields) -> Json {
-  json.dict(value, string.inspect, json.string)
-}
-
-// recursive type aliases
-pub type Foo =
-  //$ derive json decode encode
-  String
-pub type Bar =
-  //$ derive json decode encode
-  Foo
-pub fn decoder_foo() -> Decoder(Foo) {
-  decode.string
-}
-pub fn decoder_bar() -> Decoder(Bar) {
-  decode.string
-}
-pub fn encode_foo(value: Foo) -> Json {
-  json.string(value)
-}
-pub fn encode_bar(value: Bar) -> Json {
-  json.string(value)
-}
-
-pub type Listy(t) =
-  //$ derive json decode
-  List(t)
-pub fn decoder_listy(decoder_t: Decoder(t)) -> Decoder(Listy(t)) {
-  decode.list(decoder_t)
-}
-pub fn encode_listy(value: Listy(t), encode_t: fn(t) -> Json) -> Json {
-  json.array(value, encode_t)
-}
-
-// pub type Foo {
-//   Foo(
-//     fields: Fields,
-//   )
+pub fn json_decoder_non_string_keyed_dict_test() {
+  let module_reader: types.ModuleReader = fn(ident) {
+    case ident {
+      // "project/asdf/foo" -> {
+      //   let foo_src = "
+// pub type Field(t) {
+  // Field(
+    // id: String,
+    // value: t,
+  // )
 // }
+      //   " |> string.trim
 
-// // type alias of parameterized type test
-// pub type Fields(t) = Dict(String, Field(t))
+      //   let parse = fn(src) {
+      //     glance.module(src)
+      //     |> result.map_error(types.GlanceErr)
+      //   }
 
-//pub type Field(t) {
-//  Field(
-//    id: String,
-//    value: t,
-//  )
-//}
+      //   parse(foo_src)
+      // }
 
-//pub type Form {
-//  //$ derive json encode decode
-//  Form(
-//    text_fields: Fields(String),
-//    list_fields: Fields(List(String))
-//  )
-//}
+      _ -> {
+        io.debug(ident)
+        panic as "`module_reader` miss in `parameterized_type_test`"
+      }
+    }
+  }
+
+// TODO
+  let input = "
+pub type IntKeyDict =
+  //$ derive json decode
+  Dict(Int, String)
+
+pub type FloatKeyDict =
+  //$ derive json decode
+  Dict(Float, String)
+
+pub type BoolKeyDict =
+  //$ derive json decode
+  Dict(Bool, String)
+  " |> string.trim
+
+ let output = "
+import gleam/dynamic/decode.{type Decoder}
+
+pub type IntKeyDict =
+  //$ derive json decode
+  Dict(Int, String)
+
+pub type FloatKeyDict =
+  //$ derive json decode
+  Dict(Float, String)
+
+pub type BoolKeyDict =
+  //$ derive json decode
+  Dict(Bool, String)
+
+pub fn decoder_int_key_dict() -> Decoder(IntKeyDict) {
+  decode.dict(util.decoder_int_string(), decode.string)
+}
+
+pub fn decoder_float_key_dict() -> Decoder(FloatKeyDict) {
+  decode.dict(util.decoder_float_string(), decode.string)
+}
+
+pub fn decoder_bool_key_dict() -> Decoder(BoolKeyDict) {
+  decode.dict(util.decoder_bool_string(), decode.string)
+}
+  "
+  |> string.trim
+
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let writes =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let assert [write] =
+    writes
+
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
+
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
+
+  write.src
+  |> should.equal(output)
+}
