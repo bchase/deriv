@@ -1262,10 +1262,11 @@ fn type_decode_expr(
                 type_decode_expr(jtype(type_), type_aliases, birl_time_kind, opts, local_decoders)
 
               _ ->
-                panic as {
-                  "`deriv/json.type_decode_expr` doesn't know what to do with type: "
-                    <> type_.name <> "\n" <> string.inspect(type_)
-                }
+                // panic as {
+                //   "`deriv/json.type_decode_expr` doesn't know what to do with type: "
+                //     <> type_.name <> "\n" <> string.inspect(type_)
+                // }
+                Call(Variable("decoder_" <> util.snake_case(type_.name)), [])
             }
         }
       _, params -> {
