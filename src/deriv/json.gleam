@@ -536,8 +536,9 @@ fn encode_field(
           )
         }
         _ -> {
-          io.debug(ftype)
-          panic as "Not yet implemented for type printed above"
+          // io.debug(ftype)
+          // panic as "Not yet implemented for type printed above"
+          Call(Variable("encode_" <> util.snake_case(ftype.name)), [])
         }
       }
 
