@@ -391,9 +391,13 @@ fn type_encode_expr(
       "Dict" -> {
         let _str_keys_only =
           case type_.parameters {
-            [JType(name: "String", ..), _] -> Nil
+            [JType(name: "String", parameters: [], ..), _] -> Nil
+            [JType(name: "Int", parameters: [], ..), _] -> Nil
+            [JType(name: "Float", parameters: [], ..), _] -> Nil
+            [JType(name: "Bool", parameters: [], ..), _] -> Nil
+            [JType(name: "Uuid", parameters: [], ..), _] -> Nil
             _ ->  panic as {
-              "`json.dict` only supports `String` keys, got: " <> string.inspect(type_)
+              "`json.dict` only supports `String`, `Int`, `Float`, `Bool`, and `Uuid` keys, but got: " <> string.inspect(type_)
             }
           }
 
