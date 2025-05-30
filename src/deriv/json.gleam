@@ -3,6 +3,7 @@ import gleam/dict
 import gleam/result
 import gleam/list
 import gleam/string
+import gleam/regexp
 import gleam/io
 import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, VariableType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, type FunctionParameter, type Field, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, PatternDiscard, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternConstructor, Fn, FnParameter, FnCapture, FunctionType, type TypeAlias, TypeAlias}
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt} as deriv
@@ -11,6 +12,7 @@ import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTi
 // TODO refactor
 //   - `unparameterized_type_decode_expr` should be able to be replaced with `type_decode_expr`
 //   - `unparameterized_type_encode_expr` should be able to be replaced with `type_encode_expr`
+//   - `dict_key_decoder` for anything other than `String` should import `util`
 
 const deriv_variant_json_key = "_var"
 
@@ -230,6 +232,15 @@ fn uses_list(type_: CustomType) -> Bool {
     })
   })
 }
+
+// fn contains_non_string_key_dict(src: String) -> Bool {
+//   let assert Ok(re) =
+//     "Dict[(]\\s*(Int|Float|Bool|([a-z0-9_]+[.])?Uuid)\\s*[,]"
+//     |> regexp.compile(regexp.Options(case_insensitive: False, multi_line: True))
+
+//   src
+//   |> regexp.check(re, _)
+// }
 
 fn gen_json_decoders(
   type_: deriv.Type,
@@ -1177,6 +1188,26 @@ fn unparameterized_type_decode_expr(
   }
 }
 
+fn dict_key_decoder(
+  type_: JType,
+) -> Expression {
+  case type_.parameters {
+    [] ->
+      case type_.name {
+        "String" ->
+          FieldAccess(Variable("decode"), "string")
+
+        "Int" | "Float" | "Bool" | "Uuid" ->
+          Call(FieldAccess(Variable("util"), { "decoder_" <> string.lowercase(type_.name) <> "_string" }), [])
+
+        _ -> panic as { "`dict_key_decoder` doesn't know what to do with type: " <> string.inspect(type_)}
+      }
+
+    _ ->
+      panic as { "`dict_key_decoder` doesn't know what to do with type: " <> string.inspect(type_)}
+  }
+}
+
 fn type_decode_expr(
   type_: JType,
   type_aliases: List(TypeAlias),
@@ -1193,13 +1224,11 @@ fn type_decode_expr(
       "Bool", _ -> FieldAccess(Variable("decode"), "bool")
       "Uuid", _ -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
       "Time", _ -> birl_time_decode_expr(birl_time_kind)
-      "Dict", params -> {
-        let params =
-          params
-          |> list.map(type_decode_expr(_, type_aliases, birl_time_kind, opts, local_decoders))
-          |> list.map(UnlabelledField)
-
-        Call(FieldAccess(Variable("decode"), "dict"), params)
+      "Dict", [key_type, val_type] -> {
+        Call(FieldAccess(Variable("decode"), "dict"), [
+          UnlabelledField(dict_key_decoder(key_type)),
+          UnlabelledField(type_decode_expr(val_type, type_aliases, birl_time_kind, opts, local_decoders)),
+        ])
       }
       "List", params -> {
         let params =
