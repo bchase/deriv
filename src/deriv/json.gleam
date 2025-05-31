@@ -16,26 +16,43 @@ import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTi
 
 const deriv_variant_json_key = "_var"
 
-// type Context {
-//   Context(
-//     all_field_opts: DerivFieldOpts,
-//     type_aliases: List(TypeAlias),
-//   )
-// }
+type Context {
+  Context(
+    deriv: Derivation,
+    all_field_opts: DerivFieldOpts,
+    file: File,
+    module_reader: ModuleReader,
+    type_aliases: List(TypeAlias),
+  )
+}
+
+fn to_gen_func(
+  f: fn(deriv.Type, Context) -> List(Definition(Function)),
+  deriv: Derivation,
+  module_reader: ModuleReader,
+) -> fn(deriv.Type, DerivFieldOpts, File) -> List(Definition(Function)) {
+  fn(
+    type_: deriv.Type,
+    field_opts: DerivFieldOpts,
+    file: File,
+  ) {
+    f(type_, Context(file:, deriv:, module_reader:, all_field_opts: field_opts, type_aliases: type_aliases_in(file:)))
+  }
+}
 
 pub fn gen(
   type_: deriv.Type,
   deriv: Derivation,
   field_opts: DerivFieldOpts,
   file: File,
-  _module_reader: ModuleReader,
+  module_reader: ModuleReader,
 ) -> Gen {
   let opts = deriv.opts
 
   let gen_funcs_for_opts =
     [
       #("decode", gen_json_decoders),
-      #("encode", gen_json_encoders),
+      #("encode", gen_json_encoders |> to_gen_func(deriv, module_reader)),
     ]
     |> dict.from_list
 
@@ -271,19 +288,18 @@ fn gen_json_decoders(
 
 fn gen_json_encoders(
   type_: deriv.Type,
-  all_field_opts: DerivFieldOpts,
-  file: File,
+  ctx: Context,
 ) -> List(Definition(Function)) {
-  let type_aliases = type_aliases_in(file:)
+  let type_aliases = type_aliases_in(file: ctx.file)
 
   // TODO qualify imports using `file` (`idx`)
   case type_ {
     deriv.TypeAlias(type_alias:)  ->
-      encode_type_alias_func(type_alias, all_field_opts, type_aliases)
+      encode_type_alias_func(type_alias, ctx)
       |> fn(func) { [ func ] }
 
     deriv.Type(type_:)  ->
-      encode_type_func(type_, all_field_opts)
+      encode_type_func(type_, ctx)
       |> fn(func) { [ func ] }
   }
 }
@@ -342,11 +358,22 @@ pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
 fn type_encode_expr(
   type_: JType,
-  type_alias: Bool,
+  type_alias: Option(Bool),
   birl_time_kind: BirlTimeKind,
+  type_aliases: List(TypeAlias),
   encode_arg encode_arg: Field(Expression),
   wrap wrap: Option(fn(Expression) -> Expression)
 ) -> Expression {
+  let type_alias =
+    type_alias
+    |> option.lazy_unwrap(fn() {
+      let type_alias_names =
+        type_aliases
+        |> list.map(fn(ta) { ta.name })
+
+      type_alias_names |> list.contains(type_.name)
+    })
+
   let handle_type_aliases =
     fn(expr) {
       case type_alias {
@@ -376,7 +403,7 @@ fn type_encode_expr(
           ]
           |> list.append({
             type_.parameters
-            |> list.map(type_encode_expr(_, False, birl_time_kind, wrap: None, encode_arg: {
+            |> list.map(type_encode_expr(_, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
               UnlabelledField(Variable("_"))
             }))
             |> list.map(UnlabelledField)
@@ -391,7 +418,7 @@ fn type_encode_expr(
           ]
           |> list.append({
             type_.parameters
-            |> list.map(type_encode_expr(_, False, birl_time_kind, wrap: None, encode_arg: {
+            |> list.map(type_encode_expr(_, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
               UnlabelledField(Variable("_"))
             }))
             |> list.map(UnlabelledField)
@@ -419,7 +446,7 @@ fn type_encode_expr(
           ]
           |> list.append({
             type_.parameters
-            |> list.map(type_encode_expr(_, False, birl_time_kind, wrap: None, encode_arg: {
+            |> list.map(type_encode_expr(_, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
               UnlabelledField(Variable("_"))
             }))
             |> list.map(UnlabelledField)
@@ -430,25 +457,50 @@ fn type_encode_expr(
         Call(FieldAccess(Variable("json"), "dict"), params)
       }
       _ -> {
+        let type_alias_names =
+          type_aliases
+          |> list.map(fn(ta) { ta.name })
+
         let encoder_name = "encode_" <> util.snake_case(type_.name)
-        case type_.parameters {
-          [] ->
-            Variable(encoder_name)
-            |> handle_type_aliases
 
-          params -> {
-            let params =
-              [
-                encode_arg,
-              ]
-              |> list.append({
-                params
-                |> list.map(type_encode_expr(_, False, birl_time_kind, wrap: None, encode_arg:))
-                |> list.map(UnlabelledField)
-              })
-
-            Call(Variable(encoder_name), params)
+        case { !type_alias && type_alias_names |> list.contains(type_.name) } {
+          True -> {
+            echo "HERE"
+            echo "HERE"
+            echo "HERE"
+            echo "HERE"
+            echo "HERE"
+            echo "HERE"
+            echo "HERE"
+            echo type_
+            type_encode_expr(type_, Some(True), birl_time_kind, type_aliases, wrap: None, encode_arg:)
           }
+
+          False ->
+            case type_.parameters {
+              [] ->
+                Variable(encoder_name)
+                |> handle_type_aliases
+                |> echo
+                |> echo
+                |> echo
+                |> echo
+                |> echo
+
+              params -> {
+                let params =
+                  [
+                    encode_arg,
+                  ]
+                  |> list.append({
+                    params
+                    |> list.map(type_encode_expr(_, None, birl_time_kind, type_aliases, wrap: None, encode_arg:))
+                    |> list.map(UnlabelledField)
+                  })
+
+                Call(Variable(encoder_name), params)
+              }
+            }
         }
       }
     }
@@ -460,41 +512,46 @@ fn type_encode_expr(
   }
 }
 
-fn unparameterized_type_encode_expr(
-  type_name: String,
-  birl_time_kind: BirlTimeKind,
-  wrap wrap: Option(fn(Expression) -> Expression)
-) -> Expression {
-  let expr =
-    case type_name {
-      "Int" -> FieldAccess(Variable("json"), "int")
-      "Float" -> FieldAccess(Variable("json"), "float")
-      "String" -> FieldAccess(Variable("json"), "string")
-      "Bool" -> FieldAccess(Variable("json"), "bool")
-      "Uuid" -> FieldAccess(Variable("util"), "encode_uuid")
-      "Time" -> birl_time_encode_expr(birl_time_kind)
-      _ -> Variable("encode_" <> util.snake_case(type_name))
-    }
+// fn unparameterized_type_encode_expr(
+//   type_name: String,
+//   birl_time_kind: BirlTimeKind,
+//   wrap wrap: Option(fn(Expression) -> Expression)
+// ) -> Expression {
+//   let expr =
+//     case type_name {
+//       "Int" -> FieldAccess(Variable("json"), "int")
+//       "Float" -> FieldAccess(Variable("json"), "float")
+//       "String" -> FieldAccess(Variable("json"), "string")
+//       "Bool" -> FieldAccess(Variable("json"), "bool")
+//       "Uuid" -> FieldAccess(Variable("util"), "encode_uuid")
+//       "Time" -> birl_time_encode_expr(birl_time_kind)
+//       _ -> Variable("encode_" <> util.snake_case(type_name))
+//     }
 
-  case wrap {
-    None -> expr
-    Some(f) -> f(expr)
-  }
-}
+//   case wrap {
+//     None -> expr
+//     Some(f) -> f(expr)
+//   }
+// }
 
 fn encode_field(
   type_: CustomType,
   variant: Variant,
   field: VarField,
-  all_field_opts: DerivFieldOpts,
+  ctx: Context,
 ) -> Expression {
+  let all_field_opts = ctx.all_field_opts
+
   let ftype = jtype(field.type_)
 
   let birl_time_kind = util.birl_time_kind(type_, variant, field.name, all_field_opts)
 
   case ftype, ftype.parameters {
     JType("Option", _, [JType("List", _, [JType(_, _, []) as param])]), _ -> {
-      let param_type_encoder = unparameterized_type_encode_expr(param.name, birl_time_kind, None)
+      // let param_type_encoder = unparameterized_type_encode_expr(param.name, birl_time_kind, None)
+      let param_type_encoder = type_encode_expr(param, None, birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
+        UnlabelledField(Variable("value"))
+      })
 
       Call(
         function: FieldAccess(Variable("json"), "nullable"),
@@ -509,41 +566,35 @@ fn encode_field(
       )
     }
     _, [] ->
-      unparameterized_type_encode_expr(ftype.name, birl_time_kind, Some(fn(func_expr) {
-        Call(
-          function: func_expr,
-          arguments: [
-            UnlabelledField(FieldAccess(Variable("value"), field.name)),
-          ]
-        )
-      }))
+      // unparameterized_type_encode_expr(ftype.name, birl_time_kind, Some(fn(func_expr) {
+      //   Call(
+      //     function: func_expr,
+      //     arguments: [
+      //       UnlabelledField(FieldAccess(Variable("value"), field.name)),
+      //     ]
+      //   )
+      // }))
+      type_encode_expr(ftype, None, birl_time_kind, ctx.type_aliases,
+        encode_arg: {
+          UnlabelledField(Variable("value"))
+        },
+        wrap: Some(fn(func_expr) {
+          Call(
+            function: func_expr,
+            arguments: [
+              UnlabelledField(FieldAccess(Variable("value"), field.name)),
+            ]
+          )
+        },
+      ))
 
     _, [JType(name: param_type_name, module: None, parameters: [])] ->
       case ftype.name {
-        "Option" -> {
-          let param_type_encoder = unparameterized_type_encode_expr(param_type_name, birl_time_kind, None)
-
-          Call(
-            function: FieldAccess(Variable("json"), "nullable"),
-            arguments: [
-              UnlabelledField(FieldAccess(Variable("value"), field.name)),
-              UnlabelledField(param_type_encoder),
-            ]
-          )
-        }
-        "List" -> {
-          let param_type_encoder = unparameterized_type_encode_expr(param_type_name, birl_time_kind, None)
-
-          Call(
-            function: FieldAccess(Variable("json"), "preprocessed_array"),
-            arguments: [
-              UnlabelledField(Call(FieldAccess(Variable("list"), "map"),
-                [
-                  UnlabelledField(FieldAccess(Variable("value"), field.name)),
-                  UnlabelledField(param_type_encoder),
-                ])
-              ),
-            ]
+        "Option" | "List" -> {
+          type_encode_expr(ftype, Some(False), birl_time_kind, ctx.type_aliases, wrap: None,
+            encode_arg: {
+              UnlabelledField(FieldAccess(Variable("value"), field.name))
+            },
           )
         }
         _ -> {
@@ -559,25 +610,20 @@ fn encode_field(
     ] ->
       case ftype.name, key_param_type_name {
         "Dict", "String" -> {
-          let val_param_type_encoder = unparameterized_type_encode_expr(val_param_type_name, birl_time_kind, None)
-
-          Call(
-            function: FieldAccess(Variable("json"), "dict"),
-            arguments: [
-              UnlabelledField(FieldAccess(Variable("value"), field.name)),
-              UnlabelledField(Fn([FnParameter(Named("str"), None)], None, [Expression(Variable("str"))])),
-              UnlabelledField(val_param_type_encoder),
-            ]
+          type_encode_expr(ftype, Some(False), birl_time_kind, ctx.type_aliases, wrap: None,
+            encode_arg: {
+              UnlabelledField(FieldAccess(Variable("value"), field.name))
+            },
           )
         }
         _, _ ->
-          type_encode_expr(ftype, False, birl_time_kind, wrap: None, encode_arg: {
+          type_encode_expr(ftype, None, birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
             UnlabelledField(FieldAccess(Variable("value"), field.name))
           })
       }
 
     _, _ ->
-      type_encode_expr(ftype, False, birl_time_kind, wrap: None, encode_arg: {
+      type_encode_expr(ftype, None, birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
         UnlabelledField(FieldAccess(Variable("value"), field.name))
       })
   }
@@ -586,7 +632,7 @@ fn encode_field(
 fn encode_variant_json_object_expr(
   type_: CustomType,
   variant: Variant,
-  all_field_opts all_field_opts: DerivFieldOpts,
+  ctx: Context,
 ) -> Expression {
   let encode_lines =
     variant.fields
@@ -594,11 +640,11 @@ fn encode_variant_json_object_expr(
       let field = variant_field(field)
 
       let json_field_name =
-        all_field_opts
+        ctx.all_field_opts
         |> util.get_field_opts(type_, variant, field.name)
         |> json_field_name(field, _)
 
-      let encode_expr = encode_field(type_, variant, field, all_field_opts)
+      let encode_expr = encode_field(type_, variant, field, ctx)
 
       case string.split(json_field_name, ".") {
         [] -> panic
@@ -671,11 +717,9 @@ fn encode_variant_json_object_expr(
   )
 }
 
-// Ok(Module([Definition([], Import("gleam/json", None, [UnqualifiedImport("Json", None)], []))], [Definition([], CustomType("Field", Public, False, ["key", "val"], [Variant("Field", [LabelledVariantField(VariableType("key"), "key"), LabelledVariantField(VariableType("val"), "val")])]))], [], [], [Definition([], Function("encode_field", Public, [FunctionParameter(None, Named("value"), Some(NamedType("Field", None, [VariableType("key"), VariableType("val")]))), FunctionParameter(None, Named("encode_key"), Some(FunctionType([VariableType("key")], NamedType("Json", None, [])))), FunctionParameter(None, Named("encode_val"), Some(FunctionType([VariableType("val")], NamedType("Json", None, []))))], Some(NamedType("Json", None, [])), [Expression(Case([Variable("value")], [Clause([[PatternAssignment(PatternConstructor(None, "Field", [], True), "value")]], None, Call(FieldAccess(Variable("json"), "object"), [UnlabelledField(List([Tuple([String("key"), Call(Variable("encode_key"), [UnlabelledField(FieldAccess(Variable("value"), "key"))])]), Tuple([String("val"), Call(Variable("encode_val"), [UnlabelledField(FieldAccess(Variable("value"), "val"))])])], None))]))]))], Span(391, 669)))]))
-
 fn encode_type_func(
   type_: CustomType,
-  all_field_opts all_field_opts: DerivFieldOpts,
+  ctx: Context,
 ) -> Definition(Function) {
   let name = "encode_" <> util.snake_case(type_.name)
 
@@ -698,7 +742,7 @@ fn encode_type_func(
   let encode_variant_clause_exprs =
     type_.variants
     |> list.map(fn(variant) {
-      let encode_json_object_expr = encode_variant_json_object_expr(type_, variant, all_field_opts)
+      let encode_json_object_expr = encode_variant_json_object_expr(type_, variant, ctx)
 
       Clause([[PatternAssignment(PatternConstructor(None, variant.name, [], True), "value")]], None,
         encode_json_object_expr
@@ -729,8 +773,7 @@ fn encode_type_func(
 
 fn encode_type_alias_func(
   type_alias: TypeAlias,
-  all_field_opts _all_field_opts: DerivFieldOpts,
-  type_aliases type_aliases: List(TypeAlias),
+  ctx: Context,
 ) -> Definition(Function) {
   let name = "encode_" <> util.snake_case(type_alias.name)
 
@@ -762,7 +805,7 @@ fn encode_type_alias_func(
 
   let birl_time_kind = BirlTimeISO8601 // TODO (?) allow deriv opt?
   let expr =
-    type_encode_expr(jtype(type_alias.aliased), True, birl_time_kind, wrap: None, encode_arg: {
+    type_encode_expr(jtype(type_alias.aliased), Some(True), birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
       UnlabelledField(Variable("value"))
     })
 

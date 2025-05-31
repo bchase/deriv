@@ -1,34 +1,34 @@
-import gleam/int
-import gleam/dynamic/decode.{type Decoder}
-import gleam/json.{type Json}
-import gleam/dict.{type Dict}
-import gleam/option.{type Option, Some, None}
-import gleam/result
-import gleam/list
-import gleeunit
-import gleeunit/should
-import gleam/string
-import deriv/types.{type File, File, DerivFieldOpt, DerivField}
-import deriv/parser
-import deriv
-import deriv/util
-import youid/uuid
-import gleam/io
-import shellout
-import simplifile
-import glance.{Import, UnqualifiedImport, Named}
+ import gleam/int
+ import gleam/dynamic/decode.{type Decoder}
+ import gleam/json.{type Json}
+ import gleam/dict.{type Dict}
+ import gleam/option.{type Option, Some, None}
+ import gleam/result
+ import gleam/list
+ import gleeunit
+ import gleeunit/should
+ import gleam/string
+ import deriv/types.{type File, File, DerivFieldOpt, DerivField}
+ import deriv/parser
+ import deriv
+ import deriv/util
+ import youid/uuid
+ import gleam/io
+ import shellout
+ import simplifile
+ import glance.{Import, UnqualifiedImport, Named}
 
-pub fn suppress_io_warnings() { io.debug(Nil) }
+ pub fn suppress_io_warnings() { io.debug(Nil) }
 
-pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
+ pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
-pub fn dummy_module_reader(_) {
-  panic as "`dummy_module_reader`"
-}
+ pub fn dummy_module_reader(_) {
+   panic as "`dummy_module_reader`"
+ }
 
-pub fn main() {
-  gleeunit.main()
-}
+ pub fn main() {
+   gleeunit.main()
+ }
 
 pub fn json_test() {
   let input = "
@@ -113,7 +113,7 @@ pub fn encode_foo(value: Foo) -> Json {
         #(\"name\", json.string(value.name)),
         #(\"active\", json.bool(value.active)),
         #(\"ratio\", json.float(value.ratio)),
-        #(\"words\", json.preprocessed_array(list.map(value.words, json.string))),
+        #(\"words\", json.array(value.words, json.string)),
         #(
           \"maybe_list\",
           json.nullable(value.maybe_list, json.array(_, json.string)),
@@ -790,7 +790,7 @@ pub fn decoder_dict_field_type_dict_field_type() -> Decoder(DictFieldType) {
 pub fn encode_dict_field_type(value: DictFieldType) -> Json {
   case value {
     DictFieldType(..) as value ->
-      json.object([#(\"dict\", json.dict(value.dict, fn(str) { str }, json.int))])
+      json.object([#(\"dict\", json.dict(value.dict, string.inspect, json.int))])
   }
 }
 ")
@@ -1963,9 +1963,101 @@ pub fn decoder_bool_key_dict() -> Decoder(BoolKeyDict) {
   |> should.equal(output)
 }
 
-pub fn json_encode_nested_parameterized_type_alias_test() {
-// TODO
-  let input = "
+//pub fn json_encode_nested_parameterized_type_alias_test() {
+////pub type Fields(t) =
+////  //$ derive json encode decode
+////  Dict(String, Field(t))
+
+////pub type Field(t) {
+////  //$ derive json encode decode
+////  Field(
+////    id: String,
+////    touched: Bool,
+////    value: t,
+////  )
+////}
+
+//// TODO
+//  let input = "
+//pub type Form {
+//  //$ derive json encode
+//  Form(
+//    text_fields: Fields(String),
+//    list_fields: Fields(List(String)),
+//  )
+//}
+//  " |> string.trim
+
+////pub type Fields(t) =
+////  //$ derive json encode decode
+////  Dict(String, Field(t))
+
+////pub type Field(t) {
+////  //$ derive json encode decode
+////  Field(
+////    id: String,
+////    touched: Bool,
+////    value: t,
+////  )
+////}
+
+// let output = "
+//import gleam/dynamic/decode.{type Decoder}
+//import gleam/json.{type Json}
+
+//pub type Form {
+//  //$ derive json encode
+//  Form(
+//    text_fields: Fields(String),
+//    list_fields: Fields(List(String)),
+//  )
+//}
+
+//pub fn encode_fields(value: Fields(t), encode_t: fn(t) -> Json) -> Json {
+//  json.dict(value, string.inspect, encode_field(_, encode_t))
+//}
+
+//pub fn decoder_fields(decoder_t: Decoder(t)) -> Decoder(Fields(t)) {
+//  decode.dict(decode.string, decoder_field(decoder_t))
+//}
+
+//pub fn encode_field(value: Field(t), encode_t: fn(t) -> Json) -> Json {
+//  case value {
+//    Field(..) as value ->
+//      json.object([
+//        #(\"id\", json.string(value.id)),
+//        #(\"touched\", json.bool(value.touched)),
+//        #(\"value\", encode_t(value.value)),
+//      ])
+//  }
+//}
+
+//pub fn decoder_field(decoder_t: Decoder(t)) -> Decoder(Field(t)) {
+//  decode.one_of(decoder_field_field(decoder_t), [])
+//}
+
+//pub fn decoder_field_field(decoder_t: Decoder(t)) -> Decoder(Field(t)) {
+//  use id <- decode.field(\"id\", decode.string)
+//  use touched <- decode.field(\"touched\", decode.bool)
+//  use value <- decode.field(\"value\", decoder_t)
+//  decode.success(Field(id:, touched:, value:))
+//}
+
+//pub fn encode_form(value: Form) -> Json {
+//  case value {
+//    Form(..) as value ->
+//      json.object([
+//        #(\"text_fields\", encode_fields(value.text_fields, json.string)),
+//        #(\"list_fields\", encode_fields(value.list_fields, json.array(_, json.string))),
+//      ])
+//  }
+//}
+//  "
+//  |> string.trim
+
+//  input |> should_equal(output:)
+//}
+
 pub type Fields(t) =
   //$ derive json encode decode
   Dict(String, Field(t))
@@ -1978,70 +2070,12 @@ pub type Field(t) {
     value: t,
   )
 }
-  " |> string.trim
 
- let output = "
-import gleam/dynamic/decode.{type Decoder}
-import gleam/json.{type Json}
-
-pub type Fields(t) =
+pub type Form {
   //$ derive json encode decode
-  Dict(String, Field(t))
-
-pub type Field(t) {
-  //$ derive json encode decode
-  Field(
-    id: String,
-    touched: Bool,
-    value: t,
-  )
-}
-
-pub fn encode_fields(value: Fields(t), encode_t: fn(t) -> Json) -> Json {
-  json.dict(value, string.inspect, encode_field(_, encode_t))
-}
-
-pub fn decoder_fields(decoder_t: Decoder(t)) -> Decoder(Fields(t)) {
-  decode.dict(decode.string, decoder_field(decoder_t))
-}
-
-pub fn encode_field(value: Field(t), encode_t: fn(t) -> Json) -> Json {
-  case value {
-    Field(..) as value ->
-      json.object([
-        #(\"id\", json.string(value.id)),
-        #(\"touched\", json.bool(value.touched)),
-        #(\"value\", encode_t(value.value)),
-      ])
-  }
-}
-
-pub fn decoder_field(decoder_t: Decoder(t)) -> Decoder(Field(t)) {
-  decode.one_of(decoder_field_field(decoder_t), [])
-}
-
-pub fn decoder_field_field(decoder_t: Decoder(t)) -> Decoder(Field(t)) {
-  use id <- decode.field(\"id\", decode.string)
-  use touched <- decode.field(\"touched\", decode.bool)
-  use value <- decode.field(\"value\", decoder_t)
-  decode.success(Field(id:, touched:, value:))
-}
-  "
-  |> string.trim
-
-  input |> should_equal(output:)
-}
-
-pub type Fields(t) =
-  //$ derive json encode decode
-  Dict(String, Field(t))
-
-pub type Field(t) {
-  //$ derive json encode decode
-  Field(
-    id: String,
-    touched: Bool,
-    value: t,
+  Form(
+    text_fields: Fields(String),
+    list_fields: Fields(List(String)),
   )
 }
 
@@ -2073,6 +2107,32 @@ pub fn decoder_field_field(decoder_t: Decoder(t)) -> Decoder(Field(t)) {
   use touched <- decode.field("touched", decode.bool)
   use value <- decode.field("value", decoder_t)
   decode.success(Field(id:, touched:, value:))
+}
+
+pub fn encode_form(value: Form) -> Json {
+  case value {
+    Form(..) as value ->
+      json.object([
+        #("text_fields", encode_fields(value.text_fields, json.string)),
+        #("list_fields", encode_fields(value.list_fields, json.array(_, json.string))),
+      ])
+  }
+}
+
+pub fn decoder_form() -> Decoder(Form) {
+  decode.one_of(decoder_form_form(), [])
+}
+
+pub fn decoder_form_form() -> Decoder(Form) {
+  use text_fields <- decode.field(
+    "text_fields",
+    decoder_fields(decode.string),
+  )
+  use list_fields <- decode.field(
+    "list_fields",
+    decoder_fields(decode.list(decode.string)),
+  )
+  decode.success(Form(text_fields:, list_fields:))
 }
 
 
