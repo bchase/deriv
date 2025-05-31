@@ -382,27 +382,42 @@ fn type_encode_expr(
     }
 
   let expr =
-    case type_.name {
-      "Int" | "Float" | "String" | "Bool" ->
+    case type_.name, encode_func_name_override {
+      "Int", Some(encode_func_name_override) |
+      "Float", Some(encode_func_name_override) |
+      "String", Some(encode_func_name_override) |
+      "Bool", Some(encode_func_name_override) |
+      "Uuid", Some(encode_func_name_override) |
+      "Time", Some(encode_func_name_override) -> {
+        // FieldAccess(Variable("json"), type_.name |> string.lowercase)
+        // |> handle_type_aliases
+        Variable(encode_func_name_override)
+      }
+
+      "Int", None |
+      "Float", None |
+      "String", None |
+      "Bool", None -> {
         FieldAccess(Variable("json"), type_.name |> string.lowercase)
         |> handle_type_aliases
+      }
 
-      "Uuid" ->
+      "Uuid", None ->
         FieldAccess(Variable("util"), "encode_uuid")
         |> handle_type_aliases
 
-      "Time" ->
+      "Time", None ->
         birl_time_encode_expr(birl_time_kind)
         |> handle_type_aliases
 
-      "Option" -> {
+      "Option", _ -> {
         let params =
           [
             encode_arg,
           ]
           |> list.append({
             type_.parameters
-            |> list.map(type_encode_expr(_, None, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
+            |> list.map(type_encode_expr(_, None, encode_func_name_override, birl_time_kind, type_aliases, wrap: None, encode_arg: {
               UnlabelledField(Variable("_"))
             }))
             |> list.map(UnlabelledField)
@@ -410,14 +425,14 @@ fn type_encode_expr(
 
         Call(FieldAccess(Variable("json"), "nullable"), params)
       }
-      "List" -> {
+      "List", _ -> {
         let params =
           [
             encode_arg,
           ]
           |> list.append({
             type_.parameters
-            |> list.map(type_encode_expr(_, None, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
+            |> list.map(type_encode_expr(_, None, encode_func_name_override, birl_time_kind, type_aliases, wrap: None, encode_arg: {
               UnlabelledField(Variable("_"))
             }))
             |> list.map(UnlabelledField)
@@ -425,7 +440,7 @@ fn type_encode_expr(
 
         Call(FieldAccess(Variable("json"), "array"), params)
       }
-      "Dict" -> {
+      "Dict", _ -> {
         let _str_keys_only =
           case type_.parameters {
             [JType(name: "String", parameters: [], ..), _] -> Nil
@@ -445,7 +460,7 @@ fn type_encode_expr(
           ]
           |> list.append({
             type_.parameters
-            |> list.map(type_encode_expr(_, None, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
+            |> list.map(type_encode_expr(_, None, encode_func_name_override, birl_time_kind, type_aliases, wrap: None, encode_arg: {
               UnlabelledField(Variable("_"))
             }))
             |> list.map(UnlabelledField)
@@ -455,12 +470,11 @@ fn type_encode_expr(
 
         Call(FieldAccess(Variable("json"), "dict"), params)
       }
-      _ -> {
+      _, _ -> {
         let encoder_name = "encode_" <> util.snake_case(type_.name)
 
         case type_alias {
           True -> {
-
             let params =
               case encode_func_name_override {
                 Some(encode_func_name_override) ->
@@ -475,7 +489,7 @@ fn type_encode_expr(
                   ]
                   |> list.append({
                     type_.parameters
-                    |> list.map(type_encode_expr(_, None, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
+                    |> list.map(type_encode_expr(_, None, encode_func_name_override, birl_time_kind, type_aliases, wrap: None, encode_arg: {
                       UnlabelledField(Variable("_"))
                     }))
                     |> list.map(UnlabelledField)
@@ -485,7 +499,11 @@ fn type_encode_expr(
             Call(Variable(encoder_name), params)
           }
 
-          False ->
+          False -> {
+            let encoder_name =
+              encode_func_name_override
+              |> option.unwrap(encoder_name)
+
             case type_.parameters {
               [] ->
                 Variable(encoder_name)
@@ -498,13 +516,14 @@ fn type_encode_expr(
                   ]
                   |> list.append({
                     params
-                    |> list.map(type_encode_expr(_, None, None, birl_time_kind, type_aliases, wrap: None, encode_arg:))
+                    |> list.map(type_encode_expr(_, None, encode_func_name_override, birl_time_kind, type_aliases, wrap: None, encode_arg:))
                     |> list.map(UnlabelledField)
                   })
 
                 Call(Variable(encoder_name), params)
               }
             }
+          }
         }
       }
     }
@@ -573,7 +592,7 @@ fn encode_field(
         ],
       )
     }
-    _, [] ->
+    _, [] -> {
       // unparameterized_type_encode_expr(ftype.name, birl_time_kind, Some(fn(func_expr) {
       //   Call(
       //     function: func_expr,
@@ -595,7 +614,7 @@ fn encode_field(
           )
         },
       ))
-
+    }
     // _, [JType(name: param_type_name, module: None, parameters: [])] ->
     //   case ftype.name {
     //     "Option" | "List" -> {
@@ -615,7 +634,7 @@ fn encode_field(
     _, [
       JType(name: key_param_type_name, module: None, parameters: []),
       JType(name: val_param_type_name, module: None, parameters: []),
-    ] ->
+    ] -> {
       case ftype.name, key_param_type_name {
         "Dict", "String" -> {
           type_encode_expr(ftype, Some(False), encode_func_name_override, birl_time_kind, ctx.type_aliases, wrap: None,
@@ -629,11 +648,12 @@ fn encode_field(
             UnlabelledField(FieldAccess(Variable("value"), field.name))
           })
       }
-
-    _, _ ->
+    }
+    _, _ -> {
       type_encode_expr(ftype, None, encode_func_name_override, birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
         UnlabelledField(FieldAccess(Variable("value"), field.name))
       })
+    }
   }
 }
 
