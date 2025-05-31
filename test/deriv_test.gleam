@@ -1995,6 +1995,9 @@ pub type Form {
   Form(
     text_fields: Fields(String),
     list_fields: Fields(List(String)),
+    override: Fields(String),
+    //$ json decoder some_specific_decoder_name
+    //$ json encode some_specific_encode_func
   )
 }
   " |> string.trim
@@ -2032,6 +2035,9 @@ pub type Form {
   Form(
     text_fields: Fields(String),
     list_fields: Fields(List(String)),
+    override: Fields(String),
+    //$ json decoder some_specific_decoder_name
+    //$ json encode some_specific_encode_func
   )
 }
 
@@ -2044,6 +2050,7 @@ pub fn encode_form(value: Form) -> Json {
           \"list_fields\",
           encode_fields(value.list_fields, json.array(_, json.string)),
         ),
+        #(\"override\", encode_fields(value.override, some_specific_encode_func)),
       ])
   }
 }
@@ -2058,7 +2065,8 @@ pub fn decoder_form_form() -> Decoder(Form) {
     \"list_fields\",
     decoder_fields(decode.list(decode.string)),
   )
-  decode.success(Form(text_fields:, list_fields:))
+  use override <- decode.field(\"override\", some_specific_decoder_name())
+  decode.success(Form(text_fields:, list_fields:, override:))
 }
   "
   |> string.trim

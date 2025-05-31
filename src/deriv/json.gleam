@@ -357,6 +357,7 @@ fn json_field_name(field: VarField, field_opts: List(DerivFieldOpt)) -> String {
 fn type_encode_expr(
   type_: JType,
   type_alias: Option(Bool),
+  encode_func_name_override: Option(String),
   birl_time_kind: BirlTimeKind,
   type_aliases: List(TypeAlias),
   encode_arg encode_arg: Field(Expression),
@@ -401,7 +402,7 @@ fn type_encode_expr(
           ]
           |> list.append({
             type_.parameters
-            |> list.map(type_encode_expr(_, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
+            |> list.map(type_encode_expr(_, None, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
               UnlabelledField(Variable("_"))
             }))
             |> list.map(UnlabelledField)
@@ -416,7 +417,7 @@ fn type_encode_expr(
           ]
           |> list.append({
             type_.parameters
-            |> list.map(type_encode_expr(_, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
+            |> list.map(type_encode_expr(_, None, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
               UnlabelledField(Variable("_"))
             }))
             |> list.map(UnlabelledField)
@@ -444,7 +445,7 @@ fn type_encode_expr(
           ]
           |> list.append({
             type_.parameters
-            |> list.map(type_encode_expr(_, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
+            |> list.map(type_encode_expr(_, None, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
               UnlabelledField(Variable("_"))
             }))
             |> list.map(UnlabelledField)
@@ -459,17 +460,27 @@ fn type_encode_expr(
 
         case type_alias {
           True -> {
+
             let params =
-              [
-                encode_arg,
-              ]
-              |> list.append({
-                type_.parameters
-                |> list.map(type_encode_expr(_, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
-                  UnlabelledField(Variable("_"))
-                }))
-                |> list.map(UnlabelledField)
-              })
+              case encode_func_name_override {
+                Some(encode_func_name_override) ->
+                  [
+                    encode_arg,
+                    UnlabelledField(Variable(encode_func_name_override)),
+                  ]
+
+                None ->
+                  [
+                    encode_arg,
+                  ]
+                  |> list.append({
+                    type_.parameters
+                    |> list.map(type_encode_expr(_, None, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
+                      UnlabelledField(Variable("_"))
+                    }))
+                    |> list.map(UnlabelledField)
+                  })
+              }
 
             Call(Variable(encoder_name), params)
           }
@@ -487,7 +498,7 @@ fn type_encode_expr(
                   ]
                   |> list.append({
                     params
-                    |> list.map(type_encode_expr(_, None, birl_time_kind, type_aliases, wrap: None, encode_arg:))
+                    |> list.map(type_encode_expr(_, None, None, birl_time_kind, type_aliases, wrap: None, encode_arg:))
                     |> list.map(UnlabelledField)
                   })
 
@@ -538,10 +549,15 @@ fn encode_field(
 
   let birl_time_kind = util.birl_time_kind(type_, variant, field.name, all_field_opts)
 
+  let encode_func_name_override =
+    ctx.all_field_opts
+    |> util.get_field_opts(type_, variant, field.name)
+    |> specifies_encode_func
+
   case ftype, ftype.parameters {
     JType("Option", _, [JType("List", _, [JType(_, _, []) as param])]), _ -> {
       // let param_type_encoder = unparameterized_type_encode_expr(param.name, birl_time_kind, None)
-      let param_type_encoder = type_encode_expr(param, None, birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
+      let param_type_encoder = type_encode_expr(param, None, encode_func_name_override,  birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
         UnlabelledField(Variable("value"))
       })
 
@@ -566,7 +582,7 @@ fn encode_field(
       //     ]
       //   )
       // }))
-      type_encode_expr(ftype, None, birl_time_kind, ctx.type_aliases,
+      type_encode_expr(ftype, None, encode_func_name_override, birl_time_kind, ctx.type_aliases,
         encode_arg: {
           UnlabelledField(Variable("value"))
         },
@@ -602,20 +618,20 @@ fn encode_field(
     ] ->
       case ftype.name, key_param_type_name {
         "Dict", "String" -> {
-          type_encode_expr(ftype, Some(False), birl_time_kind, ctx.type_aliases, wrap: None,
+          type_encode_expr(ftype, Some(False), encode_func_name_override, birl_time_kind, ctx.type_aliases, wrap: None,
             encode_arg: {
               UnlabelledField(FieldAccess(Variable("value"), field.name))
             },
           )
         }
         _, _ ->
-          type_encode_expr(ftype, None, birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
+          type_encode_expr(ftype, None, encode_func_name_override, birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
             UnlabelledField(FieldAccess(Variable("value"), field.name))
           })
       }
 
     _, _ ->
-      type_encode_expr(ftype, None, birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
+      type_encode_expr(ftype, None, encode_func_name_override, birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
         UnlabelledField(FieldAccess(Variable("value"), field.name))
       })
   }
@@ -797,7 +813,7 @@ fn encode_type_alias_func(
 
   let birl_time_kind = BirlTimeISO8601 // TODO (?) allow deriv opt?
   let expr =
-    type_encode_expr(jtype(type_alias.aliased), Some(True), birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
+    type_encode_expr(jtype(type_alias.aliased), Some(True), None, birl_time_kind, ctx.type_aliases, wrap: None, encode_arg: {
       UnlabelledField(Variable("value"))
     })
 
@@ -1373,6 +1389,20 @@ fn specifies_decoder(
   |> list.find_map(fn(x) {
     case x {
       DerivFieldOpt(strs: ["json", "decoder", decoder_name]) -> Ok(decoder_name)
+      _ -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn specifies_encode_func(
+  opts: List(DerivFieldOpt),
+) -> Option(String) {
+  opts
+  |> list.reverse
+  |> list.find_map(fn(x) {
+    case x {
+      DerivFieldOpt(strs: ["json", "encode", encode_func_name]) -> Ok(encode_func_name)
       _ -> Error(Nil)
     }
   })
