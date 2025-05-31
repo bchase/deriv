@@ -930,13 +930,14 @@ pub fn snake_case_test() {
   |> should.equal("foo_bar_x")
 }
 
-pub fn json_specify_decoder_test() {
+pub fn json_specify_decoder_and_encode_test() {
   let input = "
 pub type Maybe {
-  //$ derive json decode
+  //$ derive json decode encode
   Maybe(
     name: Option(String),
     //$ json decoder decoder_name
+    //$ json encode encode_func_name
   )
 }
   "
@@ -944,13 +945,15 @@ pub type Maybe {
 
  let output = "
 import gleam/dynamic/decode.{type Decoder}
+import gleam/json.{type Json}
 import gleam/option.{None}
 
 pub type Maybe {
-  //$ derive json decode
+  //$ derive json decode encode
   Maybe(
     name: Option(String),
     //$ json decoder decoder_name
+    //$ json encode encode_func_name
   )
 }
 
@@ -962,6 +965,14 @@ pub fn decoder_maybe_maybe() -> Decoder(Maybe) {
   use name <- decode.optional_field(\"name\", None, decoder_name())
   decode.success(Maybe(name:))
 }
+
+pub fn encode_maybe(value: Maybe) -> Json {
+  case value {
+    Maybe(..) as value ->
+      json.object([#(\"name\", json.nullable(value.name, encode_func_name))])
+  }
+}
+
   "
   |> string.trim
 
@@ -1995,6 +2006,9 @@ pub type Form {
   Form(
     text_fields: Fields(String),
     list_fields: Fields(List(String)),
+    override: Fields(String),
+    //$ json decoder some_specific_decoder_name
+    //$ json encode some_specific_encode_func
   )
 }
   " |> string.trim
@@ -2032,6 +2046,9 @@ pub type Form {
   Form(
     text_fields: Fields(String),
     list_fields: Fields(List(String)),
+    override: Fields(String),
+    //$ json decoder some_specific_decoder_name
+    //$ json encode some_specific_encode_func
   )
 }
 
@@ -2044,6 +2061,7 @@ pub fn encode_form(value: Form) -> Json {
           \"list_fields\",
           encode_fields(value.list_fields, json.array(_, json.string)),
         ),
+        #(\"override\", encode_fields(value.override, some_specific_encode_func)),
       ])
   }
 }
@@ -2058,7 +2076,8 @@ pub fn decoder_form_form() -> Decoder(Form) {
     \"list_fields\",
     decoder_fields(decode.list(decode.string)),
   )
-  decode.success(Form(text_fields:, list_fields:))
+  use override <- decode.field(\"override\", some_specific_decoder_name())
+  decode.success(Form(text_fields:, list_fields:, override:))
 }
   "
   |> string.trim
