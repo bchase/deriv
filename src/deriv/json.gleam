@@ -354,8 +354,6 @@ fn json_field_name(field: VarField, field_opts: List(DerivFieldOpt)) -> String {
   }
 }
 
-pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
-
 fn type_encode_expr(
   type_: JType,
   type_alias: Option(Bool),
@@ -383,7 +381,7 @@ fn type_encode_expr(
     }
 
   let expr =
-    case type_.name |> echo {
+    case type_.name {
       "Int" | "Float" | "String" | "Bool" ->
         FieldAccess(Variable("json"), type_.name |> string.lowercase)
         |> handle_type_aliases
@@ -457,23 +455,23 @@ fn type_encode_expr(
         Call(FieldAccess(Variable("json"), "dict"), params)
       }
       _ -> {
-        let type_alias_names =
-          type_aliases
-          |> list.map(fn(ta) { ta.name })
-
         let encoder_name = "encode_" <> util.snake_case(type_.name)
 
-        case { !type_alias && type_alias_names |> list.contains(type_.name) } {
+        case type_alias {
           True -> {
-            echo "HERE"
-            echo "HERE"
-            echo "HERE"
-            echo "HERE"
-            echo "HERE"
-            echo "HERE"
-            echo "HERE"
-            echo type_
-            type_encode_expr(type_, Some(True), birl_time_kind, type_aliases, wrap: None, encode_arg:)
+            let params =
+              [
+                encode_arg,
+              ]
+              |> list.append({
+                type_.parameters
+                |> list.map(type_encode_expr(_, None, birl_time_kind, type_aliases, wrap: None, encode_arg: {
+                  UnlabelledField(Variable("_"))
+                }))
+                |> list.map(UnlabelledField)
+              })
+
+            Call(Variable(encoder_name), params)
           }
 
           False ->
@@ -481,11 +479,6 @@ fn type_encode_expr(
               [] ->
                 Variable(encoder_name)
                 |> handle_type_aliases
-                |> echo
-                |> echo
-                |> echo
-                |> echo
-                |> echo
 
               params -> {
                 let params =
@@ -504,7 +497,6 @@ fn type_encode_expr(
         }
       }
     }
-    |> echo
 
   case wrap {
     None -> expr
@@ -588,21 +580,21 @@ fn encode_field(
         },
       ))
 
-    _, [JType(name: param_type_name, module: None, parameters: [])] ->
-      case ftype.name {
-        "Option" | "List" -> {
-          type_encode_expr(ftype, Some(False), birl_time_kind, ctx.type_aliases, wrap: None,
-            encode_arg: {
-              UnlabelledField(FieldAccess(Variable("value"), field.name))
-            },
-          )
-        }
-        _ -> {
-          // io.debug(ftype)
-          // panic as "Not yet implemented for type printed above"
-          Call(Variable("encode_" <> util.snake_case(ftype.name)), [])
-        }
-      }
+    // _, [JType(name: param_type_name, module: None, parameters: [])] ->
+    //   case ftype.name {
+    //     "Option" | "List" -> {
+    //       type_encode_expr(ftype, Some(False), birl_time_kind, ctx.type_aliases, wrap: None,
+    //         encode_arg: {
+    //           UnlabelledField(FieldAccess(Variable("value"), field.name))
+    //         },
+    //       )
+    //     }
+    //     _ -> {
+    //       // io.debug(ftype)
+    //       // panic as "Not yet implemented for type printed above"
+    //       Call(Variable("encode_" <> util.snake_case(ftype.name)), [])
+    //     }
+    //   }
 
     _, [
       JType(name: key_param_type_name, module: None, parameters: []),
@@ -984,7 +976,8 @@ fn decode_field_expr(
           _ -> {
             // io.debug(field)
             // panic as "unimplemented"
-            Call(Variable("decoder_" <> util.snake_case(type_.name)), [])
+            // Call(Variable("decoder_" <> util.snake_case(type_.name)), [])
+            type_decode_expr(t, type_aliases, birl_time_kind, opts, local_decoders)
           }
         }
       _no_decoder_specified, _jtype_parameterized, [
