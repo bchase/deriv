@@ -242,13 +242,22 @@ fn uses_list(type_: CustomType) -> Bool {
 //   |> regexp.check(re, _)
 // }
 
+fn type_aliases_in(
+  file file: File,
+) -> List(TypeAlias) {
+  let assert Ok(glance.Module(type_aliases:, ..)) =
+    glance.module(file.src)
+
+  type_aliases
+  |> list.map(fn(ta) { ta.definition })
+}
+
 fn gen_json_decoders(
   type_: deriv.Type,
   field_opts: DerivFieldOpts,
   file: File,
 ) -> List(Definition(Function)) {
-  let assert Ok(glance.Module(type_aliases:, ..)) = glance.module(file.src)
-  let type_aliases = type_aliases |> list.map(fn(ta) { ta.definition })
+  let type_aliases = type_aliases_in(file:)
 
   case type_ {
     deriv.TypeAlias(type_alias:)  ->
@@ -263,12 +272,14 @@ fn gen_json_decoders(
 fn gen_json_encoders(
   type_: deriv.Type,
   all_field_opts: DerivFieldOpts,
-  _file: File,
+  file: File,
 ) -> List(Definition(Function)) {
+  let type_aliases = type_aliases_in(file:)
+
   // TODO qualify imports using `file` (`idx`)
   case type_ {
     deriv.TypeAlias(type_alias:)  ->
-      encode_type_alias_func(type_alias, all_field_opts)
+      encode_type_alias_func(type_alias, all_field_opts, type_aliases)
       |> fn(func) { [ func ] }
 
     deriv.Type(type_:)  ->
@@ -345,7 +356,7 @@ fn type_encode_expr(
     }
 
   let expr =
-    case type_.name {
+    case type_.name |> echo {
       "Int" | "Float" | "String" | "Bool" ->
         FieldAccess(Variable("json"), type_.name |> string.lowercase)
         |> handle_type_aliases
@@ -412,9 +423,8 @@ fn type_encode_expr(
               UnlabelledField(Variable("_"))
             }))
             |> list.map(UnlabelledField)
-            |> list.reverse
-            |> list.drop(1)
-            |> list.reverse
+            |> list.rest
+            |> result.unwrap([])
           })
 
         Call(FieldAccess(Variable("json"), "dict"), params)
@@ -442,6 +452,7 @@ fn type_encode_expr(
         }
       }
     }
+    |> echo
 
   case wrap {
     None -> expr
@@ -718,7 +729,8 @@ fn encode_type_func(
 
 fn encode_type_alias_func(
   type_alias: TypeAlias,
-  all_field_opts all_field_opts: DerivFieldOpts,
+  all_field_opts _all_field_opts: DerivFieldOpts,
+  type_aliases type_aliases: List(TypeAlias),
 ) -> Definition(Function) {
   let name = "encode_" <> util.snake_case(type_alias.name)
 
