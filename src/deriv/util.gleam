@@ -64,9 +64,9 @@ pub fn indent(str: String, level level: Int) {
 }
 
 pub fn snake_case(str: String) -> String {
-  let assert Ok(re) = regexp.from_string("[A-Z]")
+  let assert Ok(is_capital) = regexp.from_string("[A-Z]")
 
-  let step_snake_case = fn(state, char) { step_snake_case(re, state, char) }
+  let step_snake_case = fn(state, char) { step_snake_case(char:, state:, is_capital:) }
 
   str
   |> string.split("")
@@ -80,10 +80,7 @@ pub fn snake_case(str: String) -> String {
     |> fn(sc) {
       case sc.acc {
         [[last, second_to_last, ..rest], ..rest_chunks] -> {
-          let last_is_uppercase = last == string.uppercase(last)
-          let second_to_last_is_lowercase = second_to_last == string.lowercase(second_to_last)
-
-          case last_is_uppercase && second_to_last_is_lowercase {
+          case regexp.check(is_capital, last) {
             False -> sc.acc
             True -> {
               let second_to_last_chunk = [second_to_last, ..rest]
@@ -116,37 +113,65 @@ type SC {
   )
 }
 
-fn step_snake_case(is_capital: Regexp, state: SC, char: String) -> SC {
-  let SC(acc:, curr:, next_is_capital:) = state
+fn step_snake_case(
+  char char: String,
+  state state: SC,
+  is_capital is_capital: Regexp,
+) -> SC {
+  let char_is_capital = is_capital |> regexp.check(char)
 
-  let char_is_capital = regexp.check(is_capital, char)
-
-  case char_is_capital, next_is_capital {
+  case char_is_capital, state.next_is_capital {
     True, False -> {
-      SC(
-        acc: list.append(acc, [list.append(curr, [char])]),
-        curr: [],
+      process_as_final_in_token(char:,
         next_is_capital: char_is_capital,
+        sc: state,
       )
     }
 
     True, True -> {
-      SC(
-        acc: acc,
-        curr: list.append(curr, [char]),
+      add_to_curr_token(char:,
         next_is_capital: !char_is_capital,
+        sc: state,
       )
     }
 
     _, _ -> {
-      SC(
-        acc: acc,
-        curr: list.append(curr, [char]),
+      add_to_curr_token(char:,
         next_is_capital: char_is_capital,
+        sc: state,
       )
     }
   }
 }
+
+fn process_as_final_in_token(
+  char char: String,
+  sc sc: SC,
+  next_is_capital next_is_capital: Bool,
+) -> SC {
+  SC(
+    acc: sc.acc |> list.append([sc.curr |> list.append([char])]),
+    curr: [],
+    next_is_capital:,
+  )
+}
+
+fn add_to_curr_token(
+  char char: String,
+  sc sc: SC,
+  next_is_capital next_is_capital: Bool,
+) -> SC {
+  SC(..sc,
+    curr: sc.curr |> list.append([char]),
+    next_is_capital:,
+  )
+}
+
+// fn clear_curr(
+//   sc: SC,
+// ) -> SC {
+//   SC(..sc, curr: [])
+// }
 
 pub fn pascal_case(str: String) -> String {
   str

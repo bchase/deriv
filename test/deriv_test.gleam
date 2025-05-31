@@ -928,6 +928,18 @@ pub fn snake_case_test() {
 
   util.snake_case("FooBarX")
   |> should.equal("foo_bar_x")
+
+  util.snake_case("Foo123Bar")
+  |> should.equal("foo123_bar")
+
+  util.snake_case("FooBar1")
+  |> should.equal("foo_bar1")
+
+  util.snake_case("FooBar12")
+  |> should.equal("foo_bar12")
+
+  util.snake_case("FooBar123")
+  |> should.equal("foo_bar123")
 }
 
 pub fn json_specify_decoder_and_encode_test() {
@@ -2083,6 +2095,158 @@ pub fn decoder_form_form() -> Decoder(Form) {
   |> string.trim
 
   input |> should_equal(output:)
+}
+
+//pub fn json_encode_nested_parameterized_type_alias_list_test() {
+//  let input = "
+//pub type Validation(t) = fn(t) -> Result(t, List(String))
+
+//pub type Field1(t) {
+//  //$ derive json encode decode
+//  Field1(
+//    id: String,
+//    validations: List(Validation(t)),
+//    //$ json decoder decoder_validations
+//    //$ json encode encode_validations
+//    touched: Bool,
+//    value: t,
+//    errs: List(String),
+//  )
+//}
+
+//pub fn encode_fake_validation(
+//  _value: Validation(t),
+//) -> Json {
+//  json.null()
+//}
+
+//pub fn decoder_fake_validation() -> Decoder(Validation(t)) {
+//  decode.success(fn(_) { Error([]) })
+//}
+//  " |> string.trim
+
+// let output = "
+//import gleam/dynamic/decode.{type Decoder}
+//import gleam/json.{type Json}
+//import gleam/list
+
+//pub type Validation(t) = fn(t) -> Result(t, List(String))
+
+//pub type Field1(t) {
+//  //$ derive json encode decode
+//  Field1(
+//    id: String,
+//    validations: List(Validation(t)),
+//    //$ json decoder decoder_validations
+//    //$ json encode encode_validations
+//    touched: Bool,
+//    value: t,
+//    errs: List(String),
+//  )
+//}
+
+//pub fn encode_fake_validation(
+//  _value: Validation(t),
+//) -> Json {
+//  json.null()
+//}
+
+//pub fn decoder_fake_validation() -> Decoder(Validation(t)) {
+//  decode.success(fn(_) { Error([]) })
+//}
+
+//pub fn encode_field1(value: Field1(t), encode_t: fn(t) -> Json) -> Json {
+//  case value {
+//    Field1(..) as value ->
+//      json.object([
+//        #(\"id\", json.string(value.id)),
+//        #(
+//          \"validations\",
+//          json.array(value.validations, encode_fake_validation),
+//        ),
+//        #(\"touched\", json.bool(value.touched)),
+//        #(\"value\", encode_t(value.value)),
+//        #(\"errs\", json.array(value.errs, json.string)),
+//      ])
+//  }
+//}
+
+//pub fn decoder_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
+//  decode.one_of(decoder_field1_field1(decoder_t), [])
+//}
+
+//pub fn decoder_field1_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
+//  use id <- decode.field(\"id\", decode.string)
+//  use validations <- decode.field(
+//    \"validations\",
+//    decode.list(decoder_fake_validation()),
+//  )
+//  use touched <- decode.field(\"touched\", decode.bool)
+//  use value <- decode.field(\"value\", decoder_t)
+//  use errs <- decode.field(\"errs\", decode.list(decode.string))
+//  decode.success(Field1(id:, validations:, touched:, value:, errs:))
+//}
+//  "
+//  |> string.trim
+
+//  input |> should_equal(output:)
+//}
+
+pub type Validation(t) = fn(t) -> Result(t, List(String))
+
+pub type Field1(t) {
+  //$ derive json encode decode
+  Field1(
+    id: String,
+    validations: List(Validation(t)),
+    //$ json decoder decoder_validations
+    //$ json encode encode_validations
+    touched: Bool,
+    value: t,
+    errs: List(String),
+  )
+}
+
+pub fn encode_fake_validation(
+  _value: Validation(t),
+) -> Json {
+  json.null()
+}
+
+pub fn decoder_fake_validation() -> Decoder(Validation(t)) {
+  decode.success(fn(_) { Error([]) })
+}
+
+pub fn encode_field1(value: Field1(t), encode_t: fn(t) -> Json) -> Json {
+  case value {
+    Field1(..) as value ->
+      json.object([
+        #("id", json.string(value.id)),
+        #(
+          "validations",
+          json.array(value.validations, encode_fake_validation),
+        ),
+        #("touched", json.bool(value.touched)),
+        #("value", encode_t(value.value)),
+        #("errs", json.array(value.errs, json.string)),
+      ])
+  }
+}
+
+pub fn decoder_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
+  decode.one_of(decoder_field1_field1(decoder_t), [])
+}
+
+pub fn decoder_field1_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
+  use id <- decode.field("id", decode.string)
+  use validations <- decode.field(
+    "validations",
+    decode.list(decoder_fake_validation()),
+  )
+  use touched <- decode.field("touched", decode.bool)
+  use value <- decode.field("value", decoder_t)
+  use errs <- decode.field("errs", decode.list(decode.string))
+  decode.success(Field1(id:, validations:, touched:, value:, errs:))
 }
 
 pub type Fields(t) =
