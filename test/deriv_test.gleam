@@ -1963,100 +1963,94 @@ pub fn decoder_bool_key_dict() -> Decoder(BoolKeyDict) {
   |> should.equal(output)
 }
 
-//pub fn json_encode_nested_parameterized_type_alias_test() {
-////pub type Fields(t) =
-////  //$ derive json encode decode
-////  Dict(String, Field(t))
+pub fn json_encode_nested_parameterized_type_alias_test() {
+//pub type Fields(t) =
+//  //$ derive json encode decode
+//  Dict(String, Field(t))
 
-////pub type Field(t) {
-////  //$ derive json encode decode
-////  Field(
-////    id: String,
-////    touched: Bool,
-////    value: t,
-////  )
-////}
-
-//// TODO
-//  let input = "
-//pub type Form {
-//  //$ derive json encode
-//  Form(
-//    text_fields: Fields(String),
-//    list_fields: Fields(List(String)),
-//  )
-//}
-//  " |> string.trim
-
-////pub type Fields(t) =
-////  //$ derive json encode decode
-////  Dict(String, Field(t))
-
-////pub type Field(t) {
-////  //$ derive json encode decode
-////  Field(
-////    id: String,
-////    touched: Bool,
-////    value: t,
-////  )
-////}
-
-// let output = "
-//import gleam/dynamic/decode.{type Decoder}
-//import gleam/json.{type Json}
-
-//pub type Form {
-//  //$ derive json encode
-//  Form(
-//    text_fields: Fields(String),
-//    list_fields: Fields(List(String)),
+//pub type Field(t) {
+//  //$ derive json encode decode
+//  Field(
+//    id: String,
+//    touched: Bool,
+//    value: t,
 //  )
 //}
 
-//pub fn encode_fields(value: Fields(t), encode_t: fn(t) -> Json) -> Json {
-//  json.dict(value, string.inspect, encode_field(_, encode_t))
+// TODO
+  let input = "
+pub type Fields(t) =
+  Dict(String, Field(t))
+
+pub type Field(t) {
+  Field(
+    id: String,
+    touched: Bool,
+    value: t,
+  )
+}
+
+pub type Form {
+  //$ derive json encode
+  Form(
+    text_fields: Fields(String),
+    list_fields: Fields(List(String)),
+  )
+}
+  " |> string.trim
+
+//pub type Fields(t) =
+//  //$ derive json encode decode
+//  Dict(String, Field(t))
+
+//pub type Field(t) {
+//  //$ derive json encode decode
+//  Field(
+//    id: String,
+//    touched: Bool,
+//    value: t,
+//  )
 //}
 
-//pub fn decoder_fields(decoder_t: Decoder(t)) -> Decoder(Fields(t)) {
-//  decode.dict(decode.string, decoder_field(decoder_t))
-//}
+ let output = "
+import gleam/json.{type Json}
 
-//pub fn encode_field(value: Field(t), encode_t: fn(t) -> Json) -> Json {
-//  case value {
-//    Field(..) as value ->
-//      json.object([
-//        #(\"id\", json.string(value.id)),
-//        #(\"touched\", json.bool(value.touched)),
-//        #(\"value\", encode_t(value.value)),
-//      ])
-//  }
-//}
+pub type Fields(t) =
+  Dict(String, Field(t))
 
-//pub fn decoder_field(decoder_t: Decoder(t)) -> Decoder(Field(t)) {
-//  decode.one_of(decoder_field_field(decoder_t), [])
-//}
+pub type Field(t) {
+  Field(
+    id: String,
+    touched: Bool,
+    value: t,
+  )
+}
 
-//pub fn decoder_field_field(decoder_t: Decoder(t)) -> Decoder(Field(t)) {
-//  use id <- decode.field(\"id\", decode.string)
-//  use touched <- decode.field(\"touched\", decode.bool)
-//  use value <- decode.field(\"value\", decoder_t)
-//  decode.success(Field(id:, touched:, value:))
-//}
+pub type Form {
+  //$ derive json encode
+  Form(
+    text_fields: Fields(String),
+    list_fields: Fields(List(String)),
+  )
+}
 
-//pub fn encode_form(value: Form) -> Json {
-//  case value {
-//    Form(..) as value ->
-//      json.object([
-//        #(\"text_fields\", encode_fields(value.text_fields, json.string)),
-//        #(\"list_fields\", encode_fields(value.list_fields, json.array(_, json.string))),
-//      ])
-//  }
-//}
-//  "
-//  |> string.trim
+pub fn encode_form(value: Form) -> Json {
+  case value {
+    Form(..) as value ->
+      json.object([
+        #(\"text_fields\", encode_fields(value.text_fields, json.string)),
+        #(
+          \"list_fields\",
+          encode_fields(value.list_fields, json.array(_, json.string)),
+        ),
+      ])
+  }
+}
+  "
+  |> string.trim
 
-//  input |> should_equal(output:)
-//}
+  input |> should_equal(output:)
+}
 
 pub type Fields(t) =
   //$ derive json encode decode
