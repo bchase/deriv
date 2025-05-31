@@ -1991,7 +1991,7 @@ pub type Field(t) {
 }
 
 pub type Form {
-  //$ derive json encode
+  //$ derive json encode decode
   Form(
     text_fields: Fields(String),
     list_fields: Fields(List(String)),
@@ -2013,6 +2013,7 @@ pub type Form {
 //}
 
  let output = "
+import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
 pub type Fields(t) =
@@ -2027,7 +2028,7 @@ pub type Field(t) {
 }
 
 pub type Form {
-  //$ derive json encode
+  //$ derive json encode decode
   Form(
     text_fields: Fields(String),
     list_fields: Fields(List(String)),
@@ -2045,6 +2046,19 @@ pub fn encode_form(value: Form) -> Json {
         ),
       ])
   }
+}
+
+pub fn decoder_form() -> Decoder(Form) {
+  decode.one_of(decoder_form_form(), [])
+}
+
+pub fn decoder_form_form() -> Decoder(Form) {
+  use text_fields <- decode.field(\"text_fields\", decoder_fields(decode.string))
+  use list_fields <- decode.field(
+    \"list_fields\",
+    decoder_fields(decode.list(decode.string)),
+  )
+  decode.success(Form(text_fields:, list_fields:))
 }
   "
   |> string.trim

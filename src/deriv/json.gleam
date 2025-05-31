@@ -976,7 +976,8 @@ fn decode_field_expr(
           _ -> {
             // io.debug(field)
             // panic as "unimplemented"
-            Call(Variable("decoder_" <> util.snake_case(type_.name)), [])
+            // Call(Variable("decoder_" <> util.snake_case(type_.name)), [])
+            type_decode_expr(t, type_aliases, birl_time_kind, opts, local_decoders)
           }
         }
       _no_decoder_specified, _jtype_parameterized, [
