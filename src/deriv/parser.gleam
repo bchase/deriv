@@ -181,7 +181,7 @@ type DerivFieldOptsAcc {
 
 fn parse_all_deriv_field_opts(lines: List(String)) -> DerivFieldOpts {
   let assert Ok(type_re) =
-    "^\\s*(pub\\s+)?type\\s+([A-Z]\\w*)\\s*[{]"
+    "^\\s*(pub\\s+)?type\\s+([A-Z]\\w*)(\\s*|[(])"
     |> regexp.from_string
 
   let assert Ok(variant_re) =
@@ -196,7 +196,7 @@ fn parse_all_deriv_field_opts(lines: List(String)) -> DerivFieldOpts {
   |> list.fold(DerivFieldOptsAcc(Error(Nil), Error(Nil), Error(Nil), dict.new()), fn(acc, line) {
     let type_ =
       case regexp.scan(type_re, line) {
-        [Match(_txt, [_, Some(type_)])] -> Ok(type_)
+        [Match(_txt, [_, Some(type_), ..])] -> Ok(type_)
         _ -> Error(Nil)
       }
 
@@ -263,7 +263,6 @@ fn parse_deriv_field_opts(str: String) -> List(DerivFieldOpt) {
 
   case regexp.split(magic_comment_re, str) {
     [_, magic_comment] ->
-
       case regexp.split(whitespace_re, magic_comment) {
         [] -> []
         strs -> [DerivFieldOpt(strs)]
