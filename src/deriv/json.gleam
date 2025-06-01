@@ -645,6 +645,15 @@ fn encode_variant_json_object_expr(
 ) -> Expression {
   let encode_lines =
     variant.fields
+    |> list.filter(fn(field) {
+      let field = variant_field(field)
+      let opts = util.get_field_opts(ctx.all_field_opts, type_, variant, field.name)
+
+      case opts |> list.find(fn(opt) { opt.strs == ["json", "encode", "skip"] }) {
+        Ok(_) -> False
+        Error(_) -> True
+      }
+    })
     |> list.map(fn(field) {
       let field = variant_field(field)
 
