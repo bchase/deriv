@@ -954,72 +954,7 @@ fn decode_field_expr(
 
   let opts = util.get_field_opts(all_field_opts, type_, variant, field.name)
 
-  let expr =
-    case specifies_decoder(opts), t, t.parameters {
-      // Some(decoder_name), _, _ ->
-      //   Call(function: Variable(decoder_name), arguments: [])
-
-      _, JType("Option", _, [JType("List", _, [JType(_, _, []) as param])]), _ -> {
-        let inner =
-          param
-          |> type_decode_expr(type_aliases, birl_time_kind, opts, local_decoders)
-          |> UnlabelledField
-
-        Call(FieldAccess(Variable("decode"), "optional"), [
-          UnlabelledField(Call(FieldAccess(Variable("decode"), "list"), [inner]))
-        ])
-      }
-      _, _, [] -> type_decode_expr(t, type_aliases, birl_time_kind, opts, local_decoders)
-      _, _, [JType(parameters: [], ..) as param] ->
-        case t.name {
-          "List" -> {
-            let inner =
-              param
-              |> type_decode_expr(type_aliases, birl_time_kind, opts, local_decoders)
-              |> UnlabelledField
-
-            Call(FieldAccess(Variable("decode"), "list"), [inner])
-          }
-
-          "Option" -> {
-            let inner =
-              param
-              |> type_decode_expr(type_aliases, birl_time_kind, opts, local_decoders)
-              |> UnlabelledField
-
-            Call(FieldAccess(Variable("decode"), "optional"), [inner])
-          }
-
-          _ -> {
-            // io.debug(field)
-            // panic as "unimplemented"
-            // Call(Variable("decoder_" <> util.snake_case(type_.name)), [])
-            type_decode_expr(t, type_aliases, birl_time_kind, opts, local_decoders)
-          }
-        }
-      _no_decoder_specified, _jtype_parameterized, [
-        JType(parameters: [], ..) as key_param,
-        JType(parameters: [], ..) as val_param,
-      ] ->
-        case t.name, key_param.name {
-          "Dict", "String" -> {
-            let val_decode_expr = type_decode_expr(val_param, type_aliases, birl_time_kind, opts, local_decoders)
-
-            Call(
-              function: FieldAccess(Variable("decode"), "dict"),
-              arguments: [
-                UnlabelledField(FieldAccess(Variable("decode"), "string")),
-                UnlabelledField(val_decode_expr),
-              ]
-            )
-          }
-
-          _, _ ->
-            type_decode_expr(t, type_aliases, birl_time_kind, opts, local_decoders)
-        }
-      _, _, _ ->
-        type_decode_expr(t, type_aliases, birl_time_kind, opts, local_decoders)
-    }
+  let expr = type_decode_expr(t, type_aliases, birl_time_kind, opts, local_decoders)
 
   let json_field_name =
     all_field_opts
