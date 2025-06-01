@@ -1,4 +1,5 @@
- import gleam/int
+ import gleam/regexp
+import gleam/int
  import gleam/dynamic/decode.{type Decoder}
  import gleam/json.{type Json}
  import gleam/dict.{type Dict}
@@ -2188,146 +2189,60 @@ pub fn decoder_field1_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
   input |> should_equal(output:)
 }
 
-pub type Validation(t) = fn(t) -> Result(t, List(String))
+pub fn json_decoder_default_empty_and_encode_skip_test() {
+  "
+pub type Empty {
+  //$ derive json decode encode
+  Empty(
+    list: List(String),
+    //$ json decode default empty
+    //$ json encode skip
+  )
+}
+  "
+  |> should_equal(output: "
+import gleam/dynamic/decode.{type Decoder}
+import gleam/json.{type Json}
+import gleam/list
 
-pub type Field1(t) {
-  //$ derive json encode decode
-  Field1(
-    id: String,
-    validations: List(Validation(t)),
-    //$ json decoder decoder_validations
-    //$ json encode encode_validations
-    touched: Bool,
-    value: t,
-    errs: List(String),
+pub type Empty {
+  //$ derive json decode encode
+  Empty(
+    list: List(String),
+    //$ json decode default empty
+    //$ json encode skip
   )
 }
 
-pub fn encode_fake_validation(
-  _value: Validation(t),
-) -> Json {
-  json.null()
+pub fn decoder_empty() -> Decoder(Empty) {
+  decode.one_of(decoder_empty_empty(), [])
 }
 
-pub fn decoder_fake_validation() -> Decoder(Validation(t)) {
-  decode.success(fn(_) { Error([]) })
+pub fn decoder_empty_empty() -> Decoder(Empty) {
+  use list <- decode.field(
+    \"list\",
+    decode.one_of(decode.list(decode.string), [decode.success([])]),
+  )
+  decode.success(Empty(list:))
 }
 
-pub fn encode_field1(value: Field1(t), encode_t: fn(t) -> Json) -> Json {
+pub fn encode_empty(value: Empty) -> Json {
   case value {
-    Field1(..) as value ->
-      json.object([
-        #("id", json.string(value.id)),
-        #(
-          "validations",
-          json.array(value.validations, encode_fake_validation),
-        ),
-        #("touched", json.bool(value.touched)),
-        #("value", encode_t(value.value)),
-        #("errs", json.array(value.errs, json.string)),
-      ])
+    Empty(..) as value -> json.object([])
   }
 }
-
-pub fn decoder_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
-  decode.one_of(decoder_field1_field1(decoder_t), [])
-}
-
-pub fn decoder_field1_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
-  use id <- decode.field("id", decode.string)
-  use validations <- decode.field(
-    "validations",
-    decode.list(decoder_fake_validation()),
-  )
-  use touched <- decode.field("touched", decode.bool)
-  use value <- decode.field("value", decoder_t)
-  use errs <- decode.field("errs", decode.list(decode.string))
-  decode.success(Field1(id:, validations:, touched:, value:, errs:))
-}
-
-pub type Fields(t) =
-  //$ derive json encode decode
-  Dict(String, Field(t))
-
-pub type Field(t) {
-  //$ derive json encode decode
-  Field(
-    id: String,
-    touched: Bool,
-    value: t,
+  "
   )
 }
-
-pub type Form {
-  //$ derive json encode decode
-  Form(
-    text_fields: Fields(String),
-    list_fields: Fields(List(String)),
-  )
-}
-
-pub fn encode_fields(value: Fields(t), encode_t: fn(t) -> Json) -> Json {
-  json.dict(value, string.inspect, encode_field(_, encode_t))
-}
-
-pub fn decoder_fields(decoder_t: Decoder(t)) -> Decoder(Fields(t)) {
-  decode.dict(decode.string, decoder_field(decoder_t))
-}
-
-pub fn encode_field(value: Field(t), encode_t: fn(t) -> Json) -> Json {
-  case value {
-    Field(..) as value ->
-      json.object([
-        #("id", json.string(value.id)),
-        #("touched", json.bool(value.touched)),
-        #("value", encode_t(value.value)),
-      ])
-  }
-}
-
-pub fn decoder_field(decoder_t: Decoder(t)) -> Decoder(Field(t)) {
-  decode.one_of(decoder_field_field(decoder_t), [])
-}
-
-pub fn decoder_field_field(decoder_t: Decoder(t)) -> Decoder(Field(t)) {
-  use id <- decode.field("id", decode.string)
-  use touched <- decode.field("touched", decode.bool)
-  use value <- decode.field("value", decoder_t)
-  decode.success(Field(id:, touched:, value:))
-}
-
-pub fn encode_form(value: Form) -> Json {
-  case value {
-    Form(..) as value ->
-      json.object([
-        #("text_fields", encode_fields(value.text_fields, json.string)),
-        #("list_fields", encode_fields(value.list_fields, json.array(_, json.string))),
-      ])
-  }
-}
-
-pub fn decoder_form() -> Decoder(Form) {
-  decode.one_of(decoder_form_form(), [])
-}
-
-pub fn decoder_form_form() -> Decoder(Form) {
-  use text_fields <- decode.field(
-    "text_fields",
-    decoder_fields(decode.string),
-  )
-  use list_fields <- decode.field(
-    "list_fields",
-    decoder_fields(decode.list(decode.string)),
-  )
-  decode.success(Form(text_fields:, list_fields:))
-}
-
 
 fn should_equal(
   input input: String,
   output output: String,
 ) {
-  let assert [write] = gen_and_build_writes(input)
+  let output = output |> string.trim
+
+  let assert [write] = gen_and_build_writes(input |> string.trim)
+  let gen = write.src |> string.trim
 
   io.println("")
   io.println("")
@@ -2336,11 +2251,12 @@ fn should_equal(
   io.println("")
   io.println("")
   io.println("GENERATED")
-  io.println(write.src)
+  io.println(gen)
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(util.diff(output, gen))
 
   write.src
+  |> string.trim
   |> should.equal(output)
 }
 

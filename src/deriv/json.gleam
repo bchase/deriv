@@ -645,6 +645,15 @@ fn encode_variant_json_object_expr(
 ) -> Expression {
   let encode_lines =
     variant.fields
+    |> list.filter(fn(field) {
+      let field = variant_field(field)
+      let opts = util.get_field_opts(ctx.all_field_opts, type_, variant, field.name)
+
+      case opts |> list.find(fn(opt) { opt.strs == ["json", "encode", "skip"] }) {
+        Ok(_) -> False
+        Error(_) -> True
+      }
+    })
     |> list.map(fn(field) {
       let field = variant_field(field)
 
@@ -1287,7 +1296,21 @@ fn type_decode_expr(
       //   |> list.map(UnlabelledField)
 
       // Call(FieldAccess(Variable("decode"), "list"), params)
-      decoder_with_params_or_override(FieldAccess(Variable("decode"), "list"), params)
+      case
+        decoder_with_params_or_override(FieldAccess(Variable("decode"), "list"), params),
+        opts |> list.any(fn(opt) { opt == DerivFieldOpt(strs: ["json", "decode", "default", "empty"]) })
+      {
+        expr, False ->
+          expr
+
+        expr, True ->
+          Call(FieldAccess(Variable("decode"), "one_of"), [
+            UnlabelledField(expr),
+            UnlabelledField(List([
+             Call(FieldAccess(Variable("decode"), "success"), [UnlabelledField(List([], None))]),
+            ], None)),
+          ])
+      }
     }
     _, "Option", params -> {
       // let params =
