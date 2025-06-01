@@ -956,8 +956,8 @@ fn decode_field_expr(
 
   let expr =
     case specifies_decoder(opts), t, t.parameters {
-      Some(decoder_name), _, _ ->
-        Call(function: Variable(decoder_name), arguments: [])
+      // Some(decoder_name), _, _ ->
+      //   Call(function: Variable(decoder_name), arguments: [])
 
       _, JType("Option", _, [JType("List", _, [JType(_, _, []) as param])]), _ -> {
         let inner =
@@ -1286,7 +1286,16 @@ fn type_decode_expr(
   opts: List(DerivFieldOpt),
   local_decoders: List(String),
 ) -> Expression {
-  let decoder_name_override: Option(String) = None
+  let decoder_name_override =
+    opts
+    |> list.filter_map(fn(opt) {
+      case opt {
+        DerivFieldOpt(strs: ["json", "decoder", decoder_name ]) -> Ok(decoder_name)
+        _ -> Error(Nil)
+      }
+    })
+    |> list.first
+    |> option.from_result
 
   let decoder_with_params_or_override =
     fn(expr, params) {
@@ -1295,7 +1304,7 @@ fn type_decode_expr(
           Some(decoder_name_override) ->
             params
             |> list.map(fn(_) {
-              UnlabelledField(Variable(decoder_name_override))
+              UnlabelledField(Call(Variable(decoder_name_override), []))
             })
 
           None ->
@@ -1307,20 +1316,41 @@ fn type_decode_expr(
       Call(expr, params)
     }
 
-  case type_.name, type_.parameters {
-    "Int", _ -> FieldAccess(Variable("decode"), "int")
-    "Float", _ -> FieldAccess(Variable("decode"), "float")
-    "String", _ -> FieldAccess(Variable("decode"), "string")
-    "Bool", _ -> FieldAccess(Variable("decode"), "bool")
-    "Uuid", _ -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
-    "Time", _ -> birl_time_decode_expr(birl_time_kind)
-    "Dict", [key_type, val_type] -> {
+  case decoder_name_override, type_.name, type_.parameters {
+    Some(decoder_name), "List", _ ->
+      Call(FieldAccess(Variable("decode"), "list"), [
+        UnlabelledField(Call(Variable(decoder_name), [])),
+      ])
+
+    Some(decoder_name), "Option", [JType("List", _, _)] ->
+      Call(FieldAccess(Variable("decode"), "optional"), [
+        UnlabelledField(Call(FieldAccess(Variable("decode"), "list"), [
+          UnlabelledField(Variable("_")),
+          UnlabelledField(Call(Variable(decoder_name), [])),
+        ])),
+      ])
+
+    Some(decoder_name), "Option", _ ->
+      Call(FieldAccess(Variable("decode"), "optional"), [
+        UnlabelledField(Call(Variable(decoder_name), [])),
+      ])
+
+    Some(decoder_name), _, _ ->
+      Call(Variable(decoder_name), [])
+
+    _, "Int", _ -> FieldAccess(Variable("decode"), "int")
+    _, "Float", _ -> FieldAccess(Variable("decode"), "float")
+    _, "String", _ -> FieldAccess(Variable("decode"), "string")
+    _, "Bool", _ -> FieldAccess(Variable("decode"), "bool")
+    _, "Uuid", _ -> Call(FieldAccess(Variable("util"), "decoder_uuid"), [])
+    _, "Time", _ -> birl_time_decode_expr(birl_time_kind)
+    _, "Dict", [key_type, val_type] -> {
       Call(FieldAccess(Variable("decode"), "dict"), [
         UnlabelledField(dict_key_decoder(key_type)),
         UnlabelledField(type_decode_expr(val_type, type_aliases, birl_time_kind, opts, local_decoders)),
       ])
     }
-    "List", params -> {
+    _, "List", params -> {
       // let params =
       //   params
       //   |> list.map(type_decode_expr(_, type_aliases, birl_time_kind, opts, local_decoders))
@@ -1329,7 +1359,7 @@ fn type_decode_expr(
       // Call(FieldAccess(Variable("decode"), "list"), params)
       decoder_with_params_or_override(FieldAccess(Variable("decode"), "list"), params)
     }
-    "Option", params -> {
+    _, "Option", params -> {
       // let params =
       //   params
       //   |> list.map(type_decode_expr(_, type_aliases, birl_time_kind, opts, local_decoders))
@@ -1338,7 +1368,7 @@ fn type_decode_expr(
       // Call(FieldAccess(Variable("decode"), "optional"), params)
       decoder_with_params_or_override(FieldAccess(Variable("decode"), "optional"), params)
     }
-    type_name, [] ->
+    _, type_name, [] ->
       case string.lowercase(type_name) == type_name {
         True ->
           Variable("decoder_" <> type_name)
@@ -1357,7 +1387,7 @@ fn type_decode_expr(
               Call(Variable("decoder_" <> util.snake_case(type_.name)), [])
           }
       }
-    _, params -> {
+    _, _, params -> {
       let decoder_name = "decoder_" <> util.snake_case(type_.name)
 
       case decoder_name |> list.contains(local_decoders, _) {

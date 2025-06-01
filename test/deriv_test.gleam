@@ -974,7 +974,11 @@ pub fn decoder_maybe() -> Decoder(Maybe) {
 }
 
 pub fn decoder_maybe_maybe() -> Decoder(Maybe) {
-  use name <- decode.optional_field(\"name\", None, decoder_name())
+  use name <- decode.optional_field(
+    \"name\",
+    None,
+    decode.optional(decoder_name()),
+  )
   decode.success(Maybe(name:))
 }
 
@@ -984,7 +988,6 @@ pub fn encode_maybe(value: Maybe) -> Json {
       json.object([#(\"name\", json.nullable(value.name, encode_func_name))])
   }
 }
-
   "
   |> string.trim
 
@@ -1579,6 +1582,14 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
 
   let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
 
+  let writes =
+    files
+    |> deriv.gen_derivs(module_reader)
+    |> deriv.build_writes
+
+  let assert [write] =
+    writes
+
   io.println("")
   io.println("")
   io.println("EXPECTED")
@@ -1594,7 +1605,6 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
   |> should.equal("src/deriv/example/foo.gleam")
 
   write.src
-  |> string.trim
   |> should.equal(output)
 }
 
@@ -2364,4 +2374,3 @@ fn build_module_reader(
     }
   }
 }
-
