@@ -2231,8 +2231,46 @@ pub fn encode_empty(value: Empty) -> Json {
     Empty(..) as value -> json.object([])
   }
 }
+  ")
+}
+
+pub fn json_decoder_top_level_override_test() {
   "
+pub type Top {
+  //$ derive json decode
+  Top(
+    list: List(String),
+    //$ json decoder top list_override
+    option: Option(Int),
+    //$ json decoder top option_override
   )
+}
+  "
+  |> should_equal(output: "
+import gleam/dynamic/decode.{type Decoder}
+import gleam/list
+import gleam/option.{None}
+
+pub type Top {
+  //$ derive json decode
+  Top(
+    list: List(String),
+    //$ json decoder top list_override
+    option: Option(Int),
+    //$ json decoder top option_override
+  )
+}
+
+pub fn decoder_top() -> Decoder(Top) {
+  decode.one_of(decoder_top_top(), [])
+}
+
+pub fn decoder_top_top() -> Decoder(Top) {
+  use list <- decode.field(\"list\", list_override())
+  use option <- decode.optional_field(\"option\", None, option_override())
+  decode.success(Top(list:, option:))
+}
+  ")
 }
 
 fn should_equal(
