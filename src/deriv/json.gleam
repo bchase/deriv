@@ -1257,18 +1257,13 @@ fn type_decode_expr(
         UnlabelledField(Call(Variable(decoder_name), [])),
       ])
 
-    Some(decoder_name), "Option", [JType("List", _, _)] ->
-      Call(FieldAccess(Variable("decode"), "optional"), [
-        UnlabelledField(Call(FieldAccess(Variable("decode"), "list"), [
-          UnlabelledField(Variable("_")),
-          UnlabelledField(Call(Variable(decoder_name), [])),
-        ])),
-      ])
-
-    Some(decoder_name), "Option", _ ->
-      Call(FieldAccess(Variable("decode"), "optional"), [
-        UnlabelledField(Call(Variable(decoder_name), [])),
-      ])
+    // Some(decoder_name), "Option", [JType("List", _, _)] ->
+    //   Call(FieldAccess(Variable("decode"), "optional"), [
+    //     UnlabelledField(Call(FieldAccess(Variable("decode"), "list"), [
+    //       UnlabelledField(Variable("_")),
+    //       UnlabelledField(Call(Variable(decoder_name), [])),
+    //     ])),
+    //   ])
 
     Some(decoder_name), _, _ ->
       Call(Variable(decoder_name), [])

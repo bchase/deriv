@@ -974,11 +974,7 @@ pub fn decoder_maybe() -> Decoder(Maybe) {
 }
 
 pub fn decoder_maybe_maybe() -> Decoder(Maybe) {
-  use name <- decode.optional_field(
-    \"name\",
-    None,
-    decode.optional(decoder_name()),
-  )
+  use name <- decode.optional_field(\"name\", None, decoder_name())
   decode.success(Maybe(name:))
 }
 
