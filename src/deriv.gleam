@@ -378,7 +378,7 @@ fn perform_file_writes(xs: List(Write)) -> Nil {
       _ -> Nil
     }
 
-    let assert Ok(_) = simplifile.write(write.filepath, write.src)
+    let assert Ok(_) = simplifile.write(write.filepath, write.src |> string.trim)
   })
 }
 
