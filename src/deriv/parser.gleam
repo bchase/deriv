@@ -24,31 +24,38 @@ pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(C
           !regexp.check(type_line_re, line)
         })
 
-      let lines_from_type_start_except_last =
-        lines_from_type_start_to_eof
-        |> list.take_while(fn(line) {
-          !string.starts_with(line, "}")
-        })
+      case lines_from_type_start_to_eof {
+        [] -> // NOTE: this case runs for types without variants, e.g. `type Foo\n`
+          Error(Nil)
 
-      let assert Ok(line_last_for_type) =
-        lines_from_type_start_to_eof
-        |> list.drop(list.length(lines_from_type_start_except_last))
-        |> list.take(1)
-        |> list.first
+        _ -> {
+          let lines_from_type_start_except_last =
+            lines_from_type_start_to_eof
+            |> list.take_while(fn(line) {
+              !string.starts_with(line, "}")
+            })
 
-      let lines =
-        [
-          lines_from_type_start_except_last,
-          [line_last_for_type],
-        ]
-        |> list.flatten
+          let assert Ok(line_last_for_type) =
+            lines_from_type_start_to_eof
+            |> list.drop(list.length(lines_from_type_start_except_last))
+            |> list.take(1)
+            |> list.first
 
-      case parse_derivations_from_inside_type_def_lines(lines) {
-        [] -> Error(Nil)
-        derivs -> {
-          let deriv_field_opts = parse_all_deriv_field_opts(lines)
+          let lines =
+            [
+              lines_from_type_start_except_last,
+              [line_last_for_type],
+            ]
+            |> list.flatten
 
-          Ok(#(type_, derivs, deriv_field_opts))
+          case parse_derivations_from_inside_type_def_lines(lines) {
+            [] -> Error(Nil)
+            derivs -> {
+              let deriv_field_opts = parse_all_deriv_field_opts(lines)
+
+              Ok(#(type_, derivs, deriv_field_opts))
+            }
+          }
         }
       }
     }
