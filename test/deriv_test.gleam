@@ -18,6 +18,7 @@ import gleam/int
  import shellout
  import simplifile
  import glance.{Import, UnqualifiedImport, Named}
+ import formal/form
 
  pub fn suppress_io_warnings() { io.debug(Nil) }
 
@@ -2321,6 +2322,193 @@ fn build_module_reader(
 
       _ ->
         panic as { "`dummy_module_reader` miss for ident: " <> ident }
+    }
+  }
+}
+
+// formal
+
+type FormalForm {
+  FormalForm(
+    string: String,
+    int: Int,
+    float: Float,
+    bool: Bool,
+
+    strings: List(String),
+
+    string_none: Option(String),
+    string_some: Option(String),
+
+    strings_none: Option(List(String)),
+    strings_some: Option(List(String)),
+  )
+}
+
+type RootForm {
+  RootForm(
+    input: String,
+    nested: NestedForm,
+  )
+}
+
+type NestedForm {
+  NestedForm(
+    input: String,
+  )
+}
+
+// fn nested_form
+
+pub fn formal_form_test() {
+  [
+    #("form[string]", "asdf"),
+    #("form[int]", "777"),
+    #("form[float]", "123.45"),
+    #("form[bool]", "true"),
+    #("form[strings][]", "abc"),
+    #("form[strings][]", "xyz"),
+    // #("form[string_none]", None),
+    #("form[string_some]", "some"),
+    // #("form[strings_none][]", "some"),
+    #("form[strings_some][]", "somes1"),
+    #("form[strings_some][]", "somes2"),
+  ]
+  |> ingest_form
+  |> echo
+
+  [
+    #("form[input]", "root"),
+    #("form[nested][input]", "nested"),
+  ]
+  |> root_form
+  |> echo
+
+  Nil
+}
+
+fn root_form(
+  values: List(#(String, String)),
+) -> Result(RootForm, form.Form) {
+  use nested <- result.try({
+    form.decoding({
+      use input <- form.parameter
+
+      NestedForm(
+        input:,
+      )
+    })
+    |> form.with_values(values)
+    |> form.field("form[nested][input]", form.string)
+    |> form.finish
+  })
+
+  form.decoding({
+    use input <- form.parameter
+
+    RootForm(
+      input:,
+      nested:,
+    )
+  })
+  |> form.with_values(values)
+  |> form.field("form[input]", form.string)
+  |> form.finish
+}
+
+fn ingest_form(
+  values: List(#(String, String)),
+) -> Result(FormalForm, form.Form) {
+  form.decoding({
+    use string <- form.parameter
+    use int <- form.parameter
+    use float <- form.parameter
+    use bool <- form.parameter
+
+    use strings <- form.parameter
+
+    use string_none <- form.parameter
+    use string_some <- form.parameter
+
+    use strings_none <- form.parameter
+    use strings_some <- form.parameter
+
+    FormalForm(
+      string:,
+      int:,
+      float:,
+      bool:,
+      strings:,
+      string_none:,
+      string_some:,
+      strings_none:,
+      strings_some:,
+    )
+  })
+  |> form.with_values(values)
+  |> form.field("form[string]", {
+    form.string
+    |> form.and(form.must_not_be_empty)
+  })
+  |> form.field("form[int]", {
+    form.int
+  })
+  |> form.field("form[float]", {
+    form.float
+  })
+  |> form.field("form[bool]", {
+    form.bool
+  })
+  |> form.multifield("form[strings][]", {
+    form.list(of: form.string)
+  })
+  |> form.field("form[string_none]", {
+    form.string
+    |> optional
+  })
+  |> form.field("form[string_some]", {
+    form.string
+    |> optional
+  })
+  |> form.multifield("form[strings_none][]", {
+    form.list(of: form.string)
+    |> optional_list
+  })
+  |> form.multifield("form[strings_some][]", {
+    form.list(of: form.string)
+    |> optional_list
+  })
+  |> form.finish
+}
+
+fn optional(
+  decoder decoder: fn(String) -> Result(a, String),
+) -> fn(String) -> Result(Option(a), String) {
+  fn(input: String) -> Result(Option(a), String) {
+    case input {
+      "" ->
+        Ok(None)
+
+      _ ->
+        input
+        |> decoder
+        |> result.map(Some)
+    }
+  }
+}
+
+fn optional_list(
+  of decoder: fn(List(String)) -> Result(List(a), String),
+) -> fn(List(String)) -> Result(Option(List(a)), String) {
+  fn(input: List(String)) -> Result(Option(List(a)), String) {
+    case list.is_empty(input) || list.all(input, fn(x) { x == "" }) {
+      True ->
+        Ok(None)
+
+      False ->
+        input
+        |> decoder
+        |> result.map(Some)
     }
   }
 }
