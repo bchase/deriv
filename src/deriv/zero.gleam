@@ -74,17 +74,18 @@ fn zero_func_(
   let func_name = "zero_" <> util.snake_case(type_.name)
   let func_return_type_name = type_.name
 
-  let func_return_type = Some(NamedType(func_return_type_name, None, []))
+  let func_return_type = Some(NamedType(util.dummy_location(), func_return_type_name, None, []))
 
   let body =
     Call(
-      function: Variable(constr_name),
+      location: util.dummy_location(),
+      function: Variable(util.dummy_location(), constr_name),
       arguments: field_zero_vals,
     )
     |> Expression
 
   let func =
-    Function(func_name, Public, [], func_return_type, [body], dummy_location())
+    Function(util.dummy_location(), func_name, Public, [], func_return_type, [body])
 
   Ok(Definition([], func))
 }
@@ -106,37 +107,33 @@ fn zero_call(
 }
 
 fn zero_uuid() -> Expression {
-  Call(FieldAccess(Variable("util"), "zero_uuid"), [])
+  Call(util.dummy_location(), FieldAccess(util.dummy_location(), Variable(util.dummy_location(), "util"), "zero_uuid"), [])
 }
 
 fn zero_time() -> Expression {
-  Call(FieldAccess(Variable("util"), "zero_time"), [])
+  Call(util.dummy_location(), FieldAccess(util.dummy_location(), Variable(util.dummy_location(), "util"), "zero_time"), [])
 }
 
 fn zero_string() -> Expression {
-  String("")
+  String(util.dummy_location(), "")
 }
 
 fn zero_option() -> Expression {
-  Variable("None")
+  Variable(util.dummy_location(), "None")
 }
 
 fn zero_int() -> Expression {
-  Int("0")
+  Int(util.dummy_location(), "0")
 }
 
 fn zero_float() -> Expression {
-  Float("0.0")
+  Float(util.dummy_location(), "0.0")
 }
 
 fn zero_bool() -> Expression {
-  Variable("False")
+  Variable(util.dummy_location(), "False")
 }
 
 fn zero_list() -> Expression {
-  List([], None)
-}
-
-fn dummy_location() -> Span {
-  Span(0, 0)
+  List(util.dummy_location(), [], None)
 }

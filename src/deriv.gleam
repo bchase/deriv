@@ -448,6 +448,7 @@ fn build_module_imports(gens: List(Gen), _output: Output) -> List(Import) {
     case file.idx {
       Some(idx) ->
         Import(
+          location: util.dummy_location(),
           module: file.module,
           alias: Some(glance.Named("m" <> int.to_string(idx))),
           unqualified_types: [],
@@ -536,6 +537,7 @@ pub fn consolidate_imports(all_imports: List(Import)) -> List(Import) {
       |> list.unique
 
     Import(
+      location: util.dummy_location(),
       module:,
       alias:,
       unqualified_types:,

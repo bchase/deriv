@@ -427,16 +427,16 @@ fn into_func(
 
   let return_constr =
     case return_alias {
-      None -> Variable(return_constr)
-      Some(module) -> FieldAccess(Variable(module), return_constr)
+      None -> Variable(util.dummy_location(), return_constr)
+      Some(module) -> FieldAccess(util.dummy_location(), Variable(util.dummy_location(), module), return_constr)
     }
 
-  Definition([], Function(func_name, Public,
-    [FunctionParameter(None, Named("value"), Some(NamedType(param_type, param_alias, [])))],
-    Some(NamedType(return_type, return_alias, [])),
-    [Expression(Call(return_constr, list.map(fields, fn(field) {
-      LabelledField(field.return_field, FieldAccess(Variable("value"), field.param_field))
-    })))], dummy_span)
+  Definition([], Function(util.dummy_location(), func_name, Public,
+    [FunctionParameter(None, Named("value"), Some(NamedType(util.dummy_location(), param_type, param_alias, [])))],
+    Some(NamedType(util.dummy_location(), return_type, return_alias, [])),
+    [Expression(Call(util.dummy_location(), return_constr, list.map(fields, fn(field) {
+      LabelledField(field.return_field, FieldAccess(util.dummy_location(), Variable(util.dummy_location(), "value"), field.param_field))
+    })))])
   )
 }
 

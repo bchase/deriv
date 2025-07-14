@@ -634,6 +634,7 @@ pub fn are_any_fields_options(
 
 pub fn none_constr_import() -> glance.Import {
   glance.Import(
+    location: dummy_location(),
     module: "gleam/option",
     alias: None,
     unqualified_values: [
@@ -690,4 +691,8 @@ fn parse_bool(
     "False" -> Ok(False)
     _ -> Error(Nil)
   }
+}
+
+pub fn dummy_location() -> glance.Span {
+  glance.Span(start: -1, end: -1)
 }

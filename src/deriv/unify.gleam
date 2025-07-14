@@ -394,13 +394,11 @@ fn unify_func(
     fields:,
   ) = uf
 
-  let dummy_span = Span(-1, -1)
-
-  Definition([], Function(func_name, Public,
-    [FunctionParameter(None, Named("value"), Some(NamedType(param_type, None, [])))],
-    Some(NamedType(return_type, None, [])),
-    [Expression(Call(Variable(return_contr), list.map(fields, fn(field) {
-      LabelledField(field.return_field, FieldAccess(Variable("value"), field.param_field))
-    })))], dummy_span)
+  Definition([], Function(util.dummy_location(), func_name, Public,
+    [FunctionParameter(None, Named("value"), Some(NamedType(util.dummy_location(), param_type, None, [])))],
+    Some(NamedType(util.dummy_location(), return_type, None, [])),
+    [Expression(Call(util.dummy_location(), Variable(util.dummy_location(), return_contr), list.map(fields, fn(field) {
+      LabelledField(field.return_field, FieldAccess(util.dummy_location(), Variable(util.dummy_location(), "value"), field.param_field))
+    })))])
   )
 }
