@@ -5,8 +5,8 @@ packages = [
   { name = "birl", version = "1.8.0", build_tools = ["gleam"], requirements = ["gleam_regexp", "gleam_stdlib", "ranger"], otp_app = "birl", source = "hex", outer_checksum = "2AC7BA26F998E3DFADDB657148BD5DDFE966958AD4D6D6957DD0D22E5B56C400" },
   { name = "filepath", version = "1.1.2", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "filepath", source = "hex", outer_checksum = "B06A9AF0BF10E51401D64B98E4B627F1D2E48C154967DA7AF4D0914780A6D40A" },
   { name = "glam", version = "2.0.2", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "glam", source = "hex", outer_checksum = "4932A2D139AB0389E149396407F89654928D7B815E212BB02F13C66F53B1BBA1" },
-  { name = "glance", version = "2.0.1", build_tools = ["gleam"], requirements = ["gleam_stdlib", "glexer"], otp_app = "glance", source = "hex", outer_checksum = "106111453AE9BA959184302B7DADF2E8CF322B27A7CB68EE78F3EE43FEACCE2C" },
-  { name = "glance_printer", version = "2.0.0", build_tools = ["gleam"], requirements = ["glam", "glance", "gleam_stdlib"], otp_app = "glance_printer", source = "hex", outer_checksum = "704F7D74070D33715FE92004271856ABAE05D26A846B95F667E53113F056F4D9" },
+  { name = "glance", version = "5.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "glexer"], otp_app = "glance", source = "hex", outer_checksum = "FAA3DAC74AF71D47C67D88EB32CE629075169F878D148BB1FF225439BE30070A" },
+  { name = "glance_printer", version = "3.0.0", build_tools = ["gleam"], requirements = ["glam", "glance", "gleam_stdlib"], source = "git", repo = "git@github.com:bchase/glance_printer.git", commit = "d189a145c2c01b8b5c4e2a16031a6a95c68f8c25" },
   { name = "gleam_crypto", version = "1.5.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_crypto", source = "hex", outer_checksum = "917BC8B87DBD584830E3B389CBCAB140FFE7CB27866D27C6D0FB87A9ECF35602" },
   { name = "gleam_json", version = "3.0.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_json", source = "hex", outer_checksum = "5BA154440B22D9800955B1AB854282FA37B97F30F409D76B0824D0A60C934188" },
   { name = "gleam_regexp", version = "1.1.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_regexp", source = "hex", outer_checksum = "9C215C6CA84A5B35BB934A9B61A9A306EC743153BE2B0425A0D032E477B062A9" },
@@ -23,8 +23,8 @@ packages = [
 
 [requirements]
 birl = { version = ">= 1.8.0 and < 2.0.0" }
-glance = { version = ">= 2.0.0 and < 3.0.0" }
-glance_printer = { version = ">= 2.0.0 and < 3.0.0" }
+glance = { version = ">= 5.0.0 and < 6.0.0" }
+glance_printer = { git = "git@github.com:bchase/glance_printer.git", ref = "upgrade-glance-5.0.0" }
 gleam_json = { version = ">= 3.0.1 and < 4.0.0" }
 gleam_regexp = { version = ">= 1.0.0 and < 2.0.0" }
 gleam_stdlib = { version = ">= 0.34.0 and < 2.0.0" }
