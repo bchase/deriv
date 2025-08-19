@@ -366,7 +366,7 @@ pub fn is(
   |> decode.then(fn(str) {
     case str == value {
       True -> decode.success(Nil)
-      False -> decode.failure(todo, "failed to match for value: " <> value)
+      False -> decode.failure(Nil, "failed to match for value: " <> value)
     }
   })
 }
