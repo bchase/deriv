@@ -91,8 +91,8 @@ fn get_return_types_and_variants(
   |> fn(x) {
     case x {
       Error(err) -> {
-        io.debug(idents)
-        io.debug(err)
+        util.debug(idents)
+        util.debug(err)
         panic as "`into` issue with the above `idents`"
       }
 
@@ -108,7 +108,7 @@ fn get_return_types_and_variants(
         #(type_, variant, module_name)
 
       _, -> {
-        io.debug(type_)
+        util.debug(type_)
         panic as "`into` derivation currently only supports invariant types"
       }
     }
@@ -138,7 +138,7 @@ fn get_return_types_and_variants(
 //             #(ident, Some(alias))
 
 //           _ -> {
-//             io.debug(opts)
+//             util.debug(opts)
 //             panic as "invalid `into` opts"
 //           }
 //         }
@@ -160,7 +160,7 @@ fn get_return_types_and_variants(
 //       })
 //     }
 //     _, -> {
-//       io.debug(param_type)
+//       util.debug(param_type)
 //       panic as "`into` derivation currently only supports invariant types"
 //     }
 //   }
@@ -241,7 +241,7 @@ fn build_field_override(
       let #(module_name, type_) =
         case util.fetch_custom_type(ident, module_reader) {
           Error(err) -> {
-            io.debug(err)
+            util.debug(err)
             panic
           }
 
@@ -260,7 +260,7 @@ fn build_field_override(
     }
 
     _ -> {
-      io.debug(field_opt)
+      util.debug(field_opt)
       panic as "Invalid `into` `DerivFieldOpt` (printed above)"
     }
   }
@@ -317,15 +317,15 @@ fn build_ident(
 //   |> list.map(fn(r_field) {
 //     let #(return_field, result_field_type) = r_field
 
-//     io.debug(param_type.name)
-//     io.debug(return_field)
+//     util.debug(param_type.name)
+//     util.debug(return_field)
 //     let overrides =
 //       overrides
 //       |> list.filter_map(fn(x) {
 //         let #(df, os) = x
 
-//         io.debug(df.type_)
-//         io.debug(df.field)
+//         util.debug(df.type_)
+//         util.debug(df.field)
 
 //         case df.type_ == param_type.name && df.field == return_field {
 //           False -> Error(Nil)
@@ -364,9 +364,9 @@ fn build_ident(
 
 //     case param_field_type {
 //       Error(_) -> {
-//         io.debug(param_type)
-//         io.debug(param_variant)
-//         io.debug(param_field)
+//         util.debug(param_type)
+//         util.debug(param_variant)
+//         util.debug(param_field)
 //         panic as "`into` param field doesn't exist"
 //       }
 
@@ -374,14 +374,14 @@ fn build_ident(
 //         param_field_type
 
 //       _ -> {
-//         io.debug("PARAM TYPE")
-//         io.debug(param_type)
-//         io.debug(param_variant)
-//         io.debug(param_field)
-//         io.debug("RETURN TYPE")
-//         io.debug(return_type)
-//         io.debug(return_variant)
-//         io.debug(return_field)
+//         util.debug("PARAM TYPE")
+//         util.debug(param_type)
+//         util.debug(param_variant)
+//         util.debug(param_field)
+//         util.debug("RETURN TYPE")
+//         util.debug(return_type)
+//         util.debug(return_variant)
+//         util.debug(return_field)
 //         panic as "`into` param & return field types don't match"
 //       }
 //     }
@@ -402,8 +402,8 @@ fn fields(variant: Variant) -> List(#(String, String)) {
         #(label, name)
 
       _ -> {
-        io.debug(variant)
-        io.debug(field)
+        util.debug(variant)
+        util.debug(field)
         panic as "Only the following field type is supported: `LabelledVariantField(item: NamedType(name:, ..), label:)`"
       }
     }
@@ -758,9 +758,9 @@ fn build_fields(
 
         case param_field_type {
           Error(_) -> {
-            io.debug(param_type)
-            io.debug(param_variant)
-            io.debug(param_field)
+            util.debug(param_type)
+            util.debug(param_variant)
+            util.debug(param_field)
             panic as "`unify` param field doesn't exist"
           }
 
@@ -769,13 +769,13 @@ fn build_fields(
 
           _ -> {
             io.println("PARAM TYPE")
-            io.debug(param_type)
-            io.debug(param_variant)
-            io.debug(param_field)
+            util.debug(param_type)
+            util.debug(param_variant)
+            util.debug(param_field)
             io.println("RETURN TYPE")
-            io.debug(return_type)
-            io.debug(return_variant)
-            io.debug(return_field)
+            util.debug(return_type)
+            util.debug(return_variant)
+            util.debug(return_field)
             panic as "`unify` param & return field types don't match"
           }
         }
@@ -806,7 +806,7 @@ fn into_(
             #(ident, Some(alias))
 
           _ -> {
-            io.debug(opts)
+            util.debug(opts)
             panic as "invalid `into` opts"
           }
         }
@@ -831,7 +831,7 @@ fn into_(
       })
     }
     _, -> {
-      io.debug(local_type)
+      util.debug(local_type)
       panic as "`into` derivation currently only supports invariant types"
     }
   }

@@ -307,8 +307,14 @@ pub fn then(
   })
 }
 fn log_and_discard_error(err: err) -> Nil {
-  io.debug(err)
+  debug(err)
   Nil
+}
+
+pub fn debug(x: t) -> t {
+  io.println(string.inspect(x))
+
+  x
 }
 
 // pub fn rewrite_functions_to_file(filepath: String, funcs: List(#(String, String))) -> Result(Nil, Nil) {

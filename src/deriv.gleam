@@ -80,7 +80,7 @@ pub fn main() {
   //   ]
   //   |> list.map(fn(str) {
   //     json.decode(from: str, using: d.from(mvar.d_t(), _))
-  //     |> io.debug
+  //     |> util.debug
   //   })
 
   // panic as "DONE"
@@ -201,8 +201,8 @@ fn parse_types_and_derivations(file: File) -> List(#(deriv.Type, List(Derivation
   let parsed =
     case glance.module(file.src) {
       Error(err) -> {
-        io.debug(file)
-        io.debug(err)
+        util.debug(file)
+        util.debug(err)
         panic
       }
 
@@ -236,8 +236,8 @@ fn parse_type_aliases_and_derivations(file: File) -> List(#(deriv.Type, List(Der
   let parsed =
     case glance.module(file.src) {
       Error(err) -> {
-        io.debug(file)
-        io.debug(err)
+        util.debug(file)
+        util.debug(err)
         panic
       }
 
@@ -469,7 +469,7 @@ pub fn consolidate_imports_for(src: String, add add_imports: List(Import)) -> St
   let assert Ok(module) =
     case glance.module(src) {
       Error(err) -> {
-        io.debug(err)
+        util.debug(err)
         io.println(src)
         panic as "Failed to parse the above source with `glance.module`"
       }
@@ -520,7 +520,7 @@ pub fn consolidate_imports(all_imports: List(Import)) -> List(Import) {
           [] -> None
           [alias] -> Some(alias)
           _ -> panic as {
-            io.debug(aliases)
+            util.debug(aliases)
             "0 or 1 aliases allowed, but for module `" <> module <> "` multiple aliases found (see above)"
           }
         }
@@ -603,7 +603,7 @@ fn import_src(i: Import) -> String {
   |> string.join(" ")
 }
 
-pub fn stop_warning() { io.debug("") }
+pub fn stop_warning() { util.debug("") }
 
 
 ///// ///// ///// ///// ///// /////

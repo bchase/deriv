@@ -437,7 +437,7 @@ fn jtype(type_: Type) -> JType {
       JType(name:, module:None, parameters: [])
 
     _ -> {
-      io.debug(type_)
+      util.debug(type_)
       panic as "Not implemented for `glance.Type` constructor printed above"
     }
   }
@@ -711,7 +711,7 @@ fn encode_field(
     //       )
     //     }
     //     _ -> {
-    //       // io.debug(ftype)
+    //       // util.debug(ftype)
     //       // panic as "Not yet implemented for type printed above"
     //       call(variable("encode_" <> util.snake_case(ftype.name)), [])
     //     }

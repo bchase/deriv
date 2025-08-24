@@ -91,8 +91,8 @@ fn get_param_types_and_variants(
   |> fn(x) {
     case x {
       Error(err) -> {
-        io.debug(idents)
-        io.debug(err)
+        util.debug(idents)
+        util.debug(err)
         panic as "`unify` issue with the above `idents`"
       }
 
@@ -108,7 +108,7 @@ fn get_param_types_and_variants(
         #(type_, variant, module_name)
 
       _, -> {
-        io.debug(type_)
+        util.debug(type_)
         panic as "`unify` derivation currently only supports invariant types"
       }
     }
@@ -140,7 +140,7 @@ fn unify(
       })
 
     _, -> {
-      io.debug(return_type)
+      util.debug(return_type)
       panic as "`unify` derivation currently only supports invariant types"
     }
   }
@@ -219,7 +219,7 @@ fn build_field_override(
       let #(module_name, type_) =
         case util.fetch_custom_type(ident, module_reader) {
           Error(err) -> {
-            io.debug(err)
+            util.debug(err)
             panic
           }
 
@@ -238,7 +238,7 @@ fn build_field_override(
     }
 
     _ -> {
-      io.debug(field_opt)
+      util.debug(field_opt)
       panic as "Invalid `unify` `DerivFieldOpt` (printed above)"
     }
   }
@@ -337,9 +337,9 @@ fn unify_func_fields(
 
     case param_field_type {
       Error(_) -> {
-        io.debug(param_type)
-        io.debug(param_variant)
-        io.debug(param_field)
+        util.debug(param_type)
+        util.debug(param_variant)
+        util.debug(param_field)
         panic as "`unify` param field doesn't exist"
       }
 
@@ -348,13 +348,13 @@ fn unify_func_fields(
 
       _ -> {
         io.println("PARAM TYPE")
-        io.debug(param_type)
-        io.debug(param_variant)
-        io.debug(param_field)
+        util.debug(param_type)
+        util.debug(param_variant)
+        util.debug(param_field)
         io.println("RETURN TYPE")
-        io.debug(return_type)
-        io.debug(return_variant)
-        io.debug(return_field)
+        util.debug(return_type)
+        util.debug(return_variant)
+        util.debug(return_field)
         panic as "`unify` param & return field types don't match"
       }
     }
@@ -375,8 +375,8 @@ fn fields(variant: Variant) -> List(#(String, String)) {
         #(label, name)
 
       _ -> {
-        io.debug(variant)
-        io.debug(field)
+        util.debug(variant)
+        util.debug(field)
         panic as "Only the following field type is supported: `LabelledVariantField(item: NamedType(name:, ..), label:)`"
       }
     }

@@ -19,7 +19,7 @@ import gleam/int
  import simplifile
  import glance.{Import, UnqualifiedImport, Named}
 
- pub fn suppress_io_warnings() { io.debug(Nil) }
+ pub fn suppress_io_warnings() { util.debug(Nil) }
 
  pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
@@ -803,7 +803,7 @@ pub fn encode_dict_field_type(value: DictFieldType) -> Json {
 ")
 
   // let assert Ok(module) = glance.module(output)
-  // io.debug(module)
+  // util.debug(module)
 
   let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
 
@@ -1070,7 +1070,7 @@ pub type AutheB {
       "project/authe/b" -> parse(authe_b_src)
 
       _ -> {
-        io.debug(ident)
+        util.debug(ident)
         panic as "`module_reader` miss in `unify_authe_test`"
       }
     }
@@ -1164,11 +1164,11 @@ pub fn into_test() {
   // f.Foo
 // }
   // " |> string.trim)
-  // |> io.debug
-  // |> io.debug
-  // |> io.debug
-  // |> io.debug
-  // |> io.debug
+  // |> util.debug
+  // |> util.debug
+  // |> util.debug
+  // |> util.debug
+  // |> util.debug
 
   let foo_src = "
 pub type Foo {
@@ -1189,7 +1189,7 @@ pub type Foo {
       "project/asdf/foo" -> parse(foo_src)
 
       _ -> {
-        io.debug(ident)
+        util.debug(ident)
         panic as "`module_reader` miss in `into_test`"
       }
     }
@@ -1288,7 +1288,7 @@ pub type Pet {
       "project/types/pet" -> parse(pet_src)
 
       _ -> {
-        io.debug(ident)
+        util.debug(ident)
         panic as "`module_reader` miss in `unify_friend_test`"
       }
     }
@@ -1392,7 +1392,7 @@ pub type Player {
   let module_reader: types.ModuleReader = fn(ident) {
     case ident {
       _ -> {
-        io.debug(ident)
+        util.debug(ident)
         panic as "`module_reader` miss in `zero_test`"
       }
     }
@@ -1482,7 +1482,7 @@ pub fn json_parameterized_type_decoder_test() {
       // }
 
       _ -> {
-        io.debug(ident)
+        util.debug(ident)
         panic as "`module_reader` miss in `parameterized_type_test`"
       }
     }
@@ -1633,7 +1633,7 @@ pub fn json_parameterized_type_encoder_test() {
       // }
 
       _ -> {
-        io.debug(ident)
+        util.debug(ident)
         panic as "`module_reader` miss in `parameterized_type_test`"
       }
     }
@@ -1779,7 +1779,7 @@ pub fn json_decoder_local_type_alias_test() {
       // }
 
       _ -> {
-        io.debug(ident)
+        util.debug(ident)
         panic as "`module_reader` miss in `parameterized_type_test`"
       }
     }
@@ -1917,7 +1917,7 @@ pub fn json_decoder_non_string_keyed_dict_test() {
       // }
 
       _ -> {
-        io.debug(ident)
+        util.debug(ident)
         panic as "`module_reader` miss in `parameterized_type_test`"
       }
     }
