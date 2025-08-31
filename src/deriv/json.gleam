@@ -1204,10 +1204,16 @@ fn decoder_type_variant_func(
   let decode_success_call: Statement =
     call(field_access(variable("decode"), "success"), [
       UnlabelledField(
-        call(
-          function: variable(variant.name),
-          arguments: constr_args,
-        )
+        case constr_args |> list.is_empty {
+          True ->
+            variable(variant.name)
+
+          False ->
+            call(
+              function: variable(variant.name),
+              arguments: constr_args,
+            )
+        }
       )
     ])
     |> Expression

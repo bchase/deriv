@@ -19,17 +19,17 @@ import gleam/int
  import simplifile
  import glance.{Import, UnqualifiedImport, Named}
 
- pub fn suppress_io_warnings() { util.debug(Nil) }
+pub fn suppress_io_warnings() { util.debug(Nil) }
 
- pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
+pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
- pub fn dummy_module_reader(_) {
-   panic as "`dummy_module_reader`"
- }
+pub fn dummy_module_reader(_) {
+  panic as "`dummy_module_reader`"
+}
 
- pub fn main() {
-   gleeunit.main()
- }
+pub fn main() {
+  gleeunit.main()
+}
 
 pub fn json_test() {
   let input = "
@@ -217,6 +217,77 @@ pub fn encode_t(value: T) -> Json {
       ])
     Y(..) as value ->
       json.object([#(\"_var\", json.string(\"Y\")), #(\"bar\", json.int(value.bar))])
+  }
+}
+  "
+  |> string.trim
+
+  let files = [ File(module: "deriv/example/mvar", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs(dummy_module_reader)
+    |> deriv.build_writes
+
+  write.filepath
+  |> should.equal("src/deriv/example/mvar.gleam")
+
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(write.src)
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
+  io.println("")
+  io.println("")
+  io.println("DIFF (<expected >generated)")
+  io.println(util.diff(output, write.src))
+
+  write.src
+  |> should.equal(output)
+}
+
+pub fn json_multi_variant_nullary_type_test() {
+  let input = "
+pub type T {
+  //$ derive json decode encode
+  X
+  Y
+}
+  "
+  |> string.trim
+
+ let output = "
+import deriv/util
+import gleam/dynamic/decode.{type Decoder}
+import gleam/json.{type Json}
+
+pub type T {
+  //$ derive json decode encode
+  X
+  Y
+}
+
+pub fn decoder_t() -> Decoder(T) {
+  decode.one_of(decoder_t_x(), [decoder_t_y()])
+}
+
+pub fn decoder_t_x() -> Decoder(T) {
+  use _deriv_var_constr <- decode.field(\"_var\", util.is(\"X\"))
+  decode.success(X)
+}
+
+pub fn decoder_t_y() -> Decoder(T) {
+  use _deriv_var_constr <- decode.field(\"_var\", util.is(\"Y\"))
+  decode.success(Y)
+}
+
+pub fn encode_t(value: T) -> Json {
+  case value {
+    X(..) as value -> json.object([#(\"_var\", json.string(\"X\"))])
+    Y(..) as value -> json.object([#(\"_var\", json.string(\"Y\"))])
   }
 }
   "
