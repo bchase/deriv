@@ -16,7 +16,7 @@ import deriv/json as deriv_json
 import deriv/unify as deriv_unify
 import deriv/zero as deriv_zero
 import deriv/into as deriv_into
-import deriv/util
+import deriv/common
 import gleam/io
 
 // import decode.{type Decoder}
@@ -80,7 +80,7 @@ pub fn main() {
   //   ]
   //   |> list.map(fn(str) {
   //     json.decode(from: str, using: d.from(mvar.d_t(), _))
-  //     |> util.debug
+  //     |> common.debug
   //   })
 
   // panic as "DONE"
@@ -89,7 +89,7 @@ pub fn main() {
 
   filepaths
   |> load_files
-  |> gen_derivs(util.fetch_module)
+  |> gen_derivs(common.fetch_module)
   |> build_writes
   |> perform_file_writes
 }
@@ -201,8 +201,8 @@ fn parse_types_and_derivations(file: File) -> List(#(deriv.Type, List(Derivation
   let parsed =
     case glance.module(file.src) {
       Error(err) -> {
-        util.debug(file)
-        util.debug(err)
+        common.debug(file)
+        common.debug(err)
         panic
       }
 
@@ -236,8 +236,8 @@ fn parse_type_aliases_and_derivations(file: File) -> List(#(deriv.Type, List(Der
   let parsed =
     case glance.module(file.src) {
       Error(err) -> {
-        util.debug(file)
-        util.debug(err)
+        common.debug(file)
+        common.debug(err)
         panic
       }
 
@@ -321,13 +321,13 @@ pub fn build_same_file_writes(xs: List(Gen)) -> List(Write) {
     let funcs =
       gens
       |> list.flat_map(fn(gen) { gen.funcs })
-      |> list.map(fn(func) { #(util.func_name(func), util.func_str(func)) })
+      |> list.map(fn(func) { #(common.func_name(func), common.func_str(func)) })
 
     let module_imports: List(Import) = build_module_imports(gens, output)
     let deriv_imports: List(Import) = list.flat_map(gens, fn(gen) { gen.imports })
     let all_imports: List(Import) = [module_imports, deriv_imports] |> list.flatten
 
-    let func_src_with_imports = util.update_funcs(orig_src, funcs)
+    let func_src_with_imports = common.update_funcs(orig_src, funcs)
 
     let output_src =
       func_src_with_imports
@@ -448,7 +448,7 @@ fn build_module_imports(gens: List(Gen), _output: Output) -> List(Import) {
     case file.idx {
       Some(idx) ->
         Import(
-          location: util.dummy_location(),
+          location: common.dummy_location(),
           module: file.module,
           alias: Some(glance.Named("m" <> int.to_string(idx))),
           unqualified_types: [],
@@ -469,7 +469,7 @@ pub fn consolidate_imports_for(src: String, add add_imports: List(Import)) -> St
   let assert Ok(module) =
     case glance.module(src) {
       Error(err) -> {
-        util.debug(err)
+        common.debug(err)
         io.println(src)
         panic as "Failed to parse the above source with `glance.module`"
       }
@@ -520,7 +520,7 @@ pub fn consolidate_imports(all_imports: List(Import)) -> List(Import) {
           [] -> None
           [alias] -> Some(alias)
           _ -> panic as {
-            util.debug(aliases)
+            common.debug(aliases)
             "0 or 1 aliases allowed, but for module `" <> module <> "` multiple aliases found (see above)"
           }
         }
@@ -537,7 +537,7 @@ pub fn consolidate_imports(all_imports: List(Import)) -> List(Import) {
       |> list.unique
 
     Import(
-      location: util.dummy_location(),
+      location: common.dummy_location(),
       module:,
       alias:,
       unqualified_types:,
@@ -603,7 +603,7 @@ fn import_src(i: Import) -> String {
   |> string.join(" ")
 }
 
-pub fn stop_warning() { util.debug("") }
+pub fn stop_warning() { common.debug("") }
 
 
 ///// ///// ///// ///// ///// /////
@@ -627,7 +627,7 @@ fn derivs_file_import_gens(
 
     types_and_derivs
     |> list.map(to_deriv_type)
-    |> list.flat_map(gen_type_derivs(_, file, gen_funcs, util.fetch_module))
+    |> list.flat_map(gen_type_derivs(_, file, gen_funcs, common.fetch_module))
   })
 }
 

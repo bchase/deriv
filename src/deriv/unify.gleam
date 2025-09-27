@@ -6,7 +6,7 @@ import gleam/result
 import gleam/string
 import glance.{type CustomType, type Definition, type Function, type Variant, LabelledVariantField, Definition, Function, Public, FunctionParameter, Named, NamedType, Expression, Call, Variable, LabelledField, FieldAccess, Span}
 import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type DerivFieldOpt, type DerivField, DerivFieldOpt} as deriv
-import deriv/util
+import deriv/common
 
 pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File) -> Gen
 
@@ -39,7 +39,7 @@ pub fn gen(
 
       let src =
         funcs
-        |> list.map(util.func_str)
+        |> list.map(common.func_str)
         |> string.join("\n\n")
 
       Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
@@ -85,14 +85,14 @@ fn get_param_types_and_variants(
 ) -> List(#(Definition(CustomType), Variant, String)) {
   idents
   |> list.map(fn(ident) {
-    util.fetch_custom_type(ident, module_reader)
+    common.fetch_custom_type(ident, module_reader)
   })
   |> result.all
   |> fn(x) {
     case x {
       Error(err) -> {
-        util.debug(idents)
-        util.debug(err)
+        common.debug(idents)
+        common.debug(err)
         panic as "`unify` issue with the above `idents`"
       }
 
@@ -108,7 +108,7 @@ fn get_param_types_and_variants(
         #(type_, variant, module_name)
 
       _, -> {
-        util.debug(type_)
+        common.debug(type_)
         panic as "`unify` derivation currently only supports invariant types"
       }
     }
@@ -140,7 +140,7 @@ fn unify(
       })
 
     _, -> {
-      util.debug(return_type)
+      common.debug(return_type)
       panic as "`unify` derivation currently only supports invariant types"
     }
   }
@@ -163,7 +163,7 @@ fn unify_variant(
     overrides,
   )
 
-  let func_name = util.snake_case(param_type.name)
+  let func_name = common.snake_case(param_type.name)
   let param_type = param_type.name
   let return_type = return_type.name
   let return_contr = return_variant.name
@@ -217,9 +217,9 @@ fn build_field_override(
   case field_opt {
     DerivFieldOpt(strs: ["unify", "field", ident, override]) -> {
       let #(module_name, type_) =
-        case util.fetch_custom_type(ident, module_reader) {
+        case common.fetch_custom_type(ident, module_reader) {
           Error(err) -> {
-            util.debug(err)
+            common.debug(err)
             panic
           }
 
@@ -238,7 +238,7 @@ fn build_field_override(
     }
 
     _ -> {
-      util.debug(field_opt)
+      common.debug(field_opt)
       panic as "Invalid `unify` `DerivFieldOpt` (printed above)"
     }
   }
@@ -337,9 +337,9 @@ fn unify_func_fields(
 
     case param_field_type {
       Error(_) -> {
-        util.debug(param_type)
-        util.debug(param_variant)
-        util.debug(param_field)
+        common.debug(param_type)
+        common.debug(param_variant)
+        common.debug(param_field)
         panic as "`unify` param field doesn't exist"
       }
 
@@ -348,13 +348,13 @@ fn unify_func_fields(
 
       _ -> {
         io.println("PARAM TYPE")
-        util.debug(param_type)
-        util.debug(param_variant)
-        util.debug(param_field)
+        common.debug(param_type)
+        common.debug(param_variant)
+        common.debug(param_field)
         io.println("RETURN TYPE")
-        util.debug(return_type)
-        util.debug(return_variant)
-        util.debug(return_field)
+        common.debug(return_type)
+        common.debug(return_variant)
+        common.debug(return_field)
         panic as "`unify` param & return field types don't match"
       }
     }
@@ -375,8 +375,8 @@ fn fields(variant: Variant) -> List(#(String, String)) {
         #(label, name)
 
       _ -> {
-        util.debug(variant)
-        util.debug(field)
+        common.debug(variant)
+        common.debug(field)
         panic as "Only the following field type is supported: `LabelledVariantField(item: NamedType(name:, ..), label:)`"
       }
     }
@@ -394,11 +394,11 @@ fn unify_func(
     fields:,
   ) = uf
 
-  Definition([], Function(util.dummy_location(), func_name, Public,
-    [FunctionParameter(None, Named("value"), Some(NamedType(util.dummy_location(), param_type, None, [])))],
-    Some(NamedType(util.dummy_location(), return_type, None, [])),
-    [Expression(Call(util.dummy_location(), Variable(util.dummy_location(), return_contr), list.map(fields, fn(field) {
-      LabelledField(field.return_field, FieldAccess(util.dummy_location(), Variable(util.dummy_location(), "value"), field.param_field))
+  Definition([], Function(common.dummy_location(), func_name, Public,
+    [FunctionParameter(None, Named("value"), Some(NamedType(common.dummy_location(), param_type, None, [])))],
+    Some(NamedType(common.dummy_location(), return_type, None, [])),
+    [Expression(Call(common.dummy_location(), Variable(common.dummy_location(), return_contr), list.map(fields, fn(field) {
+      LabelledField(field.return_field, FieldAccess(common.dummy_location(), Variable(common.dummy_location(), "value"), field.param_field))
     })))])
   )
 }

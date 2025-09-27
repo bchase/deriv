@@ -7,7 +7,7 @@ import gleam/regexp
 import gleam/io
 import glance.{type CustomType, type Variant, type VariantField, LabelledVariantField, UnlabelledVariantField, NamedType, VariableType, type Import, Import, UnqualifiedImport, Definition, CustomType, Public, Variant, Function, type FunctionParameter, type Field, FieldAccess, Variable, Span, Expression, Call, UnlabelledField, Block, Use, BinaryOperator, Pipe, PatternVariable, PatternDiscard, ShorthandField, String, FunctionParameter, Tuple, Named, List, type Definition, type Function, type Span, type Expression, type Statement, type Type, Clause, Case, PatternAssignment, PatternVariant, Fn, FnParameter, FnCapture, FunctionType, type TypeAlias, TypeAlias}
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, File, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt} as deriv
-import deriv/util.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
+import deriv/common.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
 // TODO refactor
 //   - `unparameterized_type_decode_expr` should be able to be replaced with `type_decode_expr`
@@ -83,7 +83,7 @@ pub fn gen(
 
   let src =
     funcs
-    |> list.map(util.func_str)
+    |> list.map(common.func_str)
     |> string.join("\n\n")
 
   Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
@@ -96,7 +96,7 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
       #("decode", [
         // import decode.{type Decoder}
         Import(
-          location: util.dummy_location(),
+          location: common.dummy_location(),
           module: "gleam/dynamic/decode",
           alias: None,
           unqualified_types: [
@@ -108,15 +108,15 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
           unqualified_values: [],
         ),
       ] |> list.append({
-        case util.are_any_fields_options(type_) {
-          True -> [util.none_constr_import()]
+        case common.are_any_fields_options(type_) {
+          True -> [common.none_constr_import()]
           False -> []
         }
       })),
       #("encode", [
         // import gleam/json.{type Json}
         Import(
-          location: util.dummy_location(),
+          location: common.dummy_location(),
           module: "gleam/json",
           alias: None,
           unqualified_types: [
@@ -147,7 +147,7 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
           // import deriv/util
           [
             Import(
-              location: util.dummy_location(),
+              location: common.dummy_location(),
               module: "deriv/util",
               alias: None,
               unqualified_types: [],
@@ -164,7 +164,7 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
           // import gleam/list
           [
             Import(
-              location: util.dummy_location(),
+              location: common.dummy_location(),
               module: "gleam/list",
               alias: None,
               unqualified_types: [],
@@ -317,7 +317,7 @@ fn string(
 ) -> Expression {
   String(
     value:,
-    location: util.dummy_location(),
+    location: common.dummy_location(),
   )
 }
 
@@ -326,7 +326,7 @@ fn tuple(
 ) -> Expression {
   Tuple(
     elements:,
-    location: util.dummy_location(),
+    location: common.dummy_location(),
   )
 }
 
@@ -341,7 +341,7 @@ fn fn_capture(
     function:,
     arguments_before:,
     arguments_after:,
-    location: util.dummy_location(),
+    location: common.dummy_location(),
   )
 }
 
@@ -352,7 +352,7 @@ fn list(
   glance.List(
     elements:,
     rest:,
-    location: util.dummy_location(),
+    location: common.dummy_location(),
   )
 }
 
@@ -361,7 +361,7 @@ fn variable_type(
 ) -> Type {
   glance.VariableType(
     name:,
-    location: util.dummy_location(),
+    location: common.dummy_location(),
   )
 }
 
@@ -372,7 +372,7 @@ fn field_access(
   FieldAccess(
     container:,
     label:,
-    location: util.dummy_location(),
+    location: common.dummy_location(),
   )
 }
 
@@ -380,7 +380,7 @@ fn variable(
   name name: String
 ) -> Expression {
   glance.Variable(
-    location: util.dummy_location(),
+    location: common.dummy_location(),
     name:,
   )
 }
@@ -390,7 +390,7 @@ fn call(
   arguments arguments: List(Field(Expression))
 ) -> Expression {
   glance.Call(
-    location: util.dummy_location(),
+    location: common.dummy_location(),
     function:,
     arguments:,
   )
@@ -402,7 +402,7 @@ fn named_type(
   parameters parameters: List(Type),
 ) -> Type {
   glance.NamedType(
-    location: util.dummy_location(),
+    location: common.dummy_location(),
     name:,
     module:,
     parameters:,
@@ -437,7 +437,7 @@ fn jtype(type_: Type) -> JType {
       JType(name:, module:None, parameters: [])
 
     _ -> {
-      util.debug(type_)
+      common.debug(type_)
       panic as "Not implemented for `glance.Type` constructor printed above"
     }
   }
@@ -579,7 +579,7 @@ fn type_encode_expr(
       }
 
       _, _ -> {
-        let encoder_name = "encode_" <> util.snake_case(type_.name)
+        let encoder_name = "encode_" <> common.snake_case(type_.name)
 
         case type_alias {
           True ->
@@ -633,7 +633,7 @@ fn type_encode_expr(
 //       "Bool" -> field_access(variable("json"), "bool")
 //       "Uuid" -> field_access(variable("util"), "encode_uuid")
 //       "Time" -> birl_time_encode_expr(birl_time_kind)
-//       _ -> variable("encode_" <> util.snake_case(type_name))
+//       _ -> variable("encode_" <> common.snake_case(type_name))
 //     }
 
 //   case wrap {
@@ -652,11 +652,11 @@ fn encode_field(
 
   let ftype = jtype(field.type_)
 
-  let birl_time_kind = util.birl_time_kind(type_, variant, field.name, all_field_opts)
+  let birl_time_kind = common.birl_time_kind(type_, variant, field.name, all_field_opts)
 
   let encode_func_name_override =
     ctx.all_field_opts
-    |> util.get_field_opts(type_, variant, field.name)
+    |> common.get_field_opts(type_, variant, field.name)
     |> specifies_encode_func
 
   case ftype, ftype.parameters {
@@ -711,9 +711,9 @@ fn encode_field(
     //       )
     //     }
     //     _ -> {
-    //       // util.debug(ftype)
+    //       // common.debug(ftype)
     //       // panic as "Not yet implemented for type printed above"
-    //       call(variable("encode_" <> util.snake_case(ftype.name)), [])
+    //       call(variable("encode_" <> common.snake_case(ftype.name)), [])
     //     }
     //   }
 
@@ -752,7 +752,7 @@ fn encode_variant_json_object_expr(
     variant.fields
     |> list.filter(fn(field) {
       let field = variant_field(field)
-      let opts = util.get_field_opts(ctx.all_field_opts, type_, variant, field.name)
+      let opts = common.get_field_opts(ctx.all_field_opts, type_, variant, field.name)
 
       case opts |> list.find(fn(opt) { opt.strs == ["json", "encode", "skip"] }) {
         Ok(_) -> False
@@ -764,7 +764,7 @@ fn encode_variant_json_object_expr(
 
       let json_field_name =
         ctx.all_field_opts
-        |> util.get_field_opts(type_, variant, field.name)
+        |> common.get_field_opts(type_, variant, field.name)
         |> json_field_name(field, _)
 
       let encode_expr = encode_field(type_, variant, field, ctx)
@@ -844,7 +844,7 @@ fn encode_type_func(
   type_: CustomType,
   ctx: Context,
 ) -> Definition(Function) {
-  let name = "encode_" <> util.snake_case(type_.name)
+  let name = "encode_" <> common.snake_case(type_.name)
 
   let parameters =
     [FunctionParameter(None, Named("value"), Some(named_type(type_.name, None,
@@ -855,7 +855,7 @@ fn encode_type_func(
       type_.parameters
       |> list.map(fn(param_type_name) {
         FunctionParameter(None, Named("encode_" <> param_type_name),
-          Some(FunctionType(util.dummy_location(), [variable_type(param_type_name)], named_type("Json", None, [])))
+          Some(FunctionType(common.dummy_location(), [variable_type(param_type_name)], named_type("Json", None, [])))
         )
       })
     })
@@ -867,7 +867,7 @@ fn encode_type_func(
     |> list.map(fn(variant) {
       let encode_json_object_expr = encode_variant_json_object_expr(type_, variant, ctx)
 
-      Clause([[PatternAssignment(util.dummy_location(), PatternVariant(util.dummy_location(), None, variant.name, [], True), "value")]], None,
+      Clause([[PatternAssignment(common.dummy_location(), PatternVariant(common.dummy_location(), None, variant.name, [], True), "value")]], None,
         encode_json_object_expr
       )
     })
@@ -876,7 +876,7 @@ fn encode_type_func(
   // [ Expression(encode_variant_json_object_expr(variant, all_field_opts)) ]
     Expression(
       Case(
-        util.dummy_location(),
+        common.dummy_location(),
         [variable("value")],
         encode_variant_clause_exprs,
       )
@@ -899,7 +899,7 @@ fn encode_type_alias_func(
   type_alias: TypeAlias,
   ctx: Context,
 ) -> Definition(Function) {
-  let name = "encode_" <> util.snake_case(type_alias.name)
+  let name = "encode_" <> common.snake_case(type_alias.name)
 
   let parameters =
     [FunctionParameter(None, Named("value"), Some(named_type(type_alias.name, None,
@@ -910,7 +910,7 @@ fn encode_type_alias_func(
       type_alias.parameters
       |> list.map(fn(param_type_name) {
         FunctionParameter(None, Named("encode_" <> param_type_name),
-          Some(FunctionType(util.dummy_location(), [variable_type(param_type_name)], named_type("Json", None, [])))
+          Some(FunctionType(common.dummy_location(), [variable_type(param_type_name)], named_type("Json", None, [])))
         )
       })
     })
@@ -1017,7 +1017,7 @@ fn decoder_type_func(
     let #(first_decoder_call_expr, rest_decoder_call_exprs) =
       variant_funcs
       |> list.map(fn(func) {
-        call(variable(util.func_name(func)), decoder_calls)
+        call(variable(common.func_name(func)), decoder_calls)
       })
       |> fn(exprs) {
         case exprs {
@@ -1040,7 +1040,7 @@ fn decoder_type_func(
     Definition([], Function(
       location: dummy_location(),
       publicity: Public,
-      name: "decoder_" <> util.snake_case(type_.name),
+      name: "decoder_" <> common.snake_case(type_.name),
       parameters: decoder_func_params,
       return:,
       body: body,
@@ -1050,7 +1050,7 @@ fn decoder_type_func(
 }
 
 fn decoder_type_variant_func_name(type_: CustomType, variant: Variant) -> String {
-  "decoder_" <> util.snake_case(type_.name) <> "_" <> util.snake_case(variant.name)
+  "decoder_" <> common.snake_case(type_.name) <> "_" <> common.snake_case(variant.name)
 }
 
 fn decode_field_expr(
@@ -1065,15 +1065,15 @@ fn decode_field_expr(
 
   let t = jtype(field.type_)
 
-  let birl_time_kind = util.birl_time_kind(type_, variant, field.name, all_field_opts)
+  let birl_time_kind = common.birl_time_kind(type_, variant, field.name, all_field_opts)
 
-  let opts = util.get_field_opts(all_field_opts, type_, variant, field.name)
+  let opts = common.get_field_opts(all_field_opts, type_, variant, field.name)
 
   let expr = type_decode_expr(t, type_aliases, birl_time_kind, opts, local_decoders)
 
   let json_field_name =
     all_field_opts
-    |> util.get_field_opts(type_, variant, field.name)
+    |> common.get_field_opts(type_, variant, field.name)
     |> json_field_name(field, _)
 
   let is_option =
@@ -1132,8 +1132,8 @@ fn decoder_type_variant_func(
           [json_field] ->
             case is_option {
               True ->
-                // Use(location: util.dummy_location(), patterns: [PatternVariable(field)], function: {
-                Use(location: util.dummy_location(), patterns: [glance.UsePattern(pattern: PatternVariable(util.dummy_location(), field), annotation: None)], function: {
+                // Use(location: common.dummy_location(), patterns: [PatternVariable(field)], function: {
+                Use(location: common.dummy_location(), patterns: [glance.UsePattern(pattern: PatternVariable(common.dummy_location(), field), annotation: None)], function: {
                   call(
                     function: field_access(variable("decode"), "optional_field"),
                     arguments: [
@@ -1144,7 +1144,7 @@ fn decoder_type_variant_func(
                   })
 
               False ->
-                Use(location: util.dummy_location(), patterns: [glance.UsePattern(pattern: PatternVariable(util.dummy_location(), field), annotation: None)], function: {
+                Use(location: common.dummy_location(), patterns: [glance.UsePattern(pattern: PatternVariable(common.dummy_location(), field), annotation: None)], function: {
                   call(
                     function: field_access(variable("decode"), "field"),
                     arguments: [
@@ -1175,7 +1175,7 @@ fn decoder_type_variant_func(
                     |> UnlabelledField
                   ]
                 )
-                |> Use(location: util.dummy_location(), patterns: [glance.UsePattern(pattern: PatternVariable(util.dummy_location(), field), annotation: None)], function: _)
+                |> Use(location: common.dummy_location(), patterns: [glance.UsePattern(pattern: PatternVariable(common.dummy_location(), field), annotation: None)], function: _)
 
               False ->
                 call(
@@ -1185,7 +1185,7 @@ fn decoder_type_variant_func(
                     UnlabelledField(expr),
                   ]
                 )
-                |> Use(location: util.dummy_location(), patterns: [glance.UsePattern(pattern: PatternVariable(util.dummy_location(), field), annotation: None)], function: _)
+                |> Use(location: common.dummy_location(), patterns: [glance.UsePattern(pattern: PatternVariable(common.dummy_location(), field), annotation: None)], function: _)
             }
           }
         }
@@ -1230,7 +1230,7 @@ fn decoder_type_variant_func(
             ])),
           ]
         )
-        |> Use(location: util.dummy_location(), patterns: [glance.UsePattern(pattern: PatternDiscard(util.dummy_location(), "deriv_var_constr"), annotation: None)], function: _)
+        |> Use(location: common.dummy_location(), patterns: [glance.UsePattern(pattern: PatternDiscard(common.dummy_location(), "deriv_var_constr"), annotation: None)], function: _)
       ]
       False -> []
     }
@@ -1260,7 +1260,7 @@ pub fn decoder_type_alias_func(
   _opt: DerivFieldOpts,
   type_aliases: List(TypeAlias),
 ) -> Definition(Function) {
-  let name = "decoder_" <> util.snake_case(type_alias.name)
+  let name = "decoder_" <> common.snake_case(type_alias.name)
 
   let TypeParams(
     decoder_func_params:,
@@ -1304,7 +1304,7 @@ pub fn decoder_type_alias_func(
 //     "Uuid" -> call(field_access(variable("util"), "decoder_uuid"), [])
 //     "Time" -> birl_time_decode_expr(birl_time_kind)
 //     _ -> {
-//       let decoder_name = "decoder_" <> util.snake_case(type_name)
+//       let decoder_name = "decoder_" <> common.snake_case(type_name)
 //       case decoder_name |> list.contains(local_decoders, _) {
 //         True ->
 //           variable(decoder_name)
@@ -1464,11 +1464,11 @@ fn type_decode_expr(
               //   "`deriv/json.type_decode_expr` doesn't know what to do with type: "
               //     <> type_.name <> "\n" <> string.inspect(type_)
               // }
-              call(variable("decoder_" <> util.snake_case(type_.name)), [])
+              call(variable("decoder_" <> common.snake_case(type_.name)), [])
           }
       }
     _, _, _, params -> {
-      let decoder_name = "decoder_" <> util.snake_case(type_.name)
+      let decoder_name = "decoder_" <> common.snake_case(type_.name)
 
       case decoder_name |> list.contains(local_decoders, _) {
         True ->

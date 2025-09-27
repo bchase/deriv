@@ -12,14 +12,14 @@ import gleam/int
  import deriv/types.{type File, File, DerivFieldOpt, DerivField}
  import deriv/parser
  import deriv
- import deriv/util
+ import deriv/common
  import youid/uuid
  import gleam/io
  import shellout
  import simplifile
  import glance.{Import, UnqualifiedImport, Named}
 
-pub fn suppress_io_warnings() { util.debug(Nil) }
+pub fn suppress_io_warnings() { common.debug(Nil) }
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
@@ -162,7 +162,7 @@ pub fn decoder_bar_bar() -> Decoder(Bar) {
   io.println("")
   io.println("")
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -243,7 +243,7 @@ pub fn encode_t(value: T) -> Json {
   io.println("")
   io.println("")
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.src
   |> should.equal(output)
@@ -314,7 +314,7 @@ pub fn encode_t(value: T) -> Json {
   io.println("")
   io.println("")
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.src
   |> should.equal(output)
@@ -386,7 +386,7 @@ pub fn encode_maybe(value: Maybe) -> Json {
   io.println("")
   io.println("")
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.src
   |> should.equal(output)
@@ -519,7 +519,7 @@ pub fn encode_b(value: B) -> Json {
   io.println("")
   io.println("")
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.src
   |> should.equal(output)
@@ -557,7 +557,7 @@ type Bar {
   )
 }")
 
-  util.replace_function(src, func_name: "foo", func_src: new)
+  common.replace_function(src, func_name: "foo", func_src: new)
   |> should.equal(expected)
 }
 
@@ -596,7 +596,7 @@ fn foo(str: String) -> String {
   str
 }")
 
-  util.replace_type(src, type_name: "Bar", type_src: new)
+  common.replace_type(src, type_name: "Bar", type_src: new)
   |> string.trim
   |> should.equal(expected)
 }
@@ -637,10 +637,10 @@ fn foo(str: String) -> String {
 //   let assert Ok(module) = glance.module(src)
 
 //   let curr_imports = [
-//     Import(util.dummy_location(), "deriv/util", None, [], []),
-//     Import(util.dummy_location(), "baz", None, [], []),
+//     Import(common.dummy_location(), "deriv/common", None, [], []),
+//     Import(common.dummy_location(), "baz", None, [], []),
 //     Import(
-//       location: util.dummy_location(),
+//       location: common.dummy_location(),
 //       module: "foo/bar",
 //       alias: None,
 //       unqualified_types: [
@@ -659,14 +659,14 @@ fn foo(str: String) -> String {
 
 //   let add_imports = [
 //     Import(
-//       location: util.dummy_location(),
+//       location: common.dummy_location(),
 //       module: "deriv/foo",
 //       alias: None,
 //       unqualified_types: [],
 //       unqualified_values: [],
 //     ),
 //     Import(
-//       location: util.dummy_location(),
+//       location: common.dummy_location(),
 //       module: "foo/bar",
 //       alias: Some(Named("foobar")),
 //       unqualified_types: [
@@ -683,17 +683,17 @@ fn foo(str: String) -> String {
 //   ]
 
 //   let expected_new_imports = [
-//     Import(util.dummy_location(), "baz", None, [], []),
+//     Import(common.dummy_location(), "baz", None, [], []),
 //     Import(
-//       location: util.dummy_location(),
+//       location: common.dummy_location(),
 //       module: "deriv/foo",
 //       alias: None,
 //       unqualified_types: [],
 //       unqualified_values: [],
 //     ),
-//     Import(util.dummy_location(), "deriv/util", None, [], []),
+//     Import(common.dummy_location(), "deriv/common", None, [], []),
 //     Import(
-//       location: util.dummy_location(),
+//       location: common.dummy_location(),
 //       module: "foo/bar",
 //       alias: Some(Named("foobar")),
 //       unqualified_types: [
@@ -826,7 +826,7 @@ pub fn encode_date_time_examples(value: DateTimeExamples) -> Json {
   io.println("")
   io.println("")
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -874,7 +874,7 @@ pub fn encode_dict_field_type(value: DictFieldType) -> Json {
 ")
 
   // let assert Ok(module) = glance.module(output)
-  // util.debug(module)
+  // common.debug(module)
 
   let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
 
@@ -904,7 +904,7 @@ pub fn encode_dict_field_type(value: DictFieldType) -> Json {
   io.println("")
   io.println("")
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -988,7 +988,7 @@ pub fn encode_unnested(value: Unnested) -> Json {
   io.println("")
   io.println("")
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -998,25 +998,25 @@ pub fn encode_unnested(value: Unnested) -> Json {
 }
 
 pub fn snake_case_test() {
-  util.snake_case("FooBar")
+  common.snake_case("FooBar")
   |> should.equal("foo_bar")
 
-  util.snake_case("Foo")
+  common.snake_case("Foo")
   |> should.equal("foo")
 
-  util.snake_case("FooBarX")
+  common.snake_case("FooBarX")
   |> should.equal("foo_bar_x")
 
-  util.snake_case("Foo123Bar")
+  common.snake_case("Foo123Bar")
   |> should.equal("foo123_bar")
 
-  util.snake_case("FooBar1")
+  common.snake_case("FooBar1")
   |> should.equal("foo_bar1")
 
-  util.snake_case("FooBar12")
+  common.snake_case("FooBar12")
   |> should.equal("foo_bar12")
 
-  util.snake_case("FooBar123")
+  common.snake_case("FooBar123")
   |> should.equal("foo_bar123")
 }
 
@@ -1089,7 +1089,7 @@ pub fn encode_maybe(value: Maybe) -> Json {
   io.println("")
   io.println("")
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.src
   |> should.equal(output)
@@ -1141,7 +1141,7 @@ pub type AutheB {
       "project/authe/b" -> parse(authe_b_src)
 
       _ -> {
-        util.debug(ident)
+        common.debug(ident)
         panic as "`module_reader` miss in `unify_authe_test`"
       }
     }
@@ -1220,7 +1220,7 @@ pub fn authe_b(value: AutheB) -> AutheTokens {
   io.println("")
   io.println("")
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -1235,11 +1235,11 @@ pub fn into_test() {
   // f.Foo
 // }
   // " |> string.trim)
-  // |> util.debug
-  // |> util.debug
-  // |> util.debug
-  // |> util.debug
-  // |> util.debug
+  // |> common.debug
+  // |> common.debug
+  // |> common.debug
+  // |> common.debug
+  // |> common.debug
 
   let foo_src = "
 pub type Foo {
@@ -1260,7 +1260,7 @@ pub type Foo {
       "project/asdf/foo" -> parse(foo_src)
 
       _ -> {
-        util.debug(ident)
+        common.debug(ident)
         panic as "`module_reader` miss in `into_test`"
       }
     }
@@ -1359,7 +1359,7 @@ pub type Pet {
       "project/types/pet" -> parse(pet_src)
 
       _ -> {
-        util.debug(ident)
+        common.debug(ident)
         panic as "`module_reader` miss in `unify_friend_test`"
       }
     }
@@ -1430,7 +1430,7 @@ pub fn pet(value: Pet) -> Friend {
   io.println("")
   io.println("")
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -1463,7 +1463,7 @@ pub type Player {
   let module_reader: types.ModuleReader = fn(ident) {
     case ident {
       _ -> {
-        util.debug(ident)
+        common.debug(ident)
         panic as "`module_reader` miss in `zero_test`"
       }
     }
@@ -1522,7 +1522,7 @@ pub fn zero_player() -> Player {
   io.println("")
   io.println("")
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -1553,7 +1553,7 @@ pub fn json_parameterized_type_decoder_test() {
       // }
 
       _ -> {
-        util.debug(ident)
+        common.debug(ident)
         panic as "`module_reader` miss in `parameterized_type_test`"
       }
     }
@@ -1673,7 +1673,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
   io.println("GENERATED")
   io.println(write.src)
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -1704,7 +1704,7 @@ pub fn json_parameterized_type_encoder_test() {
       // }
 
       _ -> {
-        util.debug(ident)
+        common.debug(ident)
         panic as "`module_reader` miss in `parameterized_type_test`"
       }
     }
@@ -1819,7 +1819,7 @@ pub fn encode_foo(value: Foo) -> Json {
   io.println("GENERATED")
   io.println(write.src)
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -1850,7 +1850,7 @@ pub fn json_decoder_local_type_alias_test() {
       // }
 
       _ -> {
-        util.debug(ident)
+        common.debug(ident)
         panic as "`module_reader` miss in `parameterized_type_test`"
       }
     }
@@ -1957,7 +1957,7 @@ pub fn encode_listy(value: Listy(t), encode_t: fn(t) -> Json) -> Json {
   io.println("GENERATED")
   io.println(write.src)
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -1988,7 +1988,7 @@ pub fn json_decoder_non_string_keyed_dict_test() {
       // }
 
       _ -> {
-        util.debug(ident)
+        common.debug(ident)
         panic as "`module_reader` miss in `parameterized_type_test`"
       }
     }
@@ -2054,7 +2054,7 @@ pub fn decoder_bool_key_dict() -> Decoder(BoolKeyDict) {
   io.println("GENERATED")
   io.println(write.src)
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, write.src))
+  io.println(common.diff(output, write.src))
 
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
@@ -2368,7 +2368,7 @@ fn should_equal(
   io.println("GENERATED")
   io.println(gen)
   io.println("DIFF (<expected >generated)")
-  io.println(util.diff(output, gen))
+  io.println(common.diff(output, gen))
 
   write.src
   |> string.trim

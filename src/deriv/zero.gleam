@@ -5,7 +5,7 @@ import gleam/result
 import gleam/string
 import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type Span, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, Span, List, UnlabelledField, String, Int, Float}
 import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
-import deriv/util
+import deriv/common
 
 
 pub fn gen(
@@ -28,7 +28,7 @@ pub fn gen(
 
       let src = ""
         funcs
-        |> list.map(util.func_str)
+        |> list.map(common.func_str)
         |> string.join("\n\n")
 
       Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
@@ -39,8 +39,8 @@ pub fn gen(
 fn gen_imports(
   type_: CustomType,
 ) -> List(Import) {
-  case util.are_any_fields_options(type_) {
-    True -> [util.none_constr_import()]
+  case common.are_any_fields_options(type_) {
+    True -> [common.none_constr_import()]
     False -> []
   }
 }
@@ -71,21 +71,21 @@ fn zero_func_(
   ))
 
   let constr_name = variant.name
-  let func_name = "zero_" <> util.snake_case(type_.name)
+  let func_name = "zero_" <> common.snake_case(type_.name)
   let func_return_type_name = type_.name
 
-  let func_return_type = Some(NamedType(util.dummy_location(), func_return_type_name, None, []))
+  let func_return_type = Some(NamedType(common.dummy_location(), func_return_type_name, None, []))
 
   let body =
     Call(
-      location: util.dummy_location(),
-      function: Variable(util.dummy_location(), constr_name),
+      location: common.dummy_location(),
+      function: Variable(common.dummy_location(), constr_name),
       arguments: field_zero_vals,
     )
     |> Expression
 
   let func =
-    Function(util.dummy_location(), func_name, Public, [], func_return_type, [body])
+    Function(common.dummy_location(), func_name, Public, [], func_return_type, [body])
 
   Ok(Definition([], func))
 }
@@ -107,33 +107,33 @@ fn zero_call(
 }
 
 fn zero_uuid() -> Expression {
-  Call(util.dummy_location(), FieldAccess(util.dummy_location(), Variable(util.dummy_location(), "util"), "zero_uuid"), [])
+  Call(common.dummy_location(), FieldAccess(common.dummy_location(), Variable(common.dummy_location(), "util"), "zero_uuid"), [])
 }
 
 fn zero_time() -> Expression {
-  Call(util.dummy_location(), FieldAccess(util.dummy_location(), Variable(util.dummy_location(), "util"), "zero_time"), [])
+  Call(common.dummy_location(), FieldAccess(common.dummy_location(), Variable(common.dummy_location(), "util"), "zero_time"), [])
 }
 
 fn zero_string() -> Expression {
-  String(util.dummy_location(), "")
+  String(common.dummy_location(), "")
 }
 
 fn zero_option() -> Expression {
-  Variable(util.dummy_location(), "None")
+  Variable(common.dummy_location(), "None")
 }
 
 fn zero_int() -> Expression {
-  Int(util.dummy_location(), "0")
+  Int(common.dummy_location(), "0")
 }
 
 fn zero_float() -> Expression {
-  Float(util.dummy_location(), "0.0")
+  Float(common.dummy_location(), "0.0")
 }
 
 fn zero_bool() -> Expression {
-  Variable(util.dummy_location(), "False")
+  Variable(common.dummy_location(), "False")
 }
 
 fn zero_list() -> Expression {
-  List(util.dummy_location(), [], None)
+  List(common.dummy_location(), [], None)
 }
