@@ -1,38 +1,15 @@
 import gleam/option.{None}
-import gleam/int
-import gleam/float
 import gleam/dict
 import gleam/list
 import gleam/string
-import gleam/json.{type Json}
 import gleam/result
 import gleam/regexp.{type Regexp}
-import gleam/dynamic/decode.{type Decoder}
-import youid/uuid.{type Uuid}
 import glance.{type Module, type Definition, type Function, Module, Definition, Function, type CustomType, type Variant}
 import glance_printer
-import birl.{type Time}
 import deriv/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField, type ModuleReader, type ModuleReaderErr}
 import gleam/io
 import shellout
 import simplifile
-
-pub fn decoder_uuid() -> Decoder(Uuid) {
-  use str <- decode.then(decode.string)
-  case uuid.from_string(str) {
-    Ok(uuid) -> decode.success(uuid)
-    Error(Nil) -> {
-      decode.failure(zero_uuid(), "Failed to parse UUID")
-    }
-  }
-}
-
-pub fn encode_uuid(uuid: Uuid) -> Json {
-  uuid
-  |> uuid.to_string
-  |> string.lowercase
-  |> json.string
-}
 
 pub fn indent(str: String, level level: Int) {
   let pad =
@@ -41,117 +18,6 @@ pub fn indent(str: String, level level: Int) {
     |> string.join("")
 
   pad <> str
-}
-
-pub fn snake_case(str: String) -> String {
-  let assert Ok(is_capital) = regexp.from_string("[A-Z]")
-
-  let step_snake_case = fn(state, char) { step_snake_case(char:, state:, is_capital:) }
-
-  str
-  |> string.split("")
-  |> list.reverse
-  |> list.fold(SC(acc: [], curr: [], next_is_capital: True), step_snake_case)
-  |> fn(sc) {
-    case sc.curr {
-      [] -> sc
-      _ -> SC(..sc, acc: list.append(sc.acc, [sc.curr]))
-    }
-    |> fn(sc) {
-      case sc.acc {
-        [[last, second_to_last, ..rest], ..rest_chunks] -> {
-          case regexp.check(is_capital, last) {
-            False -> sc.acc
-            True -> {
-              let second_to_last_chunk = [second_to_last, ..rest]
-              let last_chunk = [last]
-
-              [last_chunk, second_to_last_chunk, ..rest_chunks]
-            }
-          }
-        }
-
-        _ -> sc.acc
-      }
-    }
-    |> list.map(fn(group) {
-      group
-      |> list.reverse
-      |> string.join("")
-      |> string.lowercase
-    })
-    |> list.reverse
-    |> string.join("_")
-  }
-}
-
-type SC {
-  SC(
-    acc: List(List(String)),
-    curr: List(String),
-    next_is_capital: Bool,
-  )
-}
-
-fn step_snake_case(
-  char char: String,
-  state state: SC,
-  is_capital is_capital: Regexp,
-) -> SC {
-  let char_is_capital = is_capital |> regexp.check(char)
-
-  case char_is_capital, state.next_is_capital {
-    True, False -> {
-      process_as_final_in_token(char:,
-        next_is_capital: char_is_capital,
-        sc: state,
-      )
-    }
-
-    True, True -> {
-      add_to_curr_token(char:,
-        next_is_capital: !char_is_capital,
-        sc: state,
-      )
-    }
-
-    _, _ -> {
-      add_to_curr_token(char:,
-        next_is_capital: char_is_capital,
-        sc: state,
-      )
-    }
-  }
-}
-
-fn process_as_final_in_token(
-  char char: String,
-  sc sc: SC,
-  next_is_capital next_is_capital: Bool,
-) -> SC {
-  SC(
-    acc: sc.acc |> list.append([sc.curr |> list.append([char])]),
-    curr: [],
-    next_is_capital:,
-  )
-}
-
-fn add_to_curr_token(
-  char char: String,
-  sc sc: SC,
-  next_is_capital next_is_capital: Bool,
-) -> SC {
-  SC(..sc,
-    curr: sc.curr |> list.append([char]),
-    next_is_capital:,
-  )
-}
-
-pub fn pascal_case(str: String) -> String {
-  str
-  |> string.split("_")
-  |> list.map(string.capitalise)
-  |> string.join("")
 }
 
 pub fn replace_function(
@@ -275,7 +141,7 @@ pub fn then(
 ) -> Result(b, Nil) {
   result
   |> result.map_error(log_and_discard_error)
-  |> result.then(fn(x) {
+  |> result.try(fn(x) {
     fun(x)
     |> result.map_error(log_and_discard_error)
   })
@@ -314,112 +180,6 @@ pub fn gleam_format(src: String) -> String {
   formatted_enc
 }
 
-pub fn is(
-  value: String,
-) -> Decoder(Nil) {
-  decode.string
-  |> decode.then(fn(str) {
-    case str == value {
-      True -> decode.success(Nil)
-      False -> decode.failure(Nil, "failed to match for value: " <> value)
-    }
-  })
-}
-
-pub fn decoder_birl_parse() -> Decoder(Time) {
-  decoder_birl_string_to_result(
-    func_name: "parse",
-    func: birl.parse,
-  )
-}
-
-pub fn decoder_birl_from_naive() -> Decoder(Time) {
-  decoder_birl_string_to_result(
-    func_name: "from_naive",
-    func: birl.from_naive,
-  )
-}
-
-pub fn decoder_birl_from_http() -> Decoder(Time) {
-  decoder_birl_string_to_result(
-    func_name: "from_http",
-    func: birl.from_http,
-  )
-}
-
-pub fn decoder_birl_from_unix() -> Decoder(Time) {
-  decoder_birl_int_to_time(birl.from_unix)
-}
-
-pub fn decoder_birl_from_unix_milli() -> Decoder(Time) {
-  decoder_birl_int_to_time(birl.from_unix_milli)
-}
-
-pub fn decoder_birl_from_unix_micro() -> Decoder(Time) {
-  decoder_birl_int_to_time(birl.from_unix_micro)
-}
-
-pub fn encode_birl_to_iso8601(time: Time) -> Json {
-  time
-  |> birl.to_iso8601
-  |> json.string
-}
-
-pub fn encode_birl_to_naive(time: Time) -> Json {
-  time
-  |> birl.to_naive
-  |> json.string
-}
-
-pub fn encode_birl_to_http(time: Time) -> Json {
-  time
-  |> birl.to_naive
-  |> json.string
-}
-
-pub fn encode_birl_to_unix(time: Time) -> Json {
-  time
-  |> birl.to_unix
-  |> json.int
-}
-
-pub fn encode_birl_to_unix_milli(time: Time) -> Json {
-  time
-  |> birl.to_unix_milli
-  |> json.int
-}
-
-pub fn encode_birl_to_unix_micro(time: Time) -> Json {
-  time
-  |> birl.to_unix_micro
-  |> json.int
-}
-
-fn decoder_birl_string_to_result(
-  func func: fn(String) -> Result(Time, Nil),
-  func_name func_name : String,
-) -> Decoder(Time) {
-  decode.string
-  |> decode.then(fn(str) {
-    case func(str) {
-      Ok(time) -> decode.success(time)
-      Error(_) -> decode.failure(birl.from_unix(0), "Failed to `" <> func_name <> "`: " <> str)
-    }
-  })
-}
-
-fn decoder_birl_int_to_time(
-  func: fn(Int) -> Time,
-) -> Decoder(Time) {
-  decode.int
-  |> decode.then(fn(int) {
-    int
-    |> func
-    |> decode.success
-  })
-}
-
-// TODO more `internal` than `util`...
 pub fn get_field_opts(
   all_field_opts: DerivFieldOpts,
   type_: CustomType,
@@ -564,14 +324,6 @@ pub fn diff(
   diff
 }
 
-pub fn zero_uuid() -> Uuid {
-  uuid.v7_from_millisec(0)
-}
-
-pub fn zero_time() -> Time {
-  birl.from_unix(0)
-}
-
 pub fn are_any_fields_options(
   type_: CustomType,
 ) -> Bool {
@@ -602,52 +354,119 @@ pub fn none_constr_import() -> glance.Import {
   )
 }
 
-fn decoder_from_string(
-  parse: fn(String) -> Result(t, err),
-  zero: t,
-  err_msg: fn(String) -> String,
-) -> Decoder(t) {
-  use str <- decode.subfield([], decode.string)
-  case parse(str) {
-    Ok(x) -> decode.success(x)
-    Error(_) -> decode.failure(zero, err_msg(str))
-  }
-}
-
-pub fn decoder_int_string() -> Decoder(Int) {
-  decoder_from_string(int.parse, 0, fn(str) {
-    "`decoder_int_string` failed to parse `Int` from: " <> str
-  })
-}
-
-pub fn decoder_float_string() -> Decoder(Float) {
-  decoder_from_string(float.parse, 0.0, fn(str) {
-    "`decoder_float_string` failed to parse `Float` from: " <> str
-  })
-}
-
-pub fn decoder_bool_string() -> Decoder(Bool) {
-  decoder_from_string(parse_bool, False, fn(str) {
-    "`decoder_bool_string` failed to parse `Bool` from: " <> str
-  })
-}
-
-pub fn decoder_uuid_string() -> Decoder(Uuid) {
-  decoder_from_string(uuid.from_string, uuid.v7_from_millisec(0), fn(str) {
-    "`decoder_uuid_string` failed to parse `Uuid` from: " <> str
-  })
-}
-
-fn parse_bool(
-  str: String,
-) -> Result(Bool, Nil) {
-  case str {
-    "True" -> Ok(True)
-    "False" -> Ok(False)
-    _ -> Error(Nil)
-  }
-}
-
 pub fn dummy_location() -> glance.Span {
   glance.Span(start: -1, end: -1)
+}
+
+// // // CASE HELPERS // // //
+
+pub fn pascal_case(str: String) -> String {
+  str
+  |> string.split("_")
+  |> list.map(string.capitalise)
+  |> string.join("")
+}
+
+pub fn snake_case(str: String) -> String {
+  let assert Ok(is_capital) = regexp.from_string("[A-Z]")
+
+  let step_snake_case = fn(state, char) { step_snake_case(char:, state:, is_capital:) }
+
+  str
+  |> string.split("")
+  |> list.reverse
+  |> list.fold(SC(acc: [], curr: [], next_is_capital: True), step_snake_case)
+  |> fn(sc) {
+    case sc.curr {
+      [] -> sc
+      _ -> SC(..sc, acc: list.append(sc.acc, [sc.curr]))
+    }
+    |> fn(sc) {
+      case sc.acc {
+        [[last, second_to_last, ..rest], ..rest_chunks] -> {
+          case regexp.check(is_capital, last) {
+            False -> sc.acc
+            True -> {
+              let second_to_last_chunk = [second_to_last, ..rest]
+              let last_chunk = [last]
+
+              [last_chunk, second_to_last_chunk, ..rest_chunks]
+            }
+          }
+        }
+
+        _ -> sc.acc
+      }
+    }
+    |> list.map(fn(group) {
+      group
+      |> list.reverse
+      |> string.join("")
+      |> string.lowercase
+    })
+    |> list.reverse
+    |> string.join("_")
+  }
+}
+
+type SC {
+  SC(
+    acc: List(List(String)),
+    curr: List(String),
+    next_is_capital: Bool,
+  )
+}
+
+fn step_snake_case(
+  char char: String,
+  state state: SC,
+  is_capital is_capital: Regexp,
+) -> SC {
+  let char_is_capital = is_capital |> regexp.check(char)
+
+  case char_is_capital, state.next_is_capital {
+    True, False -> {
+      process_as_final_in_token(char:,
+        next_is_capital: char_is_capital,
+        sc: state,
+      )
+    }
+
+    True, True -> {
+      add_to_curr_token(char:,
+        next_is_capital: !char_is_capital,
+        sc: state,
+      )
+    }
+
+    _, _ -> {
+      add_to_curr_token(char:,
+        next_is_capital: char_is_capital,
+        sc: state,
+      )
+    }
+  }
+}
+
+fn process_as_final_in_token(
+  char char: String,
+  sc sc: SC,
+  next_is_capital next_is_capital: Bool,
+) -> SC {
+  SC(
+    acc: sc.acc |> list.append([sc.curr |> list.append([char])]),
+    curr: [],
+    next_is_capital:,
+  )
+}
+
+fn add_to_curr_token(
+  char char: String,
+  sc sc: SC,
+  next_is_capital next_is_capital: Bool,
+) -> SC {
+  SC(..sc,
+    curr: sc.curr |> list.append([char]),
+    next_is_capital:,
+  )
 }
