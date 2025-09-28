@@ -1,23 +1,15 @@
- import gleam/regexp
-import gleam/int
- import gleam/dynamic/decode.{type Decoder}
- import gleam/json.{type Json}
- import gleam/dict.{type Dict}
- import gleam/option.{type Option, Some, None}
- import gleam/result
- import gleam/list
- import gleeunit
- import gleeunit/should
- import gleam/string
- import deriv/types.{type File, File, DerivFieldOpt, DerivField}
- import deriv/parser
- import deriv
- import deriv/common
- import youid/uuid
- import gleam/io
- import shellout
- import simplifile
- import glance.{Import, UnqualifiedImport, Named}
+import gleam/dict
+import gleam/option.{type Option, Some, None}
+import gleam/result
+import gleeunit
+import gleeunit/should
+import gleam/string
+import deriv/types.{File, DerivFieldOpt, DerivField}
+import deriv/parser
+import deriv
+import deriv/common
+import gleam/io
+import glance
 
 pub fn suppress_io_warnings() { common.debug(Nil) }
 
@@ -505,9 +497,6 @@ pub fn encode_b(value: B) -> Json {
   write.filepath
   |> should.equal("src/deriv/example/nested.gleam")
 
-  // io.println(output)
-  // io.println(write.src)
-
   io.println("")
   io.println("")
   io.println("GENERATED")
@@ -600,133 +589,6 @@ fn foo(str: String) -> String {
   |> string.trim
   |> should.equal(expected)
 }
-
-// // test broken by glance 5.0.0 `Span` addition...
-// pub fn consolidate_imports_test() {
-//   let src = string.trim("
-// import foo/bar.{type Orig, Orig, orig, type Foo}
-// import baz
-// import deriv/util
-
-// fn foo(str: String) -> String {
-//   str
-// }
-
-// type Bar {
-//   Baz(
-//     boo: String,
-//   )
-// }")
-
-//   let expected_src = string.trim("
-// import baz
-// import deriv/foo
-// import deriv/util
-// import foo/bar.{type ABC as DEF, type Foo, type Orig, Bar, Boo as BOO, Orig, bar as xxx, foo, orig} as foobar
-
-// fn foo(str: String) -> String {
-//   str
-// }
-
-// type Bar {
-//   Baz(
-//     boo: String,
-//   )
-// }")
-
-//   let assert Ok(module) = glance.module(src)
-
-//   let curr_imports = [
-//     Import(common.dummy_location(), "deriv/common", None, [], []),
-//     Import(common.dummy_location(), "baz", None, [], []),
-//     Import(
-//       location: common.dummy_location(),
-//       module: "foo/bar",
-//       alias: None,
-//       unqualified_types: [
-//         UnqualifiedImport("Orig", None),
-//         UnqualifiedImport("Foo", None),
-//       ],
-//       unqualified_values: [
-//         UnqualifiedImport("Orig", None),
-//         UnqualifiedImport("orig", None),
-//       ],
-//     ),
-//   ]
-
-//   curr_imports
-//   |> should.equal(module.imports |> list.map(fn(d) { d.definition }))
-
-//   let add_imports = [
-//     Import(
-//       location: common.dummy_location(),
-//       module: "deriv/foo",
-//       alias: None,
-//       unqualified_types: [],
-//       unqualified_values: [],
-//     ),
-//     Import(
-//       location: common.dummy_location(),
-//       module: "foo/bar",
-//       alias: Some(Named("foobar")),
-//       unqualified_types: [
-//         UnqualifiedImport(name: "Foo", alias: None),
-//         UnqualifiedImport(name: "ABC", alias: Some("DEF")),
-//       ],
-//       unqualified_values: [
-//         UnqualifiedImport(name: "Bar", alias: None),
-//         UnqualifiedImport(name: "Boo", alias: Some("BOO")),
-//         UnqualifiedImport(name: "foo", alias: None),
-//         UnqualifiedImport(name: "bar", alias: Some("xxx")),
-//       ],
-//     ),
-//   ]
-
-//   let expected_new_imports = [
-//     Import(common.dummy_location(), "baz", None, [], []),
-//     Import(
-//       location: common.dummy_location(),
-//       module: "deriv/foo",
-//       alias: None,
-//       unqualified_types: [],
-//       unqualified_values: [],
-//     ),
-//     Import(common.dummy_location(), "deriv/common", None, [], []),
-//     Import(
-//       location: common.dummy_location(),
-//       module: "foo/bar",
-//       alias: Some(Named("foobar")),
-//       unqualified_types: [
-//         UnqualifiedImport(name: "Foo", alias: None),
-//         UnqualifiedImport(name: "ABC", alias: Some("DEF")),
-//         UnqualifiedImport(name: "Orig", alias: None),
-//       ],
-//       unqualified_values: [
-//         UnqualifiedImport(name: "Bar", alias: None),
-//         UnqualifiedImport(name: "Boo", alias: Some("BOO")),
-//         UnqualifiedImport(name: "foo", alias: None),
-//         UnqualifiedImport(name: "bar", alias: Some("xxx")),
-//         UnqualifiedImport(name: "Orig", alias: None),
-//         UnqualifiedImport(name: "orig", alias: None),
-//       ],
-//     ),
-//   ]
-
-//   deriv.consolidate_imports(list.flatten([curr_imports, add_imports]))
-//   |> should.equal(expected_new_imports)
-
-//   io.println("")
-//   io.println("")
-//   io.println("///// EXPECTED /////")
-//   io.println(expected_src)
-//   io.println("")
-//   io.println("")
-//   io.println("///// DERIV /////")
-//   io.println(deriv.consolidate_imports_for(src, add: add_imports))
-
-//   deriv.consolidate_imports_for(src, add: add_imports)
-//   |> should.equal(expected_src)
-// }
 
 pub fn birl_json_test() {
   let input = string.trim("
@@ -872,9 +734,6 @@ pub fn encode_dict_field_type(value: DictFieldType) -> Json {
   }
 }
 ")
-
-  // let assert Ok(module) = glance.module(output)
-  // common.debug(module)
 
   let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
 
@@ -1075,9 +934,6 @@ pub fn encode_maybe(value: Maybe) -> Json {
   write.filepath
   |> should.equal("src/deriv/example/maybe.gleam")
 
-  // io.println(output)
-  // io.println(write.src)
-
   io.println("")
   io.println("")
   io.println("GENERATED")
@@ -1230,17 +1086,6 @@ pub fn authe_b(value: AutheB) -> AutheTokens {
 }
 
 pub fn into_test() {
-  // glance.module("
-// pub fn foo() {
-  // f.Foo
-// }
-  // " |> string.trim)
-  // |> common.debug
-  // |> common.debug
-  // |> common.debug
-  // |> common.debug
-  // |> common.debug
-
   let foo_src = "
 pub type Foo {
   Foo(
@@ -1266,7 +1111,6 @@ pub type Foo {
     }
   }
 
-// TODO
   let input = "
 pub type Bar {
   //$ derive into project/asdf/foo.Foo as f
@@ -1534,24 +1378,6 @@ pub fn zero_player() -> Player {
 pub fn json_parameterized_type_decoder_test() {
   let module_reader: types.ModuleReader = fn(ident) {
     case ident {
-      // "project/asdf/foo" -> {
-      //   let foo_src = "
-// pub type Field(t) {
-  // Field(
-    // id: String,
-    // value: t,
-  // )
-// }
-      //   " |> string.trim
-
-      //   let parse = fn(src) {
-      //     glance.module(src)
-      //     |> result.map_error(types.GlanceErr)
-      //   }
-
-      //   parse(foo_src)
-      // }
-
       _ -> {
         common.debug(ident)
         panic as "`module_reader` miss in `parameterized_type_test`"
@@ -1559,7 +1385,6 @@ pub fn json_parameterized_type_decoder_test() {
     }
   }
 
-// TODO
   let input = "
 pub type Field(key, val) {
   //$ derive json decode
@@ -1685,24 +1510,6 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
 pub fn json_parameterized_type_encoder_test() {
   let module_reader: types.ModuleReader = fn(ident) {
     case ident {
-      // "project/asdf/foo" -> {
-      //   let foo_src = "
-// pub type Field(t) {
-  // Field(
-    // id: String,
-    // value: t,
-  // )
-// }
-      //   " |> string.trim
-
-      //   let parse = fn(src) {
-      //     glance.module(src)
-      //     |> result.map_error(types.GlanceErr)
-      //   }
-
-      //   parse(foo_src)
-      // }
-
       _ -> {
         common.debug(ident)
         panic as "`module_reader` miss in `parameterized_type_test`"
@@ -1831,24 +1638,6 @@ pub fn encode_foo(value: Foo) -> Json {
 pub fn json_decoder_local_type_alias_test() {
   let module_reader: types.ModuleReader = fn(ident) {
     case ident {
-      // "project/asdf/foo" -> {
-      //   let foo_src = "
-// pub type Field(t) {
-  // Field(
-    // id: String,
-    // value: t,
-  // )
-// }
-      //   " |> string.trim
-
-      //   let parse = fn(src) {
-      //     glance.module(src)
-      //     |> result.map_error(types.GlanceErr)
-      //   }
-
-      //   parse(foo_src)
-      // }
-
       _ -> {
         common.debug(ident)
         panic as "`module_reader` miss in `parameterized_type_test`"
@@ -1969,24 +1758,6 @@ pub fn encode_listy(value: Listy(t), encode_t: fn(t) -> Json) -> Json {
 pub fn json_decoder_non_string_keyed_dict_test() {
   let module_reader: types.ModuleReader = fn(ident) {
     case ident {
-      // "project/asdf/foo" -> {
-      //   let foo_src = "
-// pub type Field(t) {
-  // Field(
-    // id: String,
-    // value: t,
-  // )
-// }
-      //   " |> string.trim
-
-      //   let parse = fn(src) {
-      //     glance.module(src)
-      //     |> result.map_error(types.GlanceErr)
-      //   }
-
-      //   parse(foo_src)
-      // }
-
       _ -> {
         common.debug(ident)
         panic as "`module_reader` miss in `parameterized_type_test`"
@@ -1994,7 +1765,6 @@ pub fn json_decoder_non_string_keyed_dict_test() {
     }
   }
 
-// TODO
   let input = "
 pub type IntKeyDict =
   //$ derive json decode
@@ -2064,20 +1834,6 @@ pub fn decoder_bool_key_dict() -> Decoder(BoolKeyDict) {
 }
 
 pub fn json_encode_nested_parameterized_type_alias_test() {
-//pub type Fields(t) =
-//  //$ derive json encode decode
-//  Dict(String, Field(t))
-
-//pub type Field(t) {
-//  //$ derive json encode decode
-//  Field(
-//    id: String,
-//    touched: Bool,
-//    value: t,
-//  )
-//}
-
-// TODO
   let input = "
 pub type Fields(t) =
   Dict(String, Field(t))
@@ -2101,19 +1857,6 @@ pub type Form {
   )
 }
   " |> string.trim
-
-//pub type Fields(t) =
-//  //$ derive json encode decode
-//  Dict(String, Field(t))
-
-//pub type Field(t) {
-//  //$ derive json encode decode
-//  Field(
-//    id: String,
-//    touched: Bool,
-//    value: t,
-//  )
-//}
 
  let output = "
 import gleam/dynamic/decode.{type Decoder}
@@ -2401,3 +2144,130 @@ fn build_module_reader(
     }
   }
 }
+
+// // test broken by glance 5.0.0 `Span` addition...
+// pub fn consolidate_imports_test() {
+//   let src = string.trim("
+// import foo/bar.{type Orig, Orig, orig, type Foo}
+// import baz
+// import deriv/util
+
+// fn foo(str: String) -> String {
+//   str
+// }
+
+// type Bar {
+//   Baz(
+//     boo: String,
+//   )
+// }")
+
+//   let expected_src = string.trim("
+// import baz
+// import deriv/foo
+// import deriv/util
+// import foo/bar.{type ABC as DEF, type Foo, type Orig, Bar, Boo as BOO, Orig, bar as xxx, foo, orig} as foobar
+
+// fn foo(str: String) -> String {
+//   str
+// }
+
+// type Bar {
+//   Baz(
+//     boo: String,
+//   )
+// }")
+
+//   let assert Ok(module) = glance.module(src)
+
+//   let curr_imports = [
+//     Import(common.dummy_location(), "deriv/common", None, [], []),
+//     Import(common.dummy_location(), "baz", None, [], []),
+//     Import(
+//       location: common.dummy_location(),
+//       module: "foo/bar",
+//       alias: None,
+//       unqualified_types: [
+//         UnqualifiedImport("Orig", None),
+//         UnqualifiedImport("Foo", None),
+//       ],
+//       unqualified_values: [
+//         UnqualifiedImport("Orig", None),
+//         UnqualifiedImport("orig", None),
+//       ],
+//     ),
+//   ]
+
+//   curr_imports
+//   |> should.equal(module.imports |> list.map(fn(d) { d.definition }))
+
+//   let add_imports = [
+//     Import(
+//       location: common.dummy_location(),
+//       module: "deriv/foo",
+//       alias: None,
+//       unqualified_types: [],
+//       unqualified_values: [],
+//     ),
+//     Import(
+//       location: common.dummy_location(),
+//       module: "foo/bar",
+//       alias: Some(Named("foobar")),
+//       unqualified_types: [
+//         UnqualifiedImport(name: "Foo", alias: None),
+//         UnqualifiedImport(name: "ABC", alias: Some("DEF")),
+//       ],
+//       unqualified_values: [
+//         UnqualifiedImport(name: "Bar", alias: None),
+//         UnqualifiedImport(name: "Boo", alias: Some("BOO")),
+//         UnqualifiedImport(name: "foo", alias: None),
+//         UnqualifiedImport(name: "bar", alias: Some("xxx")),
+//       ],
+//     ),
+//   ]
+
+//   let expected_new_imports = [
+//     Import(common.dummy_location(), "baz", None, [], []),
+//     Import(
+//       location: common.dummy_location(),
+//       module: "deriv/foo",
+//       alias: None,
+//       unqualified_types: [],
+//       unqualified_values: [],
+//     ),
+//     Import(common.dummy_location(), "deriv/common", None, [], []),
+//     Import(
+//       location: common.dummy_location(),
+//       module: "foo/bar",
+//       alias: Some(Named("foobar")),
+//       unqualified_types: [
+//         UnqualifiedImport(name: "Foo", alias: None),
+//         UnqualifiedImport(name: "ABC", alias: Some("DEF")),
+//         UnqualifiedImport(name: "Orig", alias: None),
+//       ],
+//       unqualified_values: [
+//         UnqualifiedImport(name: "Bar", alias: None),
+//         UnqualifiedImport(name: "Boo", alias: Some("BOO")),
+//         UnqualifiedImport(name: "foo", alias: None),
+//         UnqualifiedImport(name: "bar", alias: Some("xxx")),
+//         UnqualifiedImport(name: "Orig", alias: None),
+//         UnqualifiedImport(name: "orig", alias: None),
+//       ],
+//     ),
+//   ]
+
+//   deriv.consolidate_imports(list.flatten([curr_imports, add_imports]))
+//   |> should.equal(expected_new_imports)
+
+//   io.println("")
+//   io.println("")
+//   io.println("///// EXPECTED /////")
+//   io.println(expected_src)
+//   io.println("")
+//   io.println("")
+//   io.println("///// DERIV /////")
+//   io.println(deriv.consolidate_imports_for(src, add: add_imports))
+
+//   deriv.consolidate_imports_for(src, add: add_imports)
+//   |> should.equal(expected_src)
+// }
