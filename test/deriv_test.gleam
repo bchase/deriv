@@ -16,6 +16,12 @@ import glance
 // pub fn dict_fields_json_test() {
 //   should_derive(example_dir_name: "json_dict_string_keys")
 // }
+// pub fn json_dict_non_string_keys_test() {
+//   should_derive(example_dir_name: "json_dict_non_string_keys")
+// }
+// pub fn json_decoder_local_type_alias_test() {
+//   should_derive(example_dir_name: "json_decoder_local_type_alias")
+// }
 
 // TODO FIX -- doesn't `import deriv/util`
 // // TEST DERIVE ZERO
@@ -24,178 +30,8 @@ import glance
 //   should_derive(example_dir_name: "zero")
 // }
 
-pub fn suppress_io_warnings() { common.debug(Nil) }
-
-pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
-
-pub fn dummy_module_reader(_) {
-  panic as "`dummy_module_reader`"
-}
-
 pub fn main() {
   gleeunit.main()
-}
-
-pub fn snake_case_test() {
-  common.snake_case("FooBar")
-  |> should.equal("foo_bar")
-
-  common.snake_case("Foo")
-  |> should.equal("foo")
-
-  common.snake_case("FooBarX")
-  |> should.equal("foo_bar_x")
-
-  common.snake_case("Foo123Bar")
-  |> should.equal("foo123_bar")
-
-  common.snake_case("FooBar1")
-  |> should.equal("foo_bar1")
-
-  common.snake_case("FooBar12")
-  |> should.equal("foo_bar12")
-
-  common.snake_case("FooBar123")
-  |> should.equal("foo_bar123")
-}
-
-pub fn multiple_run_and_filepath_test() {
-  let Example(before: input, after: output) = example_dir_path(example_dir_name: "json")
-
-  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
-
-  let assert [write] =
-    files
-    |> deriv.gen_derivs(dummy_module_reader)
-    |> deriv.build_writes
-
-  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
-
-  let writes =
-    files
-    |> deriv.gen_derivs(dummy_module_reader)
-    |> deriv.build_writes
-
-  let assert [write] =
-    writes
-
-  let input = write.src
-
-  write.filepath
-  |> should.equal("src/deriv/example/foo.gleam")
-
-  run_and_expect_equal(input:, output:)
-}
-
-pub fn gleam_format_magic_comment_parsing_test() {
-  let src = "
-pub type T {
-  //$ derive json decode
-  A(
-    foo: String,
-    //$ json foo bar
-    //$ json baz boo
-  )
-}
-  "
-  |> string.trim
-
-  let assert Ok(glance.Module(custom_types: [type_], ..)) = glance.module(src)
-
-  let assert Ok(#(_type, [deriv], field_opts)) = parser.parse_type_with_derivations(type_.definition, src)
-
-  deriv.name
-  |> should.equal("json")
-  deriv.opts
-  |> should.equal(["decode"])
-
-  let expected =
-    [
-      #(DerivField(type_: "T", variant: "A", field: "foo"), [
-        DerivFieldOpt(strs: ["json", "foo", "bar"]),
-        DerivFieldOpt(strs: ["json", "baz", "boo"]),
-      ]),
-    ]
-    |> dict.from_list
-
-  field_opts
-  |> should.equal(expected)
-}
-
-pub fn replace_function_test() {
-  let src = string.trim("
-import gleam/string
-
-fn foo(str: String) -> String {
-  str
-}
-
-type Bar {
-  Baz(
-    boo: String,
-  )
-}")
-
-  let new = string.trim("
-fn other(changed: Int) -> Bool {
-  True
-}")
-
-  let expected = string.trim("
-import gleam/string
-
-fn other(changed: Int) -> Bool {
-  True
-}
-
-type Bar {
-  Baz(
-    boo: String,
-  )
-}")
-
-  common.replace_function(src, func_name: "foo", func_src: new)
-  |> should.equal(expected)
-}
-
-pub fn replace_type_test() {
-  let src = string.trim("
-import gleam/string
-
-type Bar {
-  Baz(
-    boo: String,
-  )
-}
-
-fn foo(str: String) -> String {
-  str
-}")
-
-  let new = string.trim("
-type Foo {
-  Hoge(
-    asdf: Int,
-  )
-}
-")
-
-  let expected = string.trim("
-import gleam/string
-
-type Foo {
-  Hoge(
-    asdf: Int,
-  )
-}
-
-fn foo(str: String) -> String {
-  str
-}")
-
-  common.replace_type(src, type_name: "Bar", type_src: new)
-  |> string.trim
-  |> should.equal(expected)
 }
 
 // TEST DERIV JSON
@@ -236,686 +72,28 @@ pub fn json_decoder_top_level_override_test() {
   should_derive(example_dir_name: "json_specify_top_level_decoder")
 }
 
-pub fn json_decoder_local_type_alias_test() {
-  let module_reader: types.ModuleReader = fn(ident) {
-    case ident {
-      _ -> {
-        common.debug(ident)
-        panic as "`module_reader` miss in `parameterized_type_test`"
-      }
-    }
-  }
-
-  let input = "
-// simple type alias
-pub type Fields =
-  //$ derive json decode encode
-  Dict(String, String)
-
-// recursive type aliases
-pub type Foo =
-  //$ derive json decode encode
-  Bar
-pub type Bar =
-  //$ derive json decode encode
-  String
-
-pub type Listy(t) =
-  //$ derive json decode encode
-  List(t)
-  " |> string.trim
-
- let output = "
-import gleam/dynamic/decode.{type Decoder}
-import gleam/json.{type Json}
-
-// simple type alias
-pub type Fields =
-  //$ derive json decode encode
-  Dict(String, String)
-
-// recursive type aliases
-pub type Foo =
-  //$ derive json decode encode
-  Bar
-pub type Bar =
-  //$ derive json decode encode
-  String
-
-pub type Listy(t) =
-  //$ derive json decode encode
-  List(t)
-
-pub fn decoder_fields() -> Decoder(Fields) {
-  decode.dict(decode.string, decode.string)
+pub fn json_specify_default_empty_and_skip_test() {
+  should_derive(example_dir_name: "json_specify_default_empty_and_skip")
 }
 
-pub fn encode_fields(value: Fields) -> Json {
-  json.dict(value, string.inspect, json.string)
+pub fn json_decoder_parameterized_type_test() {
+  should_derive(example_dir_name: "json_decoder_parameterized_type")
 }
 
-pub fn decoder_foo() -> Decoder(Foo) {
-  decode.string
+pub fn json_encode_parameterized_type_test() {
+  should_derive(example_dir_name: "json_encode_parameterized_type")
 }
 
-pub fn encode_foo(value: Foo) -> Json {
-  encode_bar(value)
-}
-
-pub fn decoder_bar() -> Decoder(Bar) {
-  decode.string
-}
-
-pub fn encode_bar(value: Bar) -> Json {
-  json.string(value)
-}
-
-pub fn decoder_listy(decoder_t: Decoder(t)) -> Decoder(Listy(t)) {
-  decode.list(decoder_t)
-}
-
-pub fn encode_listy(value: Listy(t), encode_t: fn(t) -> Json) -> Json {
-  json.array(value, encode_t)
-}
-  "
-  |> string.trim
-
-  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
-
-  let assert [write] =
-    files
-    |> deriv.gen_derivs(module_reader)
-    |> deriv.build_writes
-
-  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
-
-  let writes =
-    files
-    |> deriv.gen_derivs(module_reader)
-    |> deriv.build_writes
-
-  let assert [write] =
-    writes
-
-  io.println("")
-  io.println("")
-  io.println("EXPECTED")
-  io.println(output)
-  io.println("")
-  io.println("")
-  io.println("GENERATED")
-  io.println(write.src)
-  io.println("DIFF (<expected >generated)")
-  io.println(common.diff(output, write.src))
-
-  write.filepath
-  |> should.equal("src/deriv/example/foo.gleam")
-
-  write.src
-  |> should.equal(output)
-}
-
-pub fn json_decoder_non_string_keyed_dict_test() {
-  let module_reader: types.ModuleReader = fn(ident) {
-    case ident {
-      _ -> {
-        common.debug(ident)
-        panic as "`module_reader` miss in `parameterized_type_test`"
-      }
-    }
-  }
-
-  let input = "
-pub type IntKeyDict =
-  //$ derive json decode
-  Dict(Int, String)
-
-pub type FloatKeyDict =
-  //$ derive json decode
-  Dict(Float, String)
-
-pub type BoolKeyDict =
-  //$ derive json decode
-  Dict(Bool, String)
-  " |> string.trim
-
- let output = "
-import gleam/dynamic/decode.{type Decoder}
-
-pub type IntKeyDict =
-  //$ derive json decode
-  Dict(Int, String)
-
-pub type FloatKeyDict =
-  //$ derive json decode
-  Dict(Float, String)
-
-pub type BoolKeyDict =
-  //$ derive json decode
-  Dict(Bool, String)
-
-pub fn decoder_int_key_dict() -> Decoder(IntKeyDict) {
-  decode.dict(util.decoder_int_string(), decode.string)
-}
-
-pub fn decoder_float_key_dict() -> Decoder(FloatKeyDict) {
-  decode.dict(util.decoder_float_string(), decode.string)
-}
-
-pub fn decoder_bool_key_dict() -> Decoder(BoolKeyDict) {
-  decode.dict(util.decoder_bool_string(), decode.string)
-}
-  "
-  |> string.trim
-
-  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
-
-  let assert [write] =
-    files
-    |> deriv.gen_derivs(module_reader)
-    |> deriv.build_writes
-
-  io.println("")
-  io.println("")
-  io.println("EXPECTED")
-  io.println(output)
-  io.println("")
-  io.println("")
-  io.println("GENERATED")
-  io.println(write.src)
-  io.println("DIFF (<expected >generated)")
-  io.println(common.diff(output, write.src))
-
-  write.filepath
-  |> should.equal("src/deriv/example/foo.gleam")
-
-  write.src
-  |> should.equal(output)
-}
-
-pub fn json_decoder_default_empty_and_encode_skip_test() {
-  "
-pub type Empty {
-  //$ derive json decode encode
-  Empty(
-    list: List(String),
-    //$ json decode default empty
-    //$ json encode skip
-  )
-}
-  "
-  |> run_and_expect_equal(output: "
-import gleam/dynamic/decode.{type Decoder}
-import gleam/json.{type Json}
-import gleam/list
-
-pub type Empty {
-  //$ derive json decode encode
-  Empty(
-    list: List(String),
-    //$ json decode default empty
-    //$ json encode skip
-  )
-}
-
-pub fn decoder_empty() -> Decoder(Empty) {
-  decode.one_of(decoder_empty_empty(), [])
-}
-
-pub fn decoder_empty_empty() -> Decoder(Empty) {
-  use list <- decode.field(
-    \"list\",
-    decode.one_of(decode.list(decode.string), [decode.success([])]),
-  )
-  decode.success(Empty(list:))
-}
-
-pub fn encode_empty(value: Empty) -> Json {
-  case value {
-    Empty(..) as value -> json.object([])
-  }
-}
-  ")
-}
-
-pub fn json_parameterized_type_decoder_test() {
-  let module_reader: types.ModuleReader = fn(ident) {
-    case ident {
-      _ -> {
-        common.debug(ident)
-        panic as "`module_reader` miss in `parameterized_type_test`"
-      }
-    }
-  }
-
-  let input = "
-pub type Field(key, val) {
-  //$ derive json decode
-  Field(
-    key: key,
-    val: val,
-  )
-}
-
-pub type Foo {
-  //$ derive json decode
-  Foo(
-    scalar: Field(String, String),
-    list: List(Field(String, String)),
-    option: Option(Field(String, String)),
-    option_list: Option(List(Field(String, String))),
-  )
-}
-  " |> string.trim
-
- let output = "
-import gleam/dynamic/decode.{type Decoder}
-import gleam/list
-import gleam/option.{None}
-
-pub type Field(key, val) {
-  //$ derive json decode
-  Field(
-    key: key,
-    val: val,
-  )
-}
-
-pub type Foo {
-  //$ derive json decode
-  Foo(
-    scalar: Field(String, String),
-    list: List(Field(String, String)),
-    option: Option(Field(String, String)),
-    option_list: Option(List(Field(String, String))),
-  )
-}
-
-pub fn decoder_field(
-  decoder_key: Decoder(key),
-  decoder_val: Decoder(val),
-) -> Decoder(Field(key, val)) {
-  decode.one_of(decoder_field_field(decoder_key, decoder_val), [])
-}
-
-pub fn decoder_field_field(
-  decoder_key: Decoder(key),
-  decoder_val: Decoder(val),
-) -> Decoder(Field(key, val)) {
-  use key <- decode.field(\"key\", decoder_key)
-  use val <- decode.field(\"val\", decoder_val)
-  decode.success(Field(key:, val:))
-}
-
-pub fn decoder_foo() -> Decoder(Foo) {
-  decode.one_of(decoder_foo_foo(), [])
-}
-
-pub fn decoder_foo_foo() -> Decoder(Foo) {
-  use scalar <- decode.field(
-    \"scalar\",
-    decoder_field(decode.string, decode.string),
-  )
-  use list <- decode.field(
-    \"list\",
-    decode.list(decoder_field(decode.string, decode.string)),
-  )
-  use option <- decode.optional_field(
-    \"option\",
-    None,
-    decode.optional(decoder_field(decode.string, decode.string)),
-  )
-  use option_list <- decode.optional_field(
-    \"option_list\",
-    None,
-    decode.optional(decode.list(decoder_field(decode.string, decode.string))),
-  )
-  decode.success(Foo(scalar:, list:, option:, option_list:))
-}
-  "
-  |> string.trim
-
-  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
-
-  let assert [write] =
-    files
-    |> deriv.gen_derivs(module_reader)
-    |> deriv.build_writes
-
-  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
-
-  let writes =
-    files
-    |> deriv.gen_derivs(module_reader)
-    |> deriv.build_writes
-
-  let assert [write] =
-    writes
-
-  io.println("")
-  io.println("")
-  io.println("EXPECTED")
-  io.println(output)
-  io.println("")
-  io.println("")
-  io.println("GENERATED")
-  io.println(write.src)
-  io.println("DIFF (<expected >generated)")
-  io.println(common.diff(output, write.src))
-
-  write.filepath
-  |> should.equal("src/deriv/example/foo.gleam")
-
-  write.src
-  |> should.equal(output)
-}
-
-pub fn json_parameterized_type_encoder_test() {
-  let module_reader: types.ModuleReader = fn(ident) {
-    case ident {
-      _ -> {
-        common.debug(ident)
-        panic as "`module_reader` miss in `parameterized_type_test`"
-      }
-    }
-  }
-
-// TODO
-  let input = "
-pub type Field(key, val) {
-  //$ derive json encode
-  Field(
-    key: key,
-    val: val,
-  )
-}
-
-pub type Foo {
-  //$ derive json encode
-  Foo(
-    scalar: Field(String, String),
-    list: List(Field(String, String)),
-    option: Option(Field(String, String)),
-    option_list: Option(List(Field(String, String))),
-  )
-}
-  " |> string.trim
-
- let output = "
-import gleam/json.{type Json}
-import gleam/list
-
-pub type Field(key, val) {
-  //$ derive json encode
-  Field(
-    key: key,
-    val: val,
-  )
-}
-
-pub type Foo {
-  //$ derive json encode
-  Foo(
-    scalar: Field(String, String),
-    list: List(Field(String, String)),
-    option: Option(Field(String, String)),
-    option_list: Option(List(Field(String, String))),
-  )
-}
-
-pub fn encode_field(
-  value: Field(key, val),
-  encode_key: fn(key) -> Json,
-  encode_val: fn(val) -> Json,
-) -> Json {
-  case value {
-    Field(..) as value ->
-      json.object([
-        #(\"key\", encode_key(value.key)),
-        #(\"val\", encode_val(value.val)),
-      ])
-  }
-}
-
-pub fn encode_foo(value: Foo) -> Json {
-  case value {
-    Foo(..) as value ->
-      json.object([
-        #(\"scalar\", encode_field(value.scalar, json.string, json.string)),
-        #(
-          \"list\",
-          json.array(value.list, encode_field(_, json.string, json.string)),
-        ),
-        #(
-          \"option\",
-          json.nullable(value.option, encode_field(_, json.string, json.string)),
-        ),
-        #(
-          \"option_list\",
-          json.nullable(
-            value.option_list,
-            json.array(_, encode_field(_, json.string, json.string)),
-          ),
-        ),
-      ])
-  }
-}
-  "
-  |> string.trim
-
-  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
-
-  let assert [write] =
-    files
-    |> deriv.gen_derivs(module_reader)
-    |> deriv.build_writes
-
-  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
-
-  let writes =
-    files
-    |> deriv.gen_derivs(module_reader)
-    |> deriv.build_writes
-
-  let assert [write] =
-    writes
-
-  io.println("")
-  io.println("")
-  io.println("EXPECTED")
-  io.println(output)
-  io.println("")
-  io.println("")
-  io.println("GENERATED")
-  io.println(write.src)
-  io.println("DIFF (<expected >generated)")
-  io.println(common.diff(output, write.src))
-
-  write.filepath
-  |> should.equal("src/deriv/example/foo.gleam")
-
-  write.src
-  |> should.equal(output)
-}
-
+// TODO `encode` does inner, `decoder` does outer ... make consistent, allow specify
 pub fn json_encode_nested_parameterized_type_alias_test() {
-  let input = "
-pub type Fields(t) =
-  Dict(String, Field(t))
-
-pub type Field(t) {
-  Field(
-    id: String,
-    touched: Bool,
-    value: t,
-  )
-}
-
-pub type Form {
-  //$ derive json encode decode
-  Form(
-    text_fields: Fields(String),
-    list_fields: Fields(List(String)),
-    override: Fields(String),
-    //$ json decoder some_specific_decoder_name
-    //$ json encode some_specific_encode_func
-  )
-}
-  " |> string.trim
-
- let output = "
-import gleam/dynamic/decode.{type Decoder}
-import gleam/json.{type Json}
-
-pub type Fields(t) =
-  Dict(String, Field(t))
-
-pub type Field(t) {
-  Field(
-    id: String,
-    touched: Bool,
-    value: t,
-  )
-}
-
-pub type Form {
-  //$ derive json encode decode
-  Form(
-    text_fields: Fields(String),
-    list_fields: Fields(List(String)),
-    override: Fields(String),
-    //$ json decoder some_specific_decoder_name
-    //$ json encode some_specific_encode_func
-  )
-}
-
-pub fn encode_form(value: Form) -> Json {
-  case value {
-    Form(..) as value ->
-      json.object([
-        #(\"text_fields\", encode_fields(value.text_fields, json.string)),
-        #(
-          \"list_fields\",
-          encode_fields(value.list_fields, json.array(_, json.string)),
-        ),
-        #(\"override\", encode_fields(value.override, some_specific_encode_func)),
-      ])
-  }
-}
-
-pub fn decoder_form() -> Decoder(Form) {
-  decode.one_of(decoder_form_form(), [])
-}
-
-pub fn decoder_form_form() -> Decoder(Form) {
-  use text_fields <- decode.field(\"text_fields\", decoder_fields(decode.string))
-  use list_fields <- decode.field(
-    \"list_fields\",
-    decoder_fields(decode.list(decode.string)),
-  )
-  use override <- decode.field(\"override\", some_specific_decoder_name())
-  decode.success(Form(text_fields:, list_fields:, override:))
-}
-  "
-  |> string.trim
-
-  input |> run_and_expect_equal(output:)
+  should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias")
 }
 
 pub fn json_encode_nested_parameterized_type_alias_list_test() {
-  let input = "
-pub type Validation(t) = fn(t) -> Result(t, List(String))
-
-pub type Field1(t) {
-  //$ derive json encode decode
-  Field1(
-    id: String,
-    validations: List(Validation(t)),
-    //$ json decoder decoder_fake_validation
-    //$ json encode encode_fake_validation
-    touched: Bool,
-    value: t,
-    errs: List(String),
-  )
-}
-
-pub fn encode_fake_validation(
-  _value: Validation(t),
-) -> Json {
-  json.null()
-}
-
-pub fn decoder_fake_validation() -> Decoder(Validation(t)) {
-  decode.success(fn(_) { Error([]) })
-}
-  " |> string.trim
-
- let output = "
-import gleam/dynamic/decode.{type Decoder}
-import gleam/json.{type Json}
-import gleam/list
-
-pub type Validation(t) = fn(t) -> Result(t, List(String))
-
-pub type Field1(t) {
-  //$ derive json encode decode
-  Field1(
-    id: String,
-    validations: List(Validation(t)),
-    //$ json decoder decoder_fake_validation
-    //$ json encode encode_fake_validation
-    touched: Bool,
-    value: t,
-    errs: List(String),
-  )
-}
-
-pub fn encode_fake_validation(
-  _value: Validation(t),
-) -> Json {
-  json.null()
-}
-
-pub fn decoder_fake_validation() -> Decoder(Validation(t)) {
-  decode.success(fn(_) { Error([]) })
-}
-
-pub fn encode_field1(value: Field1(t), encode_t: fn(t) -> Json) -> Json {
-  case value {
-    Field1(..) as value ->
-      json.object([
-        #(\"id\", json.string(value.id)),
-        #(\"validations\", json.array(value.validations, encode_fake_validation)),
-        #(\"touched\", json.bool(value.touched)),
-        #(\"value\", encode_t(value.value)),
-        #(\"errs\", json.array(value.errs, json.string)),
-      ])
-  }
-}
-
-pub fn decoder_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
-  decode.one_of(decoder_field1_field1(decoder_t), [])
-}
-
-pub fn decoder_field1_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
-  use id <- decode.field(\"id\", decode.string)
-  use validations <- decode.field(
-    \"validations\",
-    decode.list(decoder_fake_validation()),
-  )
-  use touched <- decode.field(\"touched\", decode.bool)
-  use value <- decode.field(\"value\", decoder_t)
-  use errs <- decode.field(\"errs\", decode.list(decode.string))
-  decode.success(Field1(id:, validations:, touched:, value:, errs:))
-}
-  "
-  |> string.trim
-
-  input |> run_and_expect_equal(output:)
+  should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias_list")
 }
 
 // DERIVE TEST UNIFY & INTO
-
 
 pub fn into_test() {
   let foo_src = "
@@ -1327,9 +505,179 @@ fn build_module_reader(
         |> result.map_error(types.GlanceErr)
 
       _ ->
-        panic as { "`dummy_module_reader` miss for ident: " <> ident }
+        panic as { "`build_module_reader` miss for ident: " <> ident }
     }
   }
+}
+
+// TEST GENERAL
+
+pub fn multiple_run_and_filepath_test() {
+  let Example(before: input, after: output) = example_dir_path(example_dir_name: "json")
+
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs(dummy_module_reader)
+    |> deriv.build_writes
+
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let writes =
+    files
+    |> deriv.gen_derivs(dummy_module_reader)
+    |> deriv.build_writes
+
+  let assert [write] =
+    writes
+
+  let input = write.src
+
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
+
+  run_and_expect_equal(input:, output:)
+}
+
+fn dummy_module_reader(_) {
+  panic as "`dummy_module_reader`"
+}
+
+// TEST HELPERS
+
+pub fn snake_case_test() {
+  common.snake_case("FooBar")
+  |> should.equal("foo_bar")
+
+  common.snake_case("Foo")
+  |> should.equal("foo")
+
+  common.snake_case("FooBarX")
+  |> should.equal("foo_bar_x")
+
+  common.snake_case("Foo123Bar")
+  |> should.equal("foo123_bar")
+
+  common.snake_case("FooBar1")
+  |> should.equal("foo_bar1")
+
+  common.snake_case("FooBar12")
+  |> should.equal("foo_bar12")
+
+  common.snake_case("FooBar123")
+  |> should.equal("foo_bar123")
+}
+
+pub fn gleam_format_magic_comment_parsing_test() {
+  let src = "
+pub type T {
+  //$ derive json decode
+  A(
+    foo: String,
+    //$ json foo bar
+    //$ json baz boo
+  )
+}
+  "
+  |> string.trim
+
+  let assert Ok(glance.Module(custom_types: [type_], ..)) = glance.module(src)
+
+  let assert Ok(#(_type, [deriv], field_opts)) = parser.parse_type_with_derivations(type_.definition, src)
+
+  deriv.name
+  |> should.equal("json")
+  deriv.opts
+  |> should.equal(["decode"])
+
+  let expected =
+    [
+      #(DerivField(type_: "T", variant: "A", field: "foo"), [
+        DerivFieldOpt(strs: ["json", "foo", "bar"]),
+        DerivFieldOpt(strs: ["json", "baz", "boo"]),
+      ]),
+    ]
+    |> dict.from_list
+
+  field_opts
+  |> should.equal(expected)
+}
+
+pub fn replace_function_test() {
+  let src = string.trim("
+import gleam/string
+
+fn foo(str: String) -> String {
+  str
+}
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}")
+
+  let new = string.trim("
+fn other(changed: Int) -> Bool {
+  True
+}")
+
+  let expected = string.trim("
+import gleam/string
+
+fn other(changed: Int) -> Bool {
+  True
+}
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}")
+
+  common.replace_function(src, func_name: "foo", func_src: new)
+  |> should.equal(expected)
+}
+
+pub fn replace_type_test() {
+  let src = string.trim("
+import gleam/string
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}
+
+fn foo(str: String) -> String {
+  str
+}")
+
+  let new = string.trim("
+type Foo {
+  Hoge(
+    asdf: Int,
+  )
+}
+")
+
+  let expected = string.trim("
+import gleam/string
+
+type Foo {
+  Hoge(
+    asdf: Int,
+  )
+}
+
+fn foo(str: String) -> String {
+  str
+}")
+
+  common.replace_type(src, type_name: "Bar", type_src: new)
+  |> string.trim
+  |> should.equal(expected)
 }
 
 // // test broken by glance 5.0.0 `Span` addition...
