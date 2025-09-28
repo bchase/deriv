@@ -1,6 +1,6 @@
+import deriv/util
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode.{type Decoder}
-import deriv/util
 
 pub type IntKeyDict =
   //$ derive json decode
