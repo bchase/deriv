@@ -17,6 +17,8 @@ import deriv/derivs/zero as deriv_zero
 import deriv/derivs/into as deriv_into
 import deriv/common
 import gleam/io
+import argv
+import glint
 
 const all_type_gen_funcs: List(#(String, GenFunc)) =
   [
@@ -26,7 +28,30 @@ const all_type_gen_funcs: List(#(String, GenFunc)) =
     #("into", deriv_into.gen),
   ]
 
-pub fn main() {
+pub fn main() -> Nil {
+  let args = argv.load().arguments
+
+  glint.new()
+  |> glint.as_module()
+  |> glint.add(at: [], do: code_gen_cmd())
+  |> glint.run(args)
+}
+
+fn code_gen_cmd(
+) -> glint.Command(Nil) {
+  use <- glint.command_help("Generates derivations")
+  // use own <- glint.flag(own_flag())
+  use _named_args, _args, _flags <- glint.command()
+  // let assert Ok(own) = own(flags)
+
+  exec_code_gen()
+}
+// fn own_flag() -> glint.Flag(List(String)) {
+//   glint.strings_flag("own")
+//   |> glint.flag_default([])
+//   |> glint.flag_help("Specify your own derivations: --own=module_name1,module_name2")
+// }
+fn exec_code_gen() -> Nil {
   let filepaths = find_project_src_gleam_filepaths()
 
   filepaths
