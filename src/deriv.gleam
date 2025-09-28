@@ -1,4 +1,3 @@
-import gleam/pair
 import gleam/option.{Some, None}
 import gleam/dict.{type Dict}
 import gleam/int
@@ -10,7 +9,7 @@ import gleam/regexp
 import simplifile
 import shellout
 import tom
-import deriv/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, Derivation, type DerivFieldOpts, type ModuleReader} as deriv
+import deriv/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/parser
 import deriv/json as deriv_json
 import deriv/unify as deriv_unify
@@ -18,51 +17,6 @@ import deriv/zero as deriv_zero
 import deriv/into as deriv_into
 import deriv/common
 import gleam/io
-
-// import decode.{type Decoder}
-// import gleam/json.{type Json}
-
-// pub type A {
-//   A(
-//     b: B,
-//   )
-// } //$ derive json(decode,encode)
-
-// pub type B {
-//   B(
-//     x: String,
-//   )
-// } //$ derive json(decode,encode)
-
-// pub fn decoder_a() -> Decoder(A) {
-//   decode.into({
-//     use b <- decode.parameter
-
-//     A(b:)
-//   })
-//   |> decode.field("b", decoder_b())
-// }
-
-// pub fn decoder_b() -> Decoder(B) {
-//   decode.into({
-//     use x <- decode.parameter
-
-//     B(x:)
-//   })
-//   |> decode.field("x", decode.string)
-// }
-
-// pub fn encode_a(value: A) -> Json {
-//   json.object([
-//     #("b", encode_b(value.b)),
-//   ])
-// }
-
-// pub fn encode_b(value: B) -> Json {
-//   json.object([
-//     #("x", json.string(value.x)),
-//   ])
-// }
 
 const all_type_gen_funcs: List(#(String, GenFunc)) =
   [
@@ -73,18 +27,6 @@ const all_type_gen_funcs: List(#(String, GenFunc)) =
   ]
 
 pub fn main() {
-  // let r1 =
-  //   [
-  //     "NOPE",
-  //     "{\"var1\":\"yeet\"}",
-  //   ]
-  //   |> list.map(fn(str) {
-  //     json.decode(from: str, using: d.from(mvar.d_t(), _))
-  //     |> common.debug
-  //   })
-
-  // panic as "DONE"
-
   let filepaths = find_project_src_gleam_filepaths()
 
   filepaths
