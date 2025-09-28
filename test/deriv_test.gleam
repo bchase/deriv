@@ -104,17 +104,6 @@ fn example_dir_path(
   Example(before:, after:)
 }
 
-// // TODO FIX -- doesn't `import gleam/string`
-pub fn dict_fields_json_test() {
-  should_derive(example_dir_name: "json_dict_string_keys")
-}
-pub fn json_dict_non_string_keys_test() {
-  should_derive(example_dir_name: "json_dict_non_string_keys")
-}
-// pub fn json_decoder_local_type_alias_test() {
-//   should_derive(example_dir_name: "json_decoder_local_type_alias")
-// }
-
 pub fn main() {
   gleeunit.main()
 }
@@ -153,6 +142,18 @@ pub fn birl_json_test() {
 
 pub fn unnested_json_test() {
   should_derive(example_dir_name: "json_named_to_deeply_nested")
+}
+
+pub fn json_dict_string_keys_test() {
+  should_derive(example_dir_name: "json_dict_string_keys")
+}
+
+pub fn json_dict_non_string_keys_test() {
+  should_derive(example_dir_name: "json_dict_non_string_keys")
+}
+
+pub fn json_decoder_local_type_alias_test() {
+  should_derive(example_dir_name: "json_decoder_local_type_alias")
 }
 
 pub fn json_specify_decoder_and_encode_test() {

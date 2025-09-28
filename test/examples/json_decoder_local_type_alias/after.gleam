@@ -1,7 +1,6 @@
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
-import gleam/string
 
 // simple type alias
 pub type Fields =
@@ -25,7 +24,7 @@ pub fn decoder_fields() -> Decoder(Fields) {
 }
 
 pub fn encode_fields(value: Fields) -> Json {
-  json.dict(value, string.inspect, json.string)
+  json.dict(value, fn(str) { str }, json.string)
 }
 
 pub fn decoder_foo() -> Decoder(Foo) {
