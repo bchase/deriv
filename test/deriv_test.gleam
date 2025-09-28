@@ -12,7 +12,7 @@ import deriv/common
 import gleam/io
 import glance
 
-fn glance_print(file_path: String) -> Nil {
+pub fn glance_print(file_path: String) -> Nil {
   let assert Ok(src) = simplifile.read(file_path)
   let assert Ok(module) = glance.module(src)
 
@@ -23,14 +23,94 @@ fn glance_print(file_path: String) -> Nil {
   Nil
 }
 
-// // TODO FIX -- doesn't `import gleam/string`
-pub fn dict_fields_json_test() {
-  glance_print("foo.gleam")
-  should_derive(example_dir_name: "json_dict_string_keys")
+fn should_derive(
+  example_dir_name example_dir_name: String,
+) {
+  let Example(before: input, after: output) = example_dir_path(example_dir_name:)
+
+  run_and_expect_equal(input:, output:)
 }
-// pub fn json_dict_non_string_keys_test() {
-//   should_derive(example_dir_name: "json_dict_non_string_keys")
+
+fn run_and_expect_equal(
+  input input: String,
+  output output: String,
+) {
+  let output = output |> string.trim
+
+  let assert [write] = gen_and_build_writes(input |> string.trim)
+  let gen = write.src |> string.trim
+
+  io.println("")
+  io.println("")
+  io.println("EXPECTED")
+  io.println(output)
+  io.println("")
+  io.println("")
+  io.println("GENERATED")
+  io.println(gen)
+  io.println("DIFF (<expected >generated)")
+  io.println(common.diff(output, gen))
+
+  write.src
+  |> string.trim
+  |> should.equal(output)
+}
+
+fn gen_and_build_writes(
+  input: String,
+) -> List(types.Write) {
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+
+  files
+  |> deriv.gen_derivs(build_module_reader([]))
+  |> deriv.build_writes
+}
+
+fn build_module_reader(
+  files: List(#(String, String)),
+) -> types.ModuleReader {
+  fn(ident) {
+    case dict.get(dict.from_list(files), ident) {
+      Ok(src) ->
+        src
+        |> string.trim
+        |> glance.module
+        |> result.map_error(types.GlanceErr)
+
+      _ ->
+        panic as { "`build_module_reader` miss for ident: " <> ident }
+    }
+  }
+}
+
+type Example {
+  Example(
+    before: String,
+    after: String,
+  )
+}
+
+fn example_dir_path(
+  example_dir_name example_dir_name: String,
+) -> Example {
+  let example_dir_path = "test/examples/" <> example_dir_name <> "/"
+
+  let before_file_path = example_dir_path <> "before.gleam"
+  let after_file_path = example_dir_path <> "after.gleam"
+
+  let assert Ok(before) = simplifile.read(before_file_path)
+  let assert Ok(after) = simplifile.read(after_file_path)
+
+  Example(before:, after:)
+}
+
+// // TODO FIX -- doesn't `import gleam/string`
+// pub fn dict_fields_json_test() {
+//   should_derive(example_dir_name: "json_dict_string_keys")
 // }
+pub fn json_dict_non_string_keys_test() {
+  should_derive(example_dir_name: "json_dict_non_string_keys")
+}
 // pub fn json_decoder_local_type_alias_test() {
 //   should_derive(example_dir_name: "json_decoder_local_type_alias")
 // }
@@ -438,87 +518,6 @@ pub fn pet(value: Pet) -> Friend {
 
   write.src
   |> should.equal(output)
-}
-
-type Example {
-  Example(
-    before: String,
-    after: String,
-  )
-}
-
-fn example_dir_path(
-  example_dir_name example_dir_name: String,
-) -> Example {
-  let example_dir_path = "test/examples/" <> example_dir_name <> "/"
-
-  let before_file_path = example_dir_path <> "before.gleam"
-  let after_file_path = example_dir_path <> "after.gleam"
-
-  let assert Ok(before) = simplifile.read(before_file_path)
-  let assert Ok(after) = simplifile.read(after_file_path)
-
-  Example(before:, after:)
-}
-
-fn should_derive(
-  example_dir_name example_dir_name: String,
-) {
-  let Example(before: input, after: output) = example_dir_path(example_dir_name:)
-
-  run_and_expect_equal(input:, output:)
-}
-
-fn run_and_expect_equal(
-  input input: String,
-  output output: String,
-) {
-  let output = output |> string.trim
-
-  let assert [write] = gen_and_build_writes(input |> string.trim)
-  let gen = write.src |> string.trim
-
-  io.println("")
-  io.println("")
-  io.println("EXPECTED")
-  io.println(output)
-  io.println("")
-  io.println("")
-  io.println("GENERATED")
-  io.println(gen)
-  io.println("DIFF (<expected >generated)")
-  io.println(common.diff(output, gen))
-
-  write.src
-  |> string.trim
-  |> should.equal(output)
-}
-
-fn gen_and_build_writes(
-  input: String,
-) -> List(types.Write) {
-  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
-
-  files
-  |> deriv.gen_derivs(build_module_reader([]))
-  |> deriv.build_writes
-}
-
-fn build_module_reader(
-  files: List(#(String, String)),
-) -> types.ModuleReader {
-  fn(ident) {
-    case dict.get(dict.from_list(files), ident) {
-      Ok(src) ->
-        src
-        |> string.trim
-        |> glance.module
-        |> result.map_error(types.GlanceErr)
-
-      _ ->
-        panic as { "`build_module_reader` miss for ident: " <> ident }
-    }
-  }
 }
 
 // TEST GENERAL
