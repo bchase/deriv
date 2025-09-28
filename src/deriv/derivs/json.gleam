@@ -7,9 +7,6 @@ import glance.{type CustomType, type Variant, type VariantField, LabelledVariant
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt} as deriv
 import deriv/common.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
-// TODO refactor
-//   - `dict_key_decoder` for anything other than `String` should import `util`
-
 const deriv_variant_json_key = "_var"
 
 type Context {
@@ -95,44 +92,19 @@ pub fn gen(
 }
 
 fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
-  // TODO use `default_imports`
   let json_imports =
-    [
-      #("decode", [
-        Import(
-          location: common.dummy_location(),
-          module: "gleam/dynamic/decode",
-          alias: None,
-          unqualified_types: [
-            UnqualifiedImport(
-              name: "Decoder",
-              alias: None,
-            ),
-          ],
-          unqualified_values: [],
-        ),
-      ] |> list.append({
+    default_imports
+    |> dict.from_list
+    |> dict.upsert("decode", fn(imports) {
+      imports
+      |> option.unwrap([])
+      |> list.append({
         case common.are_any_fields_options(type_) {
           True -> [common.none_constr_import()]
           False -> []
         }
-      })),
-      #("encode", [
-        Import(
-          location: common.dummy_location(),
-          module: "gleam/json",
-          alias: None,
-          unqualified_types: [
-            UnqualifiedImport(
-              name: "Json",
-              alias: None,
-            ),
-          ],
-          unqualified_values: [],
-        ),
-      ]),
-    ]
-    |> dict.from_list
+      })
+    })
 
   opts
   |> list.unique
@@ -146,18 +118,7 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
     |> list.append(
       case needs_util_import(type_) {
         False -> []
-        True -> {
-          // import deriv/util
-          [
-            Import(
-              location: common.dummy_location(),
-              module: "deriv/util",
-              alias: None,
-              unqualified_types: [],
-              unqualified_values: [],
-            )
-          ]
-        }
+        True -> [ common.util_import() ]
       }
     )
   }
@@ -166,7 +127,6 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
 const default_imports =
   [
     #("decode", [
-      // import decode.{type Decoder}
       Import(
         location: glance.Span(start: -1, end: -1),
         module: "gleam/dynamic/decode",
@@ -181,7 +141,6 @@ const default_imports =
       ),
     ]),
     #("encode", [
-      // import gleam/json.{type Json}
       Import(
         location: glance.Span(start: -1, end: -1),
         module: "gleam/json",
