@@ -5,22 +5,22 @@ import examples/from/friend/pet.{type Pet}
 import youid/uuid.{type Uuid}
 
 pub type AutheTokens {
-  //$ derive unify examples/from/authe/a.AutheA
-  //$ derive unify examples/from/authe/b.AutheB
+  //$ derive from examples/from/authe/a.AutheA
+  //$ derive from examples/from/authe/b.AutheB
   Authe(
     id: Uuid,
-    //$ unify field examples/from/authe/a.AutheA authe_id
-    //$ unify field examples/from/authe/b.AutheB authe_id
+    //$ from field examples/from/authe/a.AutheA authe_id
+    //$ from field examples/from/authe/b.AutheB authe_id
     encrypted_access_token: String,
     encrypted_refresh_token: String,
   )
 }
 
 pub type Friend {
-  //$ derive unify examples/from/friend/person.Person
-  //$ derive unify examples/from/friend/pet.Pet
+  //$ derive from examples/from/friend/person.Person
+  //$ derive from examples/from/friend/pet.Pet
   Friend(
     name: String,
-    //$ unify field examples/from/friend/person.Person first_name
+    //$ from field examples/from/friend/person.Person first_name
   )
 }

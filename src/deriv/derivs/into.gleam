@@ -591,7 +591,7 @@ fn fields_(
   let os = conv(m.overrides)
   let fs = fields(variant)
 
-  // RemoteToLocal (UNIFY) // overrides refer to remote field as return
+  // RemoteToLocal (FROM) // overrides refer to remote field as return
   // LocalToRemote (INTO)  // overrides refer to remote field as param
 
   case m.direction, role {
@@ -762,7 +762,7 @@ fn build_fields(
             common.debug(param_type)
             common.debug(param_variant)
             common.debug(param_field)
-            panic as "`unify` param field doesn't exist"
+            panic as "`into` `RemoteToLocal` -- param field doesn't exist"
           }
 
           Ok(param_field_type) if param_field_type == result_field_type ->
@@ -777,7 +777,7 @@ fn build_fields(
             common.debug(return_type)
             common.debug(return_variant)
             common.debug(return_field)
-            panic as "`unify` param & return field types don't match"
+            panic as "`into` `RemoteToLocal` -- param & return field types don't match"
           }
         }
 

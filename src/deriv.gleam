@@ -12,7 +12,7 @@ import tom
 import deriv/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/parser
 import deriv/derivs/json as deriv_json
-import deriv/derivs/unify as deriv_unify
+import deriv/derivs/from as deriv_from
 import deriv/derivs/zero as deriv_zero
 import deriv/derivs/into as deriv_into
 import deriv/common
@@ -21,7 +21,7 @@ import gleam/io
 const all_type_gen_funcs: List(#(String, GenFunc)) =
   [
     #("json", deriv_json.gen),
-    #("unify", deriv_unify.gen),
+    #("from", deriv_from.gen),
     #("zero", deriv_zero.gen),
     #("into", deriv_into.gen),
   ]
