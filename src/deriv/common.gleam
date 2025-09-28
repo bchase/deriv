@@ -239,7 +239,14 @@ pub fn birl_time_kind(
 }
 
 pub fn fetch_module(path: String) -> Result(Module, ModuleReaderErr) {
-  let filepath = "src/" <> path <> ".gleam"
+  fetch_module_(path_prefix: "src/", path:)
+}
+
+pub fn fetch_module_(
+  path path: String,
+  path_prefix prefix: String,
+) -> Result(Module, ModuleReaderErr) {
+  let filepath = prefix <> path <> ".gleam"
   use src <- result.try(simplifile.read(filepath) |> result.map_error(types.FileErr))
   use module <- result.try(glance.module(src) |> result.map_error(types.GlanceErr))
 

@@ -62,7 +62,8 @@ fn gen_and_build_writes(
   let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
 
   files
-  |> deriv.gen_derivs(build_module_reader([]))
+  // |> deriv.gen_derivs(build_module_reader([]))
+  |> deriv.gen_derivs(common.fetch_module_(path: _, path_prefix: "test/"))
   |> deriv.build_writes
 }
 
@@ -188,89 +189,7 @@ pub fn json_encode_nested_parameterized_type_alias_list_test() {
 // DERIVE TEST UNIFY & INTO
 
 pub fn into_test() {
-  let foo_src = "
-pub type Foo {
-  Foo(
-    name: String,
-    count: Int,
-  )
-}
-  " |> string.trim
-
-  let parse = fn(src) {
-    glance.module(src)
-    |> result.map_error(types.GlanceErr)
-  }
-
-  let module_reader: types.ModuleReader = fn(ident) {
-    case ident {
-      "project/asdf/foo" -> parse(foo_src)
-
-      _ -> {
-        common.debug(ident)
-        panic as "`module_reader` miss in `into_test`"
-      }
-    }
-  }
-
-  let input = "
-pub type Bar {
-  //$ derive into project/asdf/foo.Foo as f
-  Bar(
-    title: String,
-    //$ into field project/asdf/foo.Foo name
-    count: Int,
-  )
-}
-  " |> string.trim
-
- let output = "
-pub type Bar {
-  //$ derive into project/asdf/foo.Foo as f
-  Bar(
-    title: String,
-    //$ into field project/asdf/foo.Foo name
-    count: Int,
-  )
-}
-
-pub fn into_foo(value: Bar) -> f.Foo {
-  f.Foo(name: value.title, count: value.count)
-}
-  "
-  |> string.trim
-
-  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
-
-  let assert [write] =
-    files
-    |> deriv.gen_derivs(module_reader)
-    |> deriv.build_writes
-
-  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
-
-  let writes =
-    files
-    |> deriv.gen_derivs(module_reader)
-    |> deriv.build_writes
-
-  let assert [write] =
-    writes
-
-  io.println("")
-  io.println("")
-  io.println("GENERATED")
-  io.println(write.src)
-  io.println("")
-  io.println("")
-  io.println("EXPECTED")
-  io.println(output)
-
-  write.filepath
-  |> should.equal("src/deriv/example/foo.gleam")
-
-  write.src
-  |> should.equal(output)
+  should_derive(example_dir_name: "into")
 }
 
 pub fn unify_authe_test() {

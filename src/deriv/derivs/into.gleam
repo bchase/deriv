@@ -241,6 +241,7 @@ fn build_field_override(
       let #(module_name, type_) =
         case common.fetch_custom_type(ident, module_reader) {
           Error(err) -> {
+            common.debug(ident)
             common.debug(err)
             panic
           }
