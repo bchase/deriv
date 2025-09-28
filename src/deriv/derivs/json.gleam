@@ -52,7 +52,7 @@ pub fn gen(
     ]
     |> dict.from_list
 
-  let imports =
+  let imports_based_on_type_or_type_alias =
     case type_ {
       deriv.Type(type_:) ->
         gen_imports(opts, type_)
@@ -70,6 +70,15 @@ pub fn gen(
           })
         }
     }
+
+  let imports =
+    imports_based_on_type_or_type_alias
+    |> list.append({
+      case type_ |> uses_dict(with_key: fn(t) { t.name != "String" && t.parameters == [] }) {
+        True -> [ common.util_import() ]
+        _ -> []
+      }
+    })
 
   let funcs =
     opts
@@ -90,7 +99,6 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
   let json_imports =
     [
       #("decode", [
-        // import decode.{type Decoder}
         Import(
           location: common.dummy_location(),
           module: "gleam/dynamic/decode",
@@ -110,7 +118,6 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
         }
       })),
       #("encode", [
-        // import gleam/json.{type Json}
         Import(
           location: common.dummy_location(),
           module: "gleam/json",
@@ -124,7 +131,7 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
           unqualified_values: [],
         ),
       ]),
-      ]
+    ]
     |> dict.from_list
 
   opts
@@ -242,6 +249,32 @@ fn uses_birl_time(type_: CustomType) -> Bool {
   deriv.Type(type_:)
   |> uses_type(any: fn(t) {
     t.name == "Time" && t.parameters == []
+  })
+}
+
+fn uses_dict(
+  type_ type_: deriv.Type,
+  with_key check_key: fn(JType) -> Bool,
+) -> Bool {
+  type_
+  |> to_jtypes
+  |> list.any(uses_dict_(_, with_key: check_key))
+}
+
+fn uses_dict_(
+  type_ type_: JType,
+  with_key check_key: fn(JType) -> Bool,
+) -> Bool {
+  check_type_recursively(type_, check: fn(t) {
+    case t.name, t.parameters {
+      "Dict", [key, val] -> {
+        check_key(key) || uses_dict_(val, with_key: check_key)
+      }
+
+      _, _ -> {
+        False
+      }
+    }
   })
 }
 
