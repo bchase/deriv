@@ -12,10 +12,22 @@ import deriv/common
 import gleam/io
 import glance
 
+fn glance_print(file_path: String) -> Nil {
+  let assert Ok(src) = simplifile.read(file_path)
+  let assert Ok(module) = glance.module(src)
+
+  module
+  |> string.inspect
+  |> io.println
+
+  Nil
+}
+
 // // TODO FIX -- doesn't `import gleam/string`
-// pub fn dict_fields_json_test() {
-//   should_derive(example_dir_name: "json_dict_string_keys")
-// }
+pub fn dict_fields_json_test() {
+  glance_print("foo.gleam")
+  should_derive(example_dir_name: "json_dict_string_keys")
+}
 // pub fn json_dict_non_string_keys_test() {
 //   should_derive(example_dir_name: "json_dict_non_string_keys")
 // }

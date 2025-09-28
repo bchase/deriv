@@ -157,15 +157,8 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
       case needs_list_import(type_) {
         False -> []
         True -> {
-          // import gleam/list
           [
-            Import(
-              location: common.dummy_location(),
-              module: "gleam/list",
-              alias: None,
-              unqualified_types: [],
-              unqualified_values: [],
-            )
+            common.import_(module: "gleam/list"),
           ]
         }
       }
@@ -550,7 +543,7 @@ fn type_encode_expr(
         let params =
           [
             encode_arg,
-            UnlabelledField(field_access(variable("string"), "inspect"))
+            UnlabelledField(identity_func(param: "str")),
           ]
           |> list.append({
             type_.parameters
@@ -605,6 +598,21 @@ fn type_encode_expr(
     None -> expr
     Some(f) -> f(expr)
   }
+}
+
+fn identity_func(
+  param param: String,
+) -> Expression {
+  glance.Fn(
+    common.dummy_location(),
+    [
+      glance.FnParameter(Named(param), None),
+    ],
+    None,
+    [
+      Expression(glance.Variable(common.dummy_location(), param)),
+    ],
+  )
 }
 
 fn encode_field(

@@ -339,14 +339,18 @@ pub fn are_any_fields_options(
   })
 }
 
-pub fn util_import() -> glance.Import {
+pub fn import_(module module: String) -> glance.Import {
   glance.Import(
     location: dummy_location(),
-    module: "deriv/util",
+    module:,
     alias: None,
     unqualified_values: [],
     unqualified_types: [],
   )
+}
+
+pub fn util_import() -> glance.Import {
+  import_(module: "deriv/util")
 }
 
 pub fn none_constr_import() -> glance.Import {

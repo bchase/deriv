@@ -1,5 +1,4 @@
 import gleam/dict.{type Dict}
-import gleam/string
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
@@ -22,6 +21,6 @@ pub fn decoder_dict_field_type_dict_field_type() -> Decoder(DictFieldType) {
 pub fn encode_dict_field_type(value: DictFieldType) -> Json {
   case value {
     DictFieldType(..) as value ->
-      json.object([#("dict", json.dict(value.dict, string.inspect, json.int))])
+      json.object([#("dict", json.dict(value.dict, fn(str) { str }, json.int))])
   }
 }
