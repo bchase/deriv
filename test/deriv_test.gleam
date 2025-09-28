@@ -23,15 +23,14 @@ import glance
 //   should_derive(example_dir_name: "json_decoder_local_type_alias")
 // }
 
-// TODO FIX -- doesn't `import deriv/util`
-// // TEST DERIVE ZERO
-
-// pub fn zero_test() {
-//   should_derive(example_dir_name: "zero")
-// }
-
 pub fn main() {
   gleeunit.main()
+}
+
+// TEST DERIVE ZERO
+
+pub fn zero_test() {
+  should_derive(example_dir_name: "zero")
 }
 
 // TEST DERIV JSON

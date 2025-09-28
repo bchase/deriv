@@ -43,6 +43,9 @@ fn gen_imports(
     True -> [common.none_constr_import()]
     False -> []
   }
+  |> list.append([
+    common.util_import(),
+  ])
 }
 
 fn zero_func(
