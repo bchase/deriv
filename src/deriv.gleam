@@ -11,10 +11,10 @@ import shellout
 import tom
 import deriv/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/parser
-import deriv/json as deriv_json
-import deriv/unify as deriv_unify
-import deriv/zero as deriv_zero
-import deriv/into as deriv_into
+import deriv/derivs/json as deriv_json
+import deriv/derivs/unify as deriv_unify
+import deriv/derivs/zero as deriv_zero
+import deriv/derivs/into as deriv_into
 import deriv/common
 import gleam/io
 
