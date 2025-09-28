@@ -1,5 +1,4 @@
 import gleam/dynamic/decode.{type Decoder}
-import gleam/list
 import gleam/option.{type Option, None}
 
 pub type Field(key, val) {

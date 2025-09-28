@@ -1,6 +1,5 @@
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
-import gleam/list
 
 pub type Empty {
   //$ derive json decode encode

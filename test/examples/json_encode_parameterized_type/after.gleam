@@ -1,5 +1,4 @@
 import gleam/json.{type Json}
-import gleam/list
 import gleam/option.{type Option}
 
 pub type Field(key, val) {

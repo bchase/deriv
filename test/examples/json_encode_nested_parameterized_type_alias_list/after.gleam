@@ -1,6 +1,5 @@
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
-import gleam/list
 
 pub type Validation(t) = fn(t) -> Result(t, List(String))
 

@@ -153,16 +153,6 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
         }
       }
     )
-    |> list.append(
-      case needs_list_import(type_) {
-        False -> []
-        True -> {
-          [
-            common.import_(module: "gleam/list"),
-          ]
-        }
-      }
-    )
   }
 }
 
@@ -204,44 +194,54 @@ fn needs_util_import(type_: CustomType) -> Bool {
   is_multi_variant(type_) || uses_uuid(type_) || uses_birl_time(type_)
 }
 
-fn needs_list_import(type_: CustomType) -> Bool {
-  uses_list(type_)
+fn to_jtypes(type_: deriv.Type) -> List(JType) {
+  case type_ {
+    deriv.Type(type_:) -> {
+      type_.variants
+      |> list.flat_map(fn(var) {
+        var.fields
+        |> list.flat_map(fn(field) {
+          let field = variant_field(field)
+
+          field.type_
+          |> jtype
+          |> list.wrap
+        })
+      })
+    }
+
+    deriv.TypeAlias(type_alias: glance.TypeAlias(aliased: type_, ..)) -> {
+      type_
+      |> jtype
+      |> list.wrap
+    }
+  }
 }
 
 fn is_multi_variant(type_: CustomType) -> Bool {
   list.length(type_.variants) > 1
 }
 
+fn uses_type(
+  type_ type_: deriv.Type,
+  any check: fn(JType) -> Bool,
+) -> Bool {
+  type_
+  |> to_jtypes
+  |> list.any(check_type_recursively(type_: _, check:))
+}
+
 fn uses_uuid(type_: CustomType) -> Bool {
-  type_.variants
-  |> list.any(fn(var) {
-    list.any(var.fields, fn(field) {
-      let field = variant_field(field)
-      let type_ = jtype(field.type_)
-      type_.name == "Uuid"
-    })
+  deriv.Type(type_:)
+  |> uses_type(any: fn(t) {
+    t.name == "Uuid" && t.parameters == []
   })
 }
 
 fn uses_birl_time(type_: CustomType) -> Bool {
-  type_.variants
-  |> list.any(fn(var) {
-    list.any(var.fields, fn(field) {
-      let field = variant_field(field)
-      let type_ = jtype(field.type_)
-      type_.name == "Time"
-    })
-  })
-}
-
-fn uses_list(type_: CustomType) -> Bool {
-  type_.variants
-  |> list.any(fn(var) {
-    list.any(var.fields, fn(field) {
-      let field = variant_field(field)
-      let type_ = jtype(field.type_)
-      type_.name |> string.starts_with("List")
-    })
+  deriv.Type(type_:)
+  |> uses_type(any: fn(t) {
+    t.name == "Time" && t.parameters == []
   })
 }
 
@@ -308,6 +308,13 @@ fn tuple(
     elements:,
     location: common.dummy_location(),
   )
+}
+
+fn check_type_recursively(
+  type_ type_: JType,
+  check check: fn(JType) -> Bool,
+) -> Bool {
+  check(type_) || list.any(type_.parameters, check)
 }
 
 fn fn_capture(

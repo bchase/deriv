@@ -1,7 +1,6 @@
 import deriv/util
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
-import gleam/list
 import gleam/option.{type Option, None}
 import youid/uuid.{type Uuid}
 
