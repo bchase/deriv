@@ -62,7 +62,13 @@ fn exec_code_gen() -> Nil {
 }
 
 fn find_project_src_gleam_filepaths() -> List(String) {
-  let assert Ok(output) = shellout.command(in: ".", run: "find", with: ["src", "-name", "*.gleam"], opt: [])
+  let assert Ok(output) = shellout.command(in: ".", opt: [],
+    run: "find", with: [
+      "src/",
+      "-name", "*.gleam",
+      "-exec", "grep", "-l", "derive", "{}", "+",
+    ]
+  )
 
   output
   |> string.trim
