@@ -5,6 +5,7 @@ import gleam/json.{type Json}
 import gleam/dynamic/decode.{type Decoder}
 import youid/uuid.{type Uuid}
 import birl.{type Time}
+import deriv/common
 
 fn decoder_from_string(
   parse: fn(String) -> Result(t, err),
@@ -180,4 +181,8 @@ fn decoder_birl_int_to_time(
     |> func
     |> decode.success
   })
+}
+
+pub fn snake_case(str: String) -> String {
+  common.snake_case(str)
 }
