@@ -389,105 +389,14 @@ pub fn pascal_case(str: String) -> String {
 }
 
 pub fn snake_case(str: String) -> String {
-  let assert Ok(is_capital) = regexp.from_string("[A-Z]")
-
-  let step_snake_case = fn(state, char) { step_snake_case(char:, state:, is_capital:) }
+  let assert Ok(capital_re) = regexp.from_string("[A-Z]")
+  let assert Ok(initial_underscore_re) = regexp.from_string("^[_]")
 
   str
-  |> string.split("")
-  |> list.reverse
-  |> list.fold(SC(acc: [], curr: [], next_is_capital: True), step_snake_case)
-  |> fn(sc) {
-    case sc.curr {
-      [] -> sc
-      _ -> SC(..sc, acc: list.append(sc.acc, [sc.curr]))
-    }
-    |> fn(sc) {
-      case sc.acc {
-        [[last, second_to_last, ..rest], ..rest_chunks] -> {
-          case regexp.check(is_capital, last) {
-            False -> sc.acc
-            True -> {
-              let second_to_last_chunk = [second_to_last, ..rest]
-              let last_chunk = [last]
-
-              [last_chunk, second_to_last_chunk, ..rest_chunks]
-            }
-          }
-        }
-
-        _ -> sc.acc
-      }
-    }
-    |> list.map(fn(group) {
-      group
-      |> list.reverse
-      |> string.join("")
-      |> string.lowercase
-    })
-    |> list.reverse
-    |> string.join("_")
-  }
-}
-
-type SC {
-  SC(
-    acc: List(List(String)),
-    curr: List(String),
-    next_is_capital: Bool,
-  )
-}
-
-fn step_snake_case(
-  char char: String,
-  state state: SC,
-  is_capital is_capital: Regexp,
-) -> SC {
-  let char_is_capital = is_capital |> regexp.check(char)
-
-  case char_is_capital, state.next_is_capital {
-    True, False -> {
-      process_as_final_in_token(char:,
-        next_is_capital: char_is_capital,
-        sc: state,
-      )
-    }
-
-    True, True -> {
-      add_to_curr_token(char:,
-        next_is_capital: !char_is_capital,
-        sc: state,
-      )
-    }
-
-    _, _ -> {
-      add_to_curr_token(char:,
-        next_is_capital: char_is_capital,
-        sc: state,
-      )
-    }
-  }
-}
-
-fn process_as_final_in_token(
-  char char: String,
-  sc sc: SC,
-  next_is_capital next_is_capital: Bool,
-) -> SC {
-  SC(
-    acc: sc.acc |> list.append([sc.curr |> list.append([char])]),
-    curr: [],
-    next_is_capital:,
-  )
-}
-
-fn add_to_curr_token(
-  char char: String,
-  sc sc: SC,
-  next_is_capital next_is_capital: Bool,
-) -> SC {
-  SC(..sc,
-    curr: sc.curr |> list.append([char]),
-    next_is_capital:,
-  )
+  |> regexp.match_map(each: capital_re, in: _, with: fn(match) {
+    match.content
+    |> string.lowercase
+    |> string.append(to: "_", suffix: _)
+  })
+  |> regexp.replace(each: initial_underscore_re, in: _, with: "")
 }
