@@ -7,6 +7,29 @@ import youid/uuid.{type Uuid}
 import birl.{type Time}
 import deriv/common
 
+pub type DerivedFormLookups(field) {
+  DerivedFormLookups(
+    name_to_field: fn(String) -> Result(field, Nil),
+    field_to_name: fn(field) -> String,
+    field_to_type: fn(field) -> GleamType,
+    field_to_dom_id: fn(field) -> String,
+    field_to_default_label: fn(field) -> String,
+  )
+}
+
+pub type GleamType {
+  String
+  Int
+  Float
+  Bool
+  Option(GleamType)
+  List(GleamType)
+  //
+  Uri
+  Date
+  TimeOfDay
+}
+
 fn decoder_from_string(
   parse: fn(String) -> Result(t, err),
   zero: t,
