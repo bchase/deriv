@@ -22,8 +22,6 @@ pub type Form {
     bool_option: Option(Bool),
     bool_list: List(Bool),
     //
-    nested: NestedForm,
-    //
     parse_int: Int,
     //$ form parser custom_parse_int
     parse_int_option: Option(Int),
@@ -131,7 +129,6 @@ pub fn form_form() -> form.Form(Form) {
     use parse_int_list_inner <- form.field("parse_int_list_inner", {
       custom_parse_int() |> form.parse_list
     })
-    use nested_str <- form.field("nested[str]", { form.parse_string })
     use email <- form.field("email", { form.parse_email })
     use phone_number <- form.field("phone_number", { form.parse_phone_number })
     use colour <- form.field("colour", { form.parse_colour })
@@ -183,7 +180,6 @@ pub fn form_form() -> form.Form(Form) {
       parse_int_option_inner:,
       parse_int_list:,
       parse_int_list_inner:,
-      nested: NestedForm(str: nested_str),
       email:,
       phone_number:,
       colour:,
@@ -202,5 +198,3 @@ pub fn form_form() -> form.Form(Form) {
     ))
   })
 }
-
-

@@ -22,8 +22,6 @@ pub type Form {
     bool_option: Option(Bool),
     bool_list: List(Bool),
     //
-    nested: NestedForm,
-    //
     parse_int: Int,
     //$ form parser custom_parse_int
     parse_int_option: Option(Int),

@@ -14,17 +14,13 @@ import deriv/common
 // X - add checks
 // X - override custom parser
 // X - override custom parser inner
-//   - skip `use` on nested type root field
 // TODO
-//   - `CustomParser`
+// X - `CustomParser`
 //   - `CustomCheck`
 // IMPROVE
 //   - support `parse_date_time` (breaks on non-`glance.NamedType`)
+//   - support nested forms (see `formal/scratch.gleam`; would need to parse nested opts)
 //   - intuit below
-    // EmailParser // `parse_email` -> `String`
-    // PhoneNumberParser // `parse_phone_number` -> `String`
-    // ColourParser // `parse_colour` -> `String`
-    // //
     // UriParser // `parse_url` -> `uri.Uri`
     // //
     // DateParser // `parse_date` -> `calendar.Date`
@@ -248,10 +244,10 @@ fn build_form_fields(
   case type_.variants {
     [variant]-> {
       variant.fields
-      |> list.map(fn(field) {
+      |> list.flat_map(fn(field) {
         case field {
           glance.LabelledVariantField(label: name, item: type_) -> {
-            build_form_field(name:, prefix: [], type_:, opts:, module:, read_module:)
+            build_form_fields_(name:, prefix: [], type_:, opts:, module:, read_module:)
           }
 
           glance.UnlabelledVariantField(..) -> {
@@ -267,14 +263,14 @@ fn build_form_fields(
   }
 }
 
-fn build_form_field(
+fn build_form_fields_(
   name name: String,
   prefix prefix: List(String),
   type_ type_: glance.Type,
   opts opts: FormFieldOpts,
   module module: String,
   read_module read_module: ModuleReader,
-) -> FormField {
+) -> List(FormField) {
   let opt =
     opts
     |> dict.get(name)
@@ -288,6 +284,7 @@ fn build_form_field(
         parser: type_ |> to_parser(opt:, module:, read_module:),
         checks: opt.checks,
       )
+      |> list.wrap
     }
 
     glance.TupleType(..) |
@@ -607,9 +604,8 @@ fn to_parser(
           panic as { "`derive form` doesn't know how to handle multi-variant types, namely: " <> string.inspect(nested_type) }
         }
 
-        Ok(#(_module, glance.Definition(definition: glance.CustomType(name:, variants: [variant], ..), ..))) -> {
-          // variant.fields
-          StringParser
+        Ok(#(_module, glance.Definition(definition: glance.CustomType(name: _name, variants: [_variant], ..) as nested_type, ..))) -> {
+          panic as { "`derive form` will eventually treat non-standard types as nested forms, but this is not yet implemented. This was triggered by usage of: " <> string.inspect(nested_type) }
         }
       }
     }
