@@ -111,15 +111,9 @@ pub fn main() {
 
 // TEST DERIVE FORM (`formal/form`)
 
-pub fn formal_form_test() {
-  should_derive(example_dir_name: "formal")
+pub fn enum_test() {
+  should_derive(example_dir_name: "enum")
 }
-    // use date_time <- form.field("date_time", {
-    //   form.parse_date_time
-    // })
-
-    //date_time: #(calendar.Date, calendar.TimeOfDay),
-    ////$ form parse_date_time
 
 // TEST DERIVE ZERO
 

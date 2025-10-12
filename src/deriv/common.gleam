@@ -400,3 +400,43 @@ pub fn snake_case(str: String) -> String {
   })
   |> regexp.replace(each: initial_underscore_re, in: _, with: "")
 }
+
+//
+
+pub fn mono_variant_or_panic(
+  type_ type_: types.Type,
+  deriv_name deriv_name: String,
+) -> #(glance.CustomType, glance.Variant) {
+  case type_ {
+    types.Type(type_: glance.CustomType(variants: [variant], ..) as type_) -> {
+     #(type_, variant)
+    }
+
+    types.TypeAlias(..) -> {
+      panic as { "`" <> deriv_name <> "` doesn't know how to handle type aliases, namely: " <> string.inspect(type_) }
+    }
+
+    types.Type(type_: glance.CustomType(variants: [], ..)) -> {
+      panic as { "`" <> deriv_name <> "` doesn't know how to handle types without any variants, namely: " <> string.inspect(type_) }
+    }
+
+    types.Type(..) -> {
+      panic as { "`" <> deriv_name <> "` doesn't know how to handle multi-variant types, namely: " <> string.inspect(type_) }
+    }
+  }
+}
+
+pub fn custom_type_or_panic(
+  type_ type_: types.Type,
+  deriv_name deriv_name: String,
+) -> glance.CustomType {
+  case type_ {
+    types.Type(type_:) -> {
+      type_
+    }
+
+    types.TypeAlias(..) -> {
+      panic as { "`" <> deriv_name <> "` doesn't know how to handle type aliases, namely: " <> string.inspect(type_) }
+    }
+  }
+}
