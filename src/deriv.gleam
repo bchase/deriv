@@ -15,6 +15,7 @@ import deriv/derivs/json as deriv_json
 import deriv/derivs/from as deriv_from
 import deriv/derivs/zero as deriv_zero
 import deriv/derivs/into as deriv_into
+import deriv/derivs/form as deriv_form
 import deriv/common
 import gleam/io
 import argv
@@ -26,6 +27,7 @@ const all_type_gen_funcs: List(#(String, GenFunc)) =
     #("from", deriv_from.gen),
     #("zero", deriv_zero.gen),
     #("into", deriv_into.gen),
+    #("form", deriv_form.gen),
   ]
 
 pub fn main() -> Nil {

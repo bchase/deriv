@@ -1,14 +1,245 @@
+import gleam/int
+import gleam/float
 import gleam/option.{type Option, Some, None}
 import deriv/types
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/result
 import gleam/string
-import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type Span, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, Span, List, UnlabelledField, String, Int, Float}
+import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type Span, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, Span, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block}
 import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/common
 
-fn parse_form_fields(
+// FINISH
+//   - add checks
+//   - skip `use` on nested type root field
+//   - override custom parser
+//   - override custom parser inner
+// TODO
+//   - `CustomParser`
+//   - `CustomCheck`
+// IMPROVE
+//   - support `parse_date_time` (breaks on non-`glance.NamedType`)
+//   - intuit below
+    // EmailParser // `parse_email` -> `String`
+    // PhoneNumberParser // `parse_phone_number` -> `String`
+    // ColourParser // `parse_colour` -> `String`
+    // //
+    // UriParser // `parse_url` -> `uri.Uri`
+    // //
+    // DateParser // `parse_date` -> `calendar.Date`
+    // DateTimeParser // `parse_date_time` -> `calendar.TimeOfDay`
+    // TimeParser // `parse_time` -> `calendar.TimeOfDay`
+
+fn field_gleam_token(
+  field field: FormField,
+) -> String {
+  field.prefix
+  |> list.append([field.name])
+  |> string.join("_")
+}
+
+fn form_func(
+  params ffp: FormFuncParams,
+  fields fields: List(FormField),
+) -> glance.Definition(glance.Function) {
+  let x = common.dummy_location()
+
+  let use_statements: List(glance.Statement) =
+    fields
+    |> list.map(use_statement_for(field: _))
+
+  let constr_args: List(glance.Field(glance.Expression)) =
+    fields
+    |> list.map(field_gleam_token)
+    |> list.map(fn(token) {
+      ShorthandField(label: token)
+    })
+
+  let type_name = ffp.type_.name
+  let constr_name = ffp.variant.name
+
+  let func_name = "form_" <> common.snake_case(ffp.type_.name)
+
+  let success_expr: glance.Statement =
+    Expression(Call(x, FieldAccess(x, Variable(x, "form"), "success"), [
+      UnlabelledField(Call(x, Variable(x, constr_name), constr_args))
+    ]))
+
+  let block_inner_exprs =
+    use_statements
+    |> list.append([success_expr])
+
+  glance.Function(
+    location: x,
+    name: func_name,
+    publicity: Public,
+    parameters: [],
+    return: Some(NamedType(x, "Form", Some("form"), [
+      NamedType(x, type_name, None, []),
+    ])),
+    body: [
+      Expression(Call(x,
+        FieldAccess(x, Variable(x, "form"), "new"), [
+          UnlabelledField(Block(x, block_inner_exprs)),
+        ]
+      ))
+    ],
+  )
+  |> glance.Definition(attributes: [], definition: _)
+}
+
+fn use_statement_for(
+  field field: FormField,
+) -> glance.Statement {
+  let token = field_gleam_token(field)
+
+  let parser_expr = parser_expr(parser: field.parser)
+
+  let x = common.dummy_location()
+
+  let pipe = fn(left, right) {
+    glance.BinaryOperator(x, glance.Pipe, left, right)
+  }
+
+  let block_inner_expr =
+    field.checks
+    |> list.map(check_expr)
+    |> list.fold(parser_expr, fn(acc_expr, check_expr) {
+      acc_expr
+      |> pipe(check_expr)
+    })
+
+  glance.Use(x,
+    [glance.UsePattern(glance.PatternVariable(x, token), None)],
+    Call(x,
+      FieldAccess(x, Variable(x, "form"), "field"), [
+        UnlabelledField(String(x, token)),
+        UnlabelledField(glance.Block(x, [
+          Expression(block_inner_expr),
+        ]))
+      ]
+    )
+  )
+}
+
+fn check_expr(
+  check check: Check,
+) -> glance.Expression {
+  let x = common.dummy_location()
+
+  case check {
+    CheckConfirms(token:) -> {
+      Call(x, FieldAccess(x, Variable(x, "form"), "check_confirms"), [UnlabelledField(Variable(x, token))])
+    }
+
+    CheckAccepted -> {
+      FieldAccess(x, Variable(x, "form"), "check_accepted")
+    }
+
+    CheckFloatLessThan(float:) -> {
+      Call(x, FieldAccess(x, Variable(x, "form"), "check_float_less_than"), [UnlabelledField(Float(x, float.to_string(float)))])
+    }
+
+    CheckFloatMoreThan(float:) -> {
+      Call(x, FieldAccess(x, Variable(x, "form"), "check_float_more_than"), [UnlabelledField(Float(x, float.to_string(float)))])
+    }
+
+    CheckIntLessThan(int:) -> {
+      Call(x, FieldAccess(x, Variable(x, "form"), "check_int_less_than"), [UnlabelledField(Int(x, int.to_string(int)))])
+    }
+
+    CheckIntMoreThan(int:) -> {
+      Call(x, FieldAccess(x, Variable(x, "form"), "check_int_more_than"), [UnlabelledField(Int(x, int.to_string(int)))])
+    }
+
+    CheckNotEmpty -> {
+      FieldAccess(x, Variable(x, "form"), "check_not_empty")
+    }
+
+    CheckStringLengthLessThan(int:) -> {
+      Call(x, FieldAccess(x, Variable(x, "form"), "check_string_length_less_than"), [UnlabelledField(Int(x, int.to_string(int)))])
+    }
+
+    CheckStringLengthMoreThan(int:) -> {
+      Call(x, FieldAccess(x, Variable(x, "form"), "check_string_length_more_than"), [UnlabelledField(Int(x, int.to_string(int)))])
+    }
+
+    CustomCheck(func_name:) -> {
+      Call(x, FieldAccess(x, Variable(x, "form"), "check"), [UnlabelledField(Variable(x, func_name))])
+    }
+  }
+}
+
+fn parser_expr(
+  parser parser: Parser,
+) -> glance.Expression {
+  let x = common.dummy_location()
+
+  case parser {
+    StringParser -> {
+      FieldAccess(x, Variable(x, "form"), "parse_string")
+    }
+
+    IntParser -> {
+      FieldAccess(x, Variable(x, "form"), "parse_int")
+    }
+
+    FloatParser -> {
+      FieldAccess(x, Variable(x, "form"), "parse_float")
+    }
+
+    BoolParser -> {
+      FieldAccess(x, Variable(x, "form"), "parse_checkbox")
+    }
+
+    OptionParser(inner_parser) -> {
+      let inner = parser_expr(inner_parser)
+
+      glance.BinaryOperator(x, glance.Pipe, inner, FieldAccess(x, Variable(x, "form"), "parse_optional"))
+    }
+
+    ListParser(inner_parser) -> {
+      let inner = parser_expr(inner_parser)
+
+      glance.BinaryOperator(x, glance.Pipe, inner, FieldAccess(x, Variable(x, "form"), "parse_list"))
+    }
+
+    EmailParser -> {
+      FieldAccess(x, Variable(x, "form"), "parse_email")
+    }
+
+    PhoneNumberParser -> {
+      FieldAccess(x, Variable(x, "form"), "parse_phone_number")
+    }
+
+    ColourParser -> {
+      FieldAccess(x, Variable(x, "form"), "parse_colour")
+    }
+
+    UriParser -> {
+      FieldAccess(x, Variable(x, "form"), "parse_url")
+    }
+
+    DateParser -> {
+      FieldAccess(x, Variable(x, "form"), "parse_date")
+    }
+
+    DateTimeParser -> {
+      FieldAccess(x, Variable(x, "form"), "parse_date_time")
+    }
+
+    TimeParser -> {
+      FieldAccess(x, Variable(x, "form"), "parse_time")
+    }
+
+    CustomParser(func_name:, type_: _) -> {
+      Call(x, Variable(x, func_name), [])
+    }
+  }
+}
+
+fn build_form_fields(
   type_ type_: CustomType,
   opts opts: FormFieldOpts,
 ) -> List(FormField) {
@@ -18,7 +249,7 @@ fn parse_form_fields(
       |> list.map(fn(field) {
         case field {
           glance.LabelledVariantField(label: name, item: type_) -> {
-            parse_form_field(name:, prefix: [], type_:, opts:)
+            build_form_field(name:, prefix: [], type_:, opts:)
           }
 
           glance.UnlabelledVariantField(..) -> {
@@ -34,7 +265,7 @@ fn parse_form_fields(
   }
 }
 
-fn parse_form_field(
+fn build_form_field(
   name name: String,
   prefix prefix: List(String),
   type_ type_: glance.Type,
@@ -51,7 +282,7 @@ fn parse_form_field(
         name:,
         prefix:,
         parser: type_ |> to_parser(opt:),
-        checks: [],
+        checks: opt.checks,
       )
     }
 
@@ -64,38 +295,23 @@ fn parse_form_field(
   }
 }
 
-// fn get_field_opt(
-//   opts opts: FormFieldOpts,
-//   name name: List(String),
-// ) -> Result(FormFieldOpt, Nil) {
-// }
+type FormFuncParams {
+  FormFuncParams(
+    type_: CustomType,
+    variant: Variant,
+  )
+}
 
-fn build_form_field_opts(
-  from opts: DerivFieldOpts,
+fn build_form_func_params(
   type_ type_: deriv.Type,
-) -> FormFieldOpts {
+) -> FormFuncParams {
   case type_ {
     deriv.TypeAlias(..) -> {
       panic as { "`derive form` doesn't know how to handle type aliases, namely: " <> string.inspect(type_) }
     }
 
-    deriv.Type(type_: glance.CustomType(variants: [glance.Variant(name: variant, ..)], ..) as type_) -> {
-      opts
-      |> dict.to_list()
-      |> list.filter_map(fn(t) {
-        let #(key, opts) = t
-
-        case key.type_ == type_.name && key.variant == variant {
-          True -> {
-            Ok(#(key.field, build_form_field_opt(from: opts, name: key.field, constr: variant)))
-          }
-
-          False -> {
-            Error(Nil)
-          }
-        }
-      })
-      |> dict.from_list
+    deriv.Type(type_: glance.CustomType(variants: [variant], ..) as type_) -> {
+      FormFuncParams(type_:, variant:)
     }
 
     deriv.Type(type_: glance.CustomType(variants: [], ..)) -> {
@@ -108,6 +324,28 @@ fn build_form_field_opts(
   }
 }
 
+fn build_form_field_opts(
+  from opts: DerivFieldOpts,
+  for ffp: FormFuncParams,
+) -> FormFieldOpts {
+  opts
+  |> dict.to_list()
+  |> list.filter_map(fn(t) {
+    let #(key, opts) = t
+
+    case key.type_ == ffp.type_.name && key.variant == ffp.variant.name {
+      True -> {
+        Ok(#(key.field, build_form_field_opt(from: opts, name: key.field, constr: ffp.variant.name)))
+      }
+
+      False -> {
+        Error(Nil)
+      }
+    }
+  })
+  |> dict.from_list
+}
+
 fn build_form_field_opt(
   from opts: List(types.DerivFieldOpt),
   constr constr: String,
@@ -117,7 +355,30 @@ fn build_form_field_opt(
   |> list.fold(zero_form_field_opt(), fn(acc, opt) {
     let types.DerivFieldOpt(strs: tokens) = opt
 
+    echo acc
+    echo tokens
+
     case tokens, acc {
+      // FORM PARSER
+      ["form", "parse_" <> _], FormFieldOpt(parser_override: Some(..), ..) -> {
+        panic as { "`"<> constr <>  "." <> name <> "` already specifies a `parser` override" }
+      }
+      ["form", "parse_" <> _ as formal_func_name], FormFieldOpt(parser_override: None, ..) -> {
+        case formal_func_name {
+          "parse_email" |
+          "parse_phone_number" |
+          "parse_colour" |
+          "parse_url" |
+          "parse_date" |
+          "parse_time" |
+          "parse_date_time" -> {
+            FormFieldOpt(..acc, parser_override: Some(ParserOverrideFormal(func_name: formal_func_name)))
+          }
+          _ -> {
+            panic as { "Invalid `formal/form` parse func: " <> formal_func_name }
+          }
+        }
+      }
       // FORM PARSER
       ["form", "parser", _func_name], FormFieldOpt(parser_override: Some(..), ..) -> {
         panic as { "`"<> constr <>  "." <> name <> "` already specifies a `parser` override" }
@@ -132,22 +393,153 @@ fn build_form_field_opt(
       ["form", "parser", "inner", func_name], FormFieldOpt(parser_override: None, ..) -> {
         FormFieldOpt(..acc, parser_override: Some(ParserOverrideInner(func_name:)))
       }
+      // FORM CHECKS
+      ["form", "check_confirms", token], _ -> {
+        FormFieldOpt(..acc, checks: acc.checks |> list.append([CheckConfirms(token:)]))
+      }
+      ["form", "check_accepted"], _ -> {
+        FormFieldOpt(..acc, checks: acc.checks |> list.append([CheckAccepted]))
+      }
+      ["form", "check_float_less_than", str], _ -> {
+        let float =
+          str
+          |> float.parse
+          |> result.lazy_unwrap(fn() {
+            panic_parsing(str:, opt_name: "form check_float_less_than", expected: "Float")
+          })
+
+        FormFieldOpt(..acc, checks: acc.checks |> list.append([CheckFloatLessThan(float:)]))
+      }
+      ["form", "check_float_more_than", str], _ -> {
+        let float =
+          str
+          |> float.parse
+          |> result.lazy_unwrap(fn() {
+            panic_parsing(str:, opt_name: "form check_float_more_than", expected: "Float")
+          })
+
+        FormFieldOpt(..acc, checks: acc.checks |> list.append([CheckFloatMoreThan(float:)]))
+      }
+      ["form", "check_int_less_than", str], _ -> {
+        let int =
+          str
+          |> int.parse
+          |> result.lazy_unwrap(fn() {
+            panic_parsing(str:, opt_name: "form check_int_less_than", expected: "Int")
+          })
+
+        FormFieldOpt(..acc, checks: acc.checks |> list.append([CheckIntLessThan(int:)]))
+      }
+      ["form", "check_int_more_than", str], _ -> {
+        let int =
+          str
+          |> int.parse
+          |> result.lazy_unwrap(fn() {
+            panic_parsing(str:, opt_name: "form check_int_more_than", expected: "Int")
+          })
+
+        FormFieldOpt(..acc, checks: acc.checks |> list.append([CheckIntMoreThan(int:)]))
+      }
+      ["form", "check_not_empty"], _ -> {
+        FormFieldOpt(..acc, checks: acc.checks |> list.append([CheckNotEmpty]))
+      }
+      ["form", "check_string_length_less_than", str], _ -> {
+        let int =
+          str
+          |> int.parse
+          |> result.lazy_unwrap(fn() {
+            panic_parsing(str:, opt_name: "form check_string_length_less_than", expected: "Int")
+          })
+
+        FormFieldOpt(..acc, checks: acc.checks |> list.append([CheckStringLengthLessThan(int:)]))
+      }
+      ["form", "check_string_length_more_than", str], _ -> {
+        let int =
+          str
+          |> int.parse
+          |> result.lazy_unwrap(fn() {
+            panic_parsing(str:, opt_name: "form check_string_length_more_than", expected: "Int")
+          })
+
+        FormFieldOpt(..acc, checks: acc.checks |> list.append([CheckStringLengthMoreThan(int:)]))
+      }
+      ["form", "check", func_name], _ -> {
+        FormFieldOpt(..acc, checks: acc.checks |> list.append([CustomCheck(func_name:)]))
+      }
       //
       _, _ -> {
         acc
       }
     }
-
-    acc
   })
+}
+
+fn panic_parsing(
+  str str: String,
+  opt_name opt_name: String,
+  expected type_: String,
+) {
+  panic as { "`deriv`'s `" <> opt_name <> "` expected a `" <> type_ <> "`, but got: `" <> string.inspect(str) <> "`" }
 }
 
 fn to_parser(
   type_ type_: glance.Type,
   opt opt: FormFieldOpt,
 ) -> Parser {
+  echo type_
+  echo opt.parser_override
+
   case opt.parser_override, type_ {
     // OVERRIDES
+
+    Some(ParserOverrideFormal(func_name:)), glance.NamedType(name: type_name, parameters: params, ..) -> {
+      case func_name, type_name, params {
+        "parse_email", "String", [] ->
+          EmailParser
+
+        "parse_phone_number", "String", [] ->
+          PhoneNumberParser
+
+        "parse_colour", "String", [] ->
+          ColourParser
+
+        "parse_url", "Uri", [] ->
+          UriParser
+
+        "parse_date", "Date", [] ->
+          DateParser
+
+        "parse_time", "TimeOfDay", [] ->
+          TimeParser
+
+        "parse_date_time", _, _ -> {
+          panic as { "`deriv` Usage of `formal/form.parse_date_time` not yet implemented" }
+        }
+
+        "parse_email", _, _ |
+        "parse_phone_number", _, _ |
+        "parse_colour", _, _ |
+        "parse_url", _, _ |
+        "parse_date", _, _ |
+        "parse_time", _, _ -> {
+          panic as { "`deriv` Type mismatch using `formal/form.`" <> func_name <> " with type: " <> string.inspect(type_) }
+        }
+
+        _, _, _ -> {
+          panic as { "`deriv` Unknown `formal/form` func override: " <> func_name }
+        }
+
+        // EmailParser // `parse_email` -> `String`
+        // PhoneNumberParser // `parse_phone_number` -> `String`
+        // ColourParser // `parse_colour` -> `String`
+        // //
+        // UriParser // `parse_url` -> `uri.Uri`
+        // //
+        // DateParser // `parse_date` -> `calendar.Date`
+        // DateTimeParser // `parse_date_time` -> `calendar.TimeOfDay`
+        // TimeParser // `parse_time` -> `calendar.TimeOfDay`
+      }
+    }
 
     Some(ParserOverrideInner(func_name:)), glance.NamedType(name: "Option", parameters: [_param_type], ..) -> {
       OptionParser(CustomParser(func_name:, type_:))
@@ -204,6 +596,7 @@ fn to_parser(
     // PANIC FOR ANYTHING OTHER THAN `NamedType`
 
     Some(ParserOverride(..)), _ |
+    Some(ParserOverrideFormal(..)), _ |
     Some(ParserOverrideInner(..)), _ |
     None, glance.TupleType(..) |
     None, glance.FunctionType(..) |
@@ -218,9 +611,21 @@ type Parser {
   StringParser
   IntParser
   FloatParser
-  BoolParser
+  BoolParser // `parse_checkbox`
+  //
   OptionParser(Parser)
   ListParser(Parser)
+  //
+  EmailParser // `parse_email` -> `String`
+  PhoneNumberParser // `parse_phone_number` -> `String`
+  ColourParser // `parse_colour` -> `String`
+  //
+  UriParser // `parse_url` -> `uri.Uri`
+  //
+  DateParser // `parse_date` -> `calendar.Date`
+  DateTimeParser // `parse_date_time` -> `calendar.TimeOfDay`
+  TimeParser // `parse_time` -> `calendar.TimeOfDay`
+  //
   CustomParser(
     func_name: String,
     type_: glance.Type,
@@ -228,7 +633,22 @@ type Parser {
 }
 
 type Check {
-  Check
+  // t
+  CheckConfirms(token: String)
+  // Bool
+  CheckAccepted
+  // Float
+  CheckFloatLessThan(float: Float)
+  CheckFloatMoreThan(float: Float)
+  // Int
+  CheckIntLessThan(int: Int)
+  CheckIntMoreThan(int: Int)
+  // String
+  CheckNotEmpty
+  CheckStringLengthLessThan(int: Int)
+  CheckStringLengthMoreThan(int: Int)
+  // custom
+  CustomCheck(func_name: String)
 }
 
 type FormField {
@@ -258,23 +678,23 @@ type Form {
   )
 }
 
-type UseVals {
-  UseVals(
-    gleam_var: String,
-    input_name: String,
-  )
-}
+// type UseVals {
+//   UseVals(
+//     gleam_var: String,
+//     input_name: String,
+//   )
+// }
 
-fn to_use_vals(
-  field field: FormField,
-) -> UseVals {
-  let FormField(name:, prefix:, ..) = field
+// fn to_use_vals(
+//   field field: FormField,
+// ) -> UseVals {
+//   let FormField(name:, prefix:, ..) = field
 
-  UseVals(
-    gleam_var: gleam_var(name:, prefix:),
-    input_name: input_name(name:, prefix:)
-  )
-}
+//   UseVals(
+//     gleam_var: gleam_var(name:, prefix:),
+//     input_name: input_name(name:, prefix:)
+//   )
+// }
 
 fn gleam_var(
   name name: String,
@@ -314,20 +734,21 @@ type FormFieldOpts = Dict(String, FormFieldOpt)
 
 type FormFieldOpt {
   FormFieldOpt(
-    nil: Nil,
-    parser_override: Option(ParserOverride)
+    parser_override: Option(ParserOverride),
+    checks: List(Check),
   )
 }
 
 type ParserOverride {
   ParserOverride(func_name: String)
+  ParserOverrideFormal(func_name: String)
   ParserOverrideInner(func_name: String)
 }
 
 fn zero_form_field_opt() -> FormFieldOpt {
   FormFieldOpt(
-    nil: Nil,
     parser_override: None,
+    checks: [],
   )
 }
 
@@ -338,17 +759,23 @@ pub fn gen(
   file: File,
   _module_reader: ModuleReader,
 ) -> Gen {
-  let opts = build_form_field_opts(from: field_opts, type_: t)
+  let ffp = build_form_func_params(type_: t)
+  let opts = build_form_field_opts(from: field_opts, for: ffp)
 
   case t {
     deriv.TypeAlias(..) ->
       panic as "`deriv.TypeAlias` unimplemented for `deriv/form` "
 
     deriv.Type(type_:) -> {
-      let imports = gen_imports(type_)
+      // let imports = gen_imports(type_)
+      let imports = []
+      let fields = build_form_fields(type_:, opts:)
 
       let funcs =
-        form_func(type_)
+        form_func(
+          params: ffp,
+          fields:,
+        )
         |> list.wrap
 
       let src = ""
@@ -373,11 +800,6 @@ fn gen_imports(
   ])
 }
 
-fn form_func(
-  type_: CustomType,
-) -> Definition(Function) {
-  todo
-}
 // fn form_func(
 //   type_: CustomType,
 // ) -> Definition(Function) {
