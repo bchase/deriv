@@ -254,8 +254,8 @@ pub fn fetch_module_(
 }
 
 pub fn fetch_custom_type(
-  ident: String,
-  read_module: ModuleReader,
+  ident ident: String,
+  read_module read_module: ModuleReader,
 ) -> Result(#(String, glance.Definition(glance.CustomType)), ModuleReaderErr) {
   use #(module_name, ref) <- result.try(parse_ident(ident))
   use module <- result.try(read_module(module_name))

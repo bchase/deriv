@@ -11,10 +11,10 @@ import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOp
 import deriv/common
 
 // FINISH
-//   - add checks
+// X - add checks
+// X - override custom parser
+// X - override custom parser inner
 //   - skip `use` on nested type root field
-//   - override custom parser
-//   - override custom parser inner
 // TODO
 //   - `CustomParser`
 //   - `CustomCheck`
@@ -242,6 +242,8 @@ fn parser_expr(
 fn build_form_fields(
   type_ type_: CustomType,
   opts opts: FormFieldOpts,
+  module module: String,
+  read_module read_module: ModuleReader,
 ) -> List(FormField) {
   case type_.variants {
     [variant]-> {
@@ -249,7 +251,7 @@ fn build_form_fields(
       |> list.map(fn(field) {
         case field {
           glance.LabelledVariantField(label: name, item: type_) -> {
-            build_form_field(name:, prefix: [], type_:, opts:)
+            build_form_field(name:, prefix: [], type_:, opts:, module:, read_module:)
           }
 
           glance.UnlabelledVariantField(..) -> {
@@ -270,6 +272,8 @@ fn build_form_field(
   prefix prefix: List(String),
   type_ type_: glance.Type,
   opts opts: FormFieldOpts,
+  module module: String,
+  read_module read_module: ModuleReader,
 ) -> FormField {
   let opt =
     opts
@@ -281,7 +285,7 @@ fn build_form_field(
       FormField(
         name:,
         prefix:,
-        parser: type_ |> to_parser(opt:),
+        parser: type_ |> to_parser(opt:, module:, read_module:),
         checks: opt.checks,
       )
     }
@@ -354,9 +358,6 @@ fn build_form_field_opt(
   opts
   |> list.fold(zero_form_field_opt(), fn(acc, opt) {
     let types.DerivFieldOpt(strs: tokens) = opt
-
-    echo acc
-    echo tokens
 
     case tokens, acc {
       // FORM PARSER
@@ -485,10 +486,9 @@ fn panic_parsing(
 fn to_parser(
   type_ type_: glance.Type,
   opt opt: FormFieldOpt,
+  module module: String,
+  read_module read_module: ModuleReader,
 ) -> Parser {
-  echo type_
-  echo opt.parser_override
-
   case opt.parser_override, type_ {
     // OVERRIDES
 
@@ -577,20 +577,41 @@ fn to_parser(
 
     None, glance.NamedType(name: "Option", parameters: [param_type], ..) -> {
       param_type
-      |> to_parser(opt:)
+      |> to_parser(opt:, module:, read_module:,)
       |> OptionParser
     }
 
     None, glance.NamedType(name: "List", parameters: [param_type], ..) -> {
       param_type
-      |> to_parser(opt:)
+      |> to_parser(opt:, module:, read_module:,)
       |> ListParser
     }
 
     None, glance.NamedType(name:, ..) -> {
-      name
-      |> common.snake_case
-      |> CustomParser(func_name: _, type_:)
+      // name
+      // |> common.snake_case
+      // |> CustomParser(func_name: _, type_:)
+
+      let ident = module <> "." <> name
+
+      case common.fetch_custom_type(ident:, read_module:) {
+        Error(_) -> {
+          panic as { "`derive form` failed to look up custom type: " <> string.inspect(type_) }
+        }
+
+        Ok(#(_module, glance.Definition(definition: glance.CustomType(variants: [], ..) as nested_type, ..))) -> {
+          panic as { "`derive form` doesn't know how to handle types without any variants, namely: " <> string.inspect(nested_type) }
+        }
+
+        Ok(#(_module, glance.Definition(definition: glance.CustomType(variants: [_, _, ..], ..) as nested_type, ..))) -> {
+          panic as { "`derive form` doesn't know how to handle multi-variant types, namely: " <> string.inspect(nested_type) }
+        }
+
+        Ok(#(_module, glance.Definition(definition: glance.CustomType(name:, variants: [variant], ..), ..))) -> {
+          // variant.fields
+          StringParser
+        }
+      }
     }
 
     // PANIC FOR ANYTHING OTHER THAN `NamedType`
@@ -757,7 +778,7 @@ pub fn gen(
   deriv: Derivation,
   field_opts: DerivFieldOpts,
   file: File,
-  _module_reader: ModuleReader,
+  module_reader: ModuleReader,
 ) -> Gen {
   let ffp = build_form_func_params(type_: t)
   let opts = build_form_field_opts(from: field_opts, for: ffp)
@@ -767,9 +788,10 @@ pub fn gen(
       panic as "`deriv.TypeAlias` unimplemented for `deriv/form` "
 
     deriv.Type(type_:) -> {
+      let module = file.module
       // let imports = gen_imports(type_)
       let imports = []
-      let fields = build_form_fields(type_:, opts:)
+      let fields = build_form_fields(type_:, opts:, module:, read_module: module_reader)
 
       let funcs =
         form_func(
