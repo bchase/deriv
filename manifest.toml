@@ -37,6 +37,7 @@ glance_printer = { git = "git@github.com:bchase/glance_printer.git", ref = "upgr
 gleam_json = { version = ">= 3.0.1 and < 4.0.0" }
 gleam_regexp = { version = ">= 1.0.0 and < 2.0.0" }
 gleam_stdlib = { version = ">= 0.34.0 and < 2.0.0" }
+gleam_time = { version = ">= 1.4.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
 glint = { version = ">= 1.2.1 and < 2.0.0" }
 shellout = { version = ">= 1.6.0 and < 2.0.0" }
