@@ -73,11 +73,9 @@ pub type Form {
 fn custom_parse_int() -> form.Parser(Int) {
   todo
 }
-
 fn custom_parse_int_option() -> form.Parser(Option(Int)) {
   todo
 }
-
 fn custom_parse_int_list() -> form.Parser(List(Int)) {
   todo
 }

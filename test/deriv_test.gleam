@@ -1,7 +1,6 @@
 import simplifile
 import gleam/dict
-import gleam/option.{type Option, Some, None}
-import gleam/result
+import gleam/option.{Some}
 import gleeunit
 import gleeunit/should
 import gleam/string
@@ -52,8 +51,7 @@ fn run_and_expect_equal(
   io.println("DIFF (<expected >generated)")
   io.println(common.diff(output, gen))
 
-  write.src
-  |> string.trim
+  gen
   |> should.equal(output)
 }
 
@@ -69,22 +67,22 @@ fn gen_and_build_writes(
   |> deriv.build_writes
 }
 
-fn build_module_reader(
-  files: List(#(String, String)),
-) -> types.ModuleReader {
-  fn(ident) {
-    case dict.get(dict.from_list(files), ident) {
-      Ok(src) ->
-        src
-        |> string.trim
-        |> glance.module
-        |> result.map_error(types.GlanceErr)
+// fn build_module_reader(
+//   files: List(#(String, String)),
+// ) -> types.ModuleReader {
+//   fn(ident) {
+//     case dict.get(dict.from_list(files), ident) {
+//       Ok(src) ->
+//         src
+//         |> string.trim
+//         |> glance.module
+//         |> result.map_error(types.GlanceErr)
 
-      _ ->
-        panic as { "`build_module_reader` miss for ident: " <> ident }
-    }
-  }
-}
+//       _ ->
+//         panic as { "`build_module_reader` miss for ident: " <> ident }
+//     }
+//   }
+// }
 
 type Example {
   Example(
