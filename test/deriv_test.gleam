@@ -28,16 +28,17 @@ fn should_derive(
 ) {
   let Example(before: input, after: output) = example_dir_path(example_dir_name:)
 
-  run_and_expect_equal(input:, output:)
+  run_and_expect_equal(input:, output:, example_dir_name:)
 }
 
 fn run_and_expect_equal(
   input input: String,
   output output: String,
+  example_dir_name example_dir_name: String,
 ) {
   let output = output |> string.trim
 
-  let assert [write] = gen_and_build_writes(input |> string.trim)
+  let assert [write] = gen_and_build_writes(input: input |> string.trim, example_dir_name:)
   let gen = write.src |> string.trim
 
   io.println("")
@@ -57,9 +58,10 @@ fn run_and_expect_equal(
 }
 
 fn gen_and_build_writes(
-  input: String,
+  input input: String,
+  example_dir_name example_dir_name: String,
 ) -> List(types.Write) {
-  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+  let files = [ File(module: "examples/" <> example_dir_name <> "/before", src: input, idx: Some(1)) ]
 
   files
   // |> deriv.gen_derivs(build_module_reader([]))
@@ -235,7 +237,7 @@ pub fn multiple_run_and_filepath_test() {
   write.filepath
   |> should.equal("src/deriv/example/foo.gleam")
 
-  run_and_expect_equal(input:, output:)
+  run_and_expect_equal(input:, output:, example_dir_name: "deriv/example/foo")
 }
 
 fn dummy_module_reader(_) {
