@@ -109,10 +109,16 @@ pub fn main() {
   gleeunit.main()
 }
 
-// TEST DERIVE FORM (`formal/form`)
+// TEST DERIVE ENUM
 
 pub fn enum_test() {
   should_derive(example_dir_name: "enum")
+}
+
+// TEST DERIVE FORM (`formal/form`)
+
+pub fn formal_form_test() {
+  should_derive(example_dir_name: "formal")
 }
 
 // TEST DERIVE ZERO
