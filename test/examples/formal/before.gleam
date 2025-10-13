@@ -1,3 +1,4 @@
+import deriv/util
 import formal/form
 import gleam/option.{type Option}
 import gleam/time/calendar
@@ -67,7 +68,18 @@ pub type Form {
     //$ form check_string_length_less_than 1
     str_check_length_more: String,
     //$ form check_string_length_more_than 3
+    dir: Dir,
+    //$ form parser parser_dir
   )
+}
+
+pub type Dir {
+  //$ derive zero
+  //$ derive enum
+  Up
+  //$ enum display up
+  Down
+  //$ enum display down
 }
 
 fn custom_parse_int() -> form.Parser(Int) {
@@ -80,8 +92,20 @@ fn custom_parse_int_list() -> form.Parser(List(Int)) {
   todo
 }
 
+fn parser_dir() -> form.Parser(Dir) {
+  util.formal_scalar_parser(
+    parse: parse_enum_dir,
+    type_display: "direction",
+    zero: Up,
+  )
+}
+
 pub type NestedForm {
   NestedForm(
     str: String,
   )
+}
+
+pub fn parse_enum_dir(str: String) -> Result(Dir, Nil) {
+  todo as "here for compiler; rewritten by `derive enum`"
 }

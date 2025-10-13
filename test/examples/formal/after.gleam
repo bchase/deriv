@@ -1,5 +1,7 @@
+import deriv/util
 import formal/form
 import gleam/option.{type Option}
+import gleam/string
 import gleam/time/calendar
 import gleam/uri
 
@@ -67,7 +69,18 @@ pub type Form {
     //$ form check_string_length_less_than 1
     str_check_length_more: String,
     //$ form check_string_length_more_than 3
+    dir: Dir,
+    //$ form parser parser_dir
   )
+}
+
+pub type Dir {
+  //$ derive zero
+  //$ derive enum
+  Up
+  //$ enum display up
+  Down
+  //$ enum display down
 }
 
 fn custom_parse_int() -> form.Parser(Int) {
@@ -80,11 +93,28 @@ fn custom_parse_int_list() -> form.Parser(List(Int)) {
   todo
 }
 
+fn parser_dir() -> form.Parser(Dir) {
+  util.formal_scalar_parser(
+    parse: parse_enum_dir,
+    type_display: "direction",
+    zero: Up,
+  )
+}
+
 pub type NestedForm {
   NestedForm(
     str: String,
   )
 }
+
+pub fn parse_enum_dir(str: String) -> Result(Dir, Nil) {
+  case str {
+    "Up" -> Ok(Up)
+    "Down" -> Ok(Down)
+    _ -> Error(Nil)
+  }
+}
+
 
 pub fn form_form() -> form.Form(Form) {
   form.new({
@@ -160,6 +190,7 @@ pub fn form_form() -> form.Form(Form) {
     use str_check_length_more <- form.field("str_check_length_more", {
       form.parse_string |> form.check_string_length_more_than(3)
     })
+    use dir <- form.field("dir", { parser_dir() })
     form.success(Form(
       str:,
       str_option:,
@@ -193,6 +224,22 @@ pub fn form_form() -> form.Form(Form) {
       str_check_not_empty:,
       str_check_length_less:,
       str_check_length_more:,
+      dir:,
     ))
   })
+}
+
+pub fn zero_dir() -> Dir {
+  Up
+}
+
+pub fn enum_dir_str(x: Dir) -> String {
+  string.inspect(x)
+}
+
+pub fn display_enum_dir(x: Dir) -> String {
+  case x {
+    Up -> "up"
+    Down -> "down"
+  }
 }
