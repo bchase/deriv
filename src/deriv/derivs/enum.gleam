@@ -16,7 +16,7 @@ fn to_string_func(
     "enum_" <> { type_.name |> common.snake_case } <> "_str"
 
   Definition([], Function(x, func_name, Public,
-    [FunctionParameter(None, Named("x"), Some(NamedType(x, "T", None, [])))],
+    [FunctionParameter(None, Named("x"), Some(NamedType(x, type_.name, None, [])))],
     Some(NamedType(x, "String", None, [])),
     [
       Expression(Call(x, FieldAccess(x, Variable(x, "string"), "inspect"), [UnlabelledField(Variable(x, "x"))]))
@@ -34,7 +34,7 @@ fn parse_func(
 
   Function(x, func_name, Public,
     [FunctionParameter(None, Named("str"), Some(NamedType(x, "String", None, [])))],
-    Some(NamedType(x, "Result", None, [NamedType(x, "T", None, []), NamedType(x, "Nil", None, [])])),
+    Some(NamedType(x, "Result", None, [NamedType(x, type_.name, None, []), NamedType(x, "Nil", None, [])])),
     [
       Expression(Case(x, [Variable(x, "str")], {
         type_.variants
