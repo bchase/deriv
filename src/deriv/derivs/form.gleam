@@ -739,15 +739,9 @@ pub fn gen(
 }
 
 fn gen_imports(
-  type_: CustomType,
+  _type_: CustomType,
 ) -> List(Import) {
-  // case common.are_any_fields_options(type_) {
-  //   True -> [common.none_constr_import()]
-  //   False -> []
-  // }
-  // |> list.append([
-  //   common.util_import(),
-  // ])
-
-  []
+  [
+    common.import_("formal/form"),
+  ]
 }
