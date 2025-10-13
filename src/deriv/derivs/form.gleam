@@ -10,22 +10,32 @@ import glance.{type Expression, type CustomType, type Definition, type Function,
 import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/common
 
-// FINISH
-// X - add checks
-// X - override custom parser
-// X - override custom parser inner
+// form.Lookups(
+//   name_to_field:, // need this
+//   field_to_name:, // need this
+//   field_to_type:, // need this
+//
+//   field_to_id:, // just `string.inspect` `FooField` variant
+//
+//   field_is_required:, // RELY ON `formal`
+//   field_to_label:, // GEN AS USER?
+// )
+
 // TODO
-// X - `CustomParser`
 //   - `CustomCheck`
 // IMPROVE
-//   - support `parse_date_time` (breaks on non-`glance.NamedType`)
-//   - support nested forms (see `formal/scratch.gleam`; would need to parse nested opts)
 //   - intuit below
     // UriParser // `parse_url` -> `uri.Uri`
-    // //
     // DateParser // `parse_date` -> `calendar.Date`
-    // DateTimeParser // `parse_date_time` -> `calendar.TimeOfDay`
     // TimeParser // `parse_time` -> `calendar.TimeOfDay`
+//   - support `parse_date_time` (breaks on non-`glance.NamedType`)
+    // use date_time <- form.field("date_time", {
+    //   form.parse_date_time
+    // })
+    //date_time: #(calendar.Date, calendar.TimeOfDay),
+    ////$ form parse_date_time
+//   - support nested forms (see `formal/scratch.gleam`; would need to parse nested opts)
+//   - support `Dict`?
 
 fn field_gleam_token(
   field field: FormField,
@@ -525,16 +535,6 @@ fn to_parser(
         _, _, _ -> {
           panic as { "`deriv` Unknown `formal/form` func override: " <> func_name }
         }
-
-        // EmailParser // `parse_email` -> `String`
-        // PhoneNumberParser // `parse_phone_number` -> `String`
-        // ColourParser // `parse_colour` -> `String`
-        // //
-        // UriParser // `parse_url` -> `uri.Uri`
-        // //
-        // DateParser // `parse_date` -> `calendar.Date`
-        // DateTimeParser // `parse_date_time` -> `calendar.TimeOfDay`
-        // TimeParser // `parse_time` -> `calendar.TimeOfDay`
       }
     }
 
@@ -585,10 +585,6 @@ fn to_parser(
     }
 
     None, glance.NamedType(name:, ..) -> {
-      // name
-      // |> common.snake_case
-      // |> CustomParser(func_name: _, type_:)
-
       let ident = module <> "." <> name
 
       case common.fetch_custom_type(ident:, read_module:) {
@@ -680,69 +676,6 @@ type FormField {
     checks: List(Check),
   )
 }
-
-type NestedForm {
-  NestedForm(
-    key: String,
-    constr: String,
-  )
-}
-
-type Form {
-  Form(
-    nested: List(NestedForm),
-    fields: List(FormField),
-  )
-}
-
-// type UseVals {
-//   UseVals(
-//     gleam_var: String,
-//     input_name: String,
-//   )
-// }
-
-// fn to_use_vals(
-//   field field: FormField,
-// ) -> UseVals {
-//   let FormField(name:, prefix:, ..) = field
-
-//   UseVals(
-//     gleam_var: gleam_var(name:, prefix:),
-//     input_name: input_name(name:, prefix:)
-//   )
-// }
-
-fn gleam_var(
-  name name: String,
-  prefix prefix: List(String),
-) -> String {
-  prefix
-  |> list.append([name])
-  |> string.join("_")
-}
-
-fn input_name(
-  name name: String,
-  prefix prefix: List(String),
-) -> String {
-  case prefix {
-    [] -> {
-      name
-    }
-
-    [first, ..rest] -> {
-      let rest =
-        rest
-        |> list.append([name])
-        |> list.map(fn(str) { "[" <> str <> "]" })
-        |> string.join("")
-
-      first <> rest
-    }
-  }
-}
-
 //
 //
 //
@@ -785,8 +718,7 @@ pub fn gen(
 
     deriv.Type(type_:) -> {
       let module = file.module
-      // let imports = gen_imports(type_)
-      let imports = []
+      let imports = gen_imports(type_)
       let fields = build_form_fields(type_:, opts:, module:, read_module: module_reader)
 
       let funcs =
@@ -809,104 +741,13 @@ pub fn gen(
 fn gen_imports(
   type_: CustomType,
 ) -> List(Import) {
-  case common.are_any_fields_options(type_) {
-    True -> [common.none_constr_import()]
-    False -> []
-  }
-  |> list.append([
-    common.util_import(),
-  ])
+  // case common.are_any_fields_options(type_) {
+  //   True -> [common.none_constr_import()]
+  //   False -> []
+  // }
+  // |> list.append([
+  //   common.util_import(),
+  // ])
+
+  []
 }
-
-// fn form_func(
-//   type_: CustomType,
-// ) -> Definition(Function) {
-//   type_.variants
-//   |> list.fold_until(None, fn(acc, variant) {
-//     case form_func_(variant, type_) {
-//       Ok(func) -> list.Stop(Some(func))
-//       Error(_) -> list.Continue(acc)
-//     }
-//   })
-//   |> option.lazy_unwrap(fn() {
-//     panic as { "`CustomType` has no variants!\n\n" <> string.inspect(type_)}
-//   })
-// }
-
-// fn form_func_(
-//   variant: Variant,
-//   type_: CustomType
-// ) -> Result(Definition(Function), Nil) {
-//   use field_form_vals: List(glance.Field(Expression)) <- result.try(result.all(
-//     variant.fields
-//     |> list.map(form_call)
-//     |> list.map(result.map(_, UnlabelledField))
-//   ))
-
-//   let constr_name = variant.name
-//   let func_name = "form_" <> common.snake_case(type_.name)
-//   let func_return_type_name = type_.name
-
-//   let func_return_type = Some(NamedType(common.dummy_location(), func_return_type_name, None, []))
-
-//   let body =
-//     Call(
-//       location: common.dummy_location(),
-//       function: Variable(common.dummy_location(), constr_name),
-//       arguments: field_form_vals,
-//     )
-//     |> Expression
-
-//   let func =
-//     Function(common.dummy_location(), func_name, Public, [], func_return_type, [body])
-
-//   Ok(Definition([], func))
-// }
-
-// fn form_call(
-//   field: VariantField
-// ) -> Result(Expression, Nil) {
-//   case field.item {
-//     NamedType(name: "String", ..) -> Ok(form_string())
-//     NamedType(name: "Bool", ..) -> Ok(form_bool())
-//     NamedType(name: "Int", ..) -> Ok(form_int())
-//     NamedType(name: "Float", ..) -> Ok(form_float())
-//     NamedType(name: "Option", ..) -> Ok(form_option())
-//     NamedType(name: "List", ..) -> Ok(form_list())
-//     NamedType(name: "Time", ..) -> Ok(form_time())
-//     NamedType(name: "Uuid", ..) -> Ok(form_uuid())
-//     _ -> Error(Nil)
-//   }
-// }
-
-// fn form_uuid() -> Expression {
-//   Call(common.dummy_location(), FieldAccess(common.dummy_location(), Variable(common.dummy_location(), "util"), "form_uuid"), [])
-// }
-
-// fn form_time() -> Expression {
-//   Call(common.dummy_location(), FieldAccess(common.dummy_location(), Variable(common.dummy_location(), "util"), "form_time"), [])
-// }
-
-// fn form_string() -> Expression {
-//   String(common.dummy_location(), "")
-// }
-
-// fn form_option() -> Expression {
-//   Variable(common.dummy_location(), "None")
-// }
-
-// fn form_int() -> Expression {
-//   Int(common.dummy_location(), "0")
-// }
-
-// fn form_float() -> Expression {
-//   Float(common.dummy_location(), "0.0")
-// }
-
-// fn form_bool() -> Expression {
-//   Variable(common.dummy_location(), "False")
-// }
-
-// fn form_list() -> Expression {
-//   List(common.dummy_location(), [], None)
-// }
