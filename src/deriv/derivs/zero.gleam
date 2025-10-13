@@ -80,12 +80,24 @@ fn zero_func_(
   let func_return_type = Some(NamedType(common.dummy_location(), func_return_type_name, None, []))
 
   let body =
-    Call(
-      location: common.dummy_location(),
-      function: Variable(common.dummy_location(), constr_name),
-      arguments: field_zero_vals,
-    )
-    |> Expression
+    case variant.fields {
+      [] -> {
+        Variable(
+          location: common.dummy_location(),
+          name: constr_name,
+        )
+        |> Expression
+      }
+
+      _ -> {
+        Call(
+          location: common.dummy_location(),
+          function: Variable(common.dummy_location(), constr_name),
+          arguments: field_zero_vals,
+        )
+        |> Expression
+      }
+    }
 
   let func =
     Function(common.dummy_location(), func_name, Public, [], func_return_type, [body])

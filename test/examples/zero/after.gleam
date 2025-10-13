@@ -17,6 +17,15 @@ pub type Player {
   )
 }
 
+pub type Foo {
+  //$ derive zero
+  Bar
+}
+
 pub fn zero_player() -> Player {
   Player(util.zero_uuid(), "", None, util.zero_time(), 0, 0.0, [], False)
+}
+
+pub fn zero_foo() -> Foo {
+  Bar
 }

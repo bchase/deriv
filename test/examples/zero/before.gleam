@@ -15,3 +15,8 @@ pub type Player {
     active: Bool,
   )
 }
+
+pub type Foo {
+  //$ derive zero
+  Bar
+}
