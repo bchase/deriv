@@ -1,3 +1,4 @@
+import gleam/result
 import gleam/int
 import gleam/float
 import gleam/string
@@ -208,4 +209,27 @@ fn decoder_birl_int_to_time(
 
 pub fn snake_case(str: String) -> String {
   common.snake_case(str)
+}
+
+pub fn formal_scalar_parser(
+  parse parse: fn(String) -> Result(t, Nil),
+  type_display type_display: String,
+  zero zero: t,
+) -> fn(List(String)) -> Result(t, #(t, String)) {
+  fn(strs) {
+    case strs {
+      [] -> {
+        Error(#(zero, "Missing " <> type_display))
+      }
+
+      [str] -> {
+        parse(str)
+        |> result.replace_error(#(zero, "Invalid " <> type_display))
+      }
+
+      _multiple -> {
+        Error(#(zero, "Invalid " <> type_display <> " (multiple)"))
+      }
+    }
+  }
 }
