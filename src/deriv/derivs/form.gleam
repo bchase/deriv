@@ -12,8 +12,6 @@ import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOp
 import deriv/common
 import birl
 
-// TODO
-//   - `CustomCheck`
 // IMPROVE
 //   - support nested forms (see `formal/scratch.gleam`; would need to parse nested opts)
 //   - support `Dict`?

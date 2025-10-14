@@ -1,7 +1,9 @@
 import birl
 import deriv/util
 import formal/form
+import gleam/int
 import gleam/option.{type Option}
+import gleam/result
 import gleam/string
 import gleam/time/calendar
 import gleam/uri
@@ -27,6 +29,7 @@ pub type Form {
     //
     parse_int: Int,
     //$ form parser custom_parse_int
+    //$ form check divisible_by_two
     parse_int_option: Option(Int),
     //$ form parser custom_parse_int_option
     parse_int_option_inner: Option(Int),
@@ -97,6 +100,22 @@ fn custom_parse_int_list() -> form.Parser(List(Int)) {
   todo
 }
 
+fn divisible_by_two(
+  num num: Int,
+) -> Result(Int, String) {
+  let den = 2
+
+  num
+  |> int.remainder(den)
+  |> result.replace_error("Divided by 0")
+  |> result.try(fn(rem) {
+    case rem == 0 {
+      True -> Ok(num)
+      False -> Error("Must be divisible by " <> int.to_string(den))
+    }
+  })
+}
+
 fn parser_dir() -> form.Parser(Dir) {
   util.formal_scalar_parser(
     parse: parse_enum_dir,
@@ -148,7 +167,9 @@ pub fn form_form() -> form.Form(Form) {
     use bool_list <- form.field("bool_list", {
       form.parse_checkbox |> form.parse_list
     })
-    use parse_int <- form.field("parse_int", { custom_parse_int() })
+    use parse_int <- form.field("parse_int", {
+      custom_parse_int() |> form.check(divisible_by_two)
+    })
     use parse_int_option <- form.field("parse_int_option", {
       custom_parse_int_option()
     })
