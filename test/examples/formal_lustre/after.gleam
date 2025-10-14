@@ -2,12 +2,9 @@ import deriv/lustre as f
 import deriv/util
 import formal/form
 import gleam/list
-import gleam/option.{type Option, None, Some}
+import gleam/option.{None}
 import gleam/string
-import gleam/time/calendar
-import gleam/uri
-import lustre/attribute as attr
-import lustre/element.{type Element}
+import lustre/element
 import lustre/element/html
 import lustre/event
 
@@ -55,11 +52,11 @@ pub fn form_field_lookups() -> util.DerivedFormLookups(FormField, Form) {
   )
 }
 
-fn example_lustre_html_form_for_form(
+pub fn example_lustre_html_form_for_form(
   submit_msg submit_msg: fn(List(#(String, String))) -> msg,
   form form: form.Form(Form),
   lookup lookup: util.DerivedFormLookups(FormField, Form),
-) -> Element(msg) {
+) -> element.Element(msg) {
   let input = fn(field, label_str) {
     let input =
       f.input(field:, overrides: f.label(label_str), err: None, lookup:, form:)

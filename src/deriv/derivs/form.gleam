@@ -7,7 +7,7 @@ import gleam/dict.{type Dict}
 import gleam/list
 import gleam/result
 import gleam/string
-import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type Span, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, Span, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Private, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, BinaryOperator, Pipe, FnCapture}
+import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type Span, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, Span, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, BinaryOperator, Pipe, FnCapture}
 import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/common
 
@@ -839,13 +839,13 @@ fn example_lustre_html_form_func(
       ])
     })
 
-  Function(x, example_func_name, Private,
+  Function(x, example_func_name, Public,
     [
       FunctionParameter(Some("submit_msg"), Named("submit_msg"), Some(FunctionType(x, [NamedType(x, "List", None, [TupleType(x, [NamedType(x, "String", None, []), NamedType(x, "String", None, [])])])], VariableType(x, "msg")))),
       FunctionParameter(Some("form"), Named("form"), Some(NamedType(x, "Form", Some("form"), [NamedType(x, form_type_name, None, [])]))),
       FunctionParameter(Some("lookup"), Named("lookup"), Some(NamedType(x, "DerivedFormLookups", Some("util"), [NamedType(x, form_field_type_name, None, []), NamedType(x, form_type_name, None, [])]))),
     ],
-    Some(NamedType(x, "Element", None, [VariableType(x, "msg")])),
+    Some(NamedType(x, "Element", Some("element"), [VariableType(x, "msg")])),
     [
       // STATIC `input` HELPER FUNC
       Assignment(x, Let, PatternVariable(x, "input"), None, Fn(x, [FnParameter(Named("field"), None), FnParameter(Named("label_str"), None)], None, [Assignment(x, Let, PatternVariable(x, "input"), None, Call(x, FieldAccess(x, Variable(x, "f"), "input"), [ShorthandField("field"), LabelledField("overrides", Call(x, FieldAccess(x, Variable(x, "f"), "label"), [UnlabelledField(Variable(x, "label_str"))])), LabelledField("err", Variable(x, "None")), ShorthandField("lookup"), ShorthandField("form")])), Assignment(x, Let, PatternVariable(x, "errs"), None, Call(x, FieldAccess(x, Variable(x, "html"), "ul"), [UnlabelledField(List(x, [], None)), UnlabelledField(Call(x, FieldAccess(x, Variable(x, "list"), "map"), [UnlabelledField(FieldAccess(x, FieldAccess(x, Variable(x, "input"), "field"), "errs")), UnlabelledField(Fn(x, [FnParameter(Named("err"), None)], None, [Expression(Call(x, FieldAccess(x, Variable(x, "html"), "li"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "html"), "text"), [UnlabelledField(Variable(x, "err"))])], None))]))]))]))])), Expression(Call(x, FieldAccess(x, Variable(x, "html"), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "input"), "render"), [UnlabelledField(Call(x, FieldAccess(x, Variable(x, "f"), "InputParams"), [LabelledField("class", Variable(x, "None"))]))]), Variable(x, "errs")], None))]))])),
