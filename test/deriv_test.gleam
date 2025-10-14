@@ -11,15 +11,36 @@ import deriv/common
 import gleam/io
 import glance
 
-pub fn glance_print(file_path: String) -> Nil {
+pub fn glance_read(file_path: String) -> glance.Module {
   let assert Ok(src) = simplifile.read(file_path)
   let assert Ok(module) = glance.module(src)
-
   module
+}
+
+pub fn glance_print(file_path: String) -> Nil {
+  file_path
+  |> glance_read
   |> string.inspect
   |> io.println
+}
 
-  Nil
+pub fn glance_read_and_write(
+  from input: String,
+  to output: String,
+) -> Nil {
+  input
+  |> glance_read
+  |> string.inspect
+  |> simplifile.write(to: output, contents: _)
+  |> fn(r) { case r {
+    Error(err) -> {
+      panic as string.inspect(err)
+    }
+
+    Ok(_) -> {
+      Nil
+    }
+  } }
 }
 
 fn should_derive(
