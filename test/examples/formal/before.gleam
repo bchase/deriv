@@ -1,3 +1,4 @@
+import birl
 import deriv/util
 import formal/form
 import gleam/option.{type Option}
@@ -50,6 +51,7 @@ pub type Form {
     //$ form parse_time
     date_time: #(calendar.Date, calendar.TimeOfDay),
     //$ form parse_date_time
+    birl_time: birl.Time,
     //
     email_confirm: String,
     //$ form parse_email

@@ -10,16 +10,11 @@ import gleam/string
 import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type Span, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, Span, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, BinaryOperator, Pipe, FnCapture}
 import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/common
+import birl
 
 // TODO
 //   - `CustomCheck`
 // IMPROVE
-//   - support `parse_date_time` (breaks on non-`glance.NamedType`)
-    // use date_time <- form.field("date_time", {
-    //   form.parse_date_time
-    // })
-    //date_time: #(calendar.Date, calendar.TimeOfDay),
-    ////$ form parse_date_time
 //   - support nested forms (see `formal/scratch.gleam`; would need to parse nested opts)
 //   - support `Dict`?
 
@@ -213,16 +208,20 @@ fn parser_expr(
       FieldAccess(x, Variable(x, "form"), "parse_url")
     }
 
-    DateParser -> {
+    FormalDateParser -> {
       FieldAccess(x, Variable(x, "form"), "parse_date")
     }
 
-    DateTimeParser -> {
+    FormalDateTimeParser -> {
       FieldAccess(x, Variable(x, "form"), "parse_date_time")
     }
 
-    TimeParser -> {
+    FormalTimeParser -> {
       FieldAccess(x, Variable(x, "form"), "parse_time")
+    }
+
+    BirlTimeParser(parser: BirlParseISO8601) -> {
+      Call(x, FieldAccess(x, Variable(x, "util"), "birl_time_iso8601_parser"), [])
     }
 
     CustomParser(func_name:, type_: _) -> {
@@ -291,7 +290,7 @@ fn build_form_fields_(
       FormField(
         name:,
         prefix:,
-        parser: DateTimeParser,
+        parser: FormalDateTimeParser,
         checks: opt.checks,
         type_:,
       )
@@ -510,10 +509,10 @@ fn parser_for(
       UriParser
 
     "parse_date", "Date", [] ->
-      DateParser
+      FormalDateParser
 
     "parse_time", "TimeOfDay", [] ->
-      TimeParser
+      FormalTimeParser
 
     "parse_date_time", _, _ -> {
       panic as { "`deriv` Usage of `formal/form.parse_date_time` not yet implemented" }
@@ -598,11 +597,15 @@ fn to_parser(
     }
 
     None, glance.NamedType(name: "Date", parameters: [], ..) -> {
-      DateParser
+      FormalDateParser
     }
 
     None, glance.NamedType(name: "TimeOfDay", parameters: [], ..) -> {
-      TimeParser
+      FormalTimeParser
+    }
+
+    None, glance.NamedType(name: "Time", parameters: [], ..) -> {
+      BirlTimeParser(parser: BirlParseISO8601)
     }
 
     None, glance.NamedType(name:, ..) -> {
@@ -633,7 +636,7 @@ fn to_parser(
       glance.NamedType(name: "Date", parameters: [], ..),
       glance.NamedType(name: "TimeOfDay", parameters: [], ..),
     ], ..) -> {
-      DateTimeParser
+      FormalDateTimeParser
     }
 
     Some(override), glance.TupleType(elements: [
@@ -646,7 +649,7 @@ fn to_parser(
         }
 
         ParserOverrideFormal(func_name: "parse_date_time") -> {
-          DateTimeParser
+          FormalDateTimeParser
         }
 
         ParserOverrideFormal(..) -> {
@@ -688,14 +691,19 @@ type Parser {
   //
   UriParser // `parse_url` -> `uri.Uri`
   //
-  DateParser // `parse_date` -> `calendar.Date`
-  DateTimeParser // `parse_date_time` -> `calendar.TimeOfDay`
-  TimeParser // `parse_time` -> `calendar.TimeOfDay`
+  FormalDateParser // `parse_date` -> `calendar.Date`
+  FormalDateTimeParser // `parse_date_time` -> `calendar.TimeOfDay`
+  FormalTimeParser // `parse_time` -> `calendar.TimeOfDay`
+  BirlTimeParser(parser: BirlTimeParser)
   //
   CustomParser(
     func_name: String,
     type_: glance.Type,
   )
+}
+
+type BirlTimeParser {
+  BirlParseISO8601
 }
 
 type Check {

@@ -1,3 +1,4 @@
+import gleam/pair
 import gleam/list
 import formal/form
 import gleam/result
@@ -7,8 +8,10 @@ import gleam/string
 import gleam/json.{type Json}
 import gleam/dynamic/decode.{type Decoder}
 import youid/uuid.{type Uuid}
-import birl.{type Time}
+import birl
 import deriv/common
+
+pub type Time = birl.Time
 
 pub type DerivedFormLookups(field, form) {
   DerivedFormLookups(
@@ -237,10 +240,54 @@ pub fn formal_scalar_parser(
   |> form.parse
 }
 
-//
+// re-exports
 
 pub fn inspect(x: a) -> String {
   string.inspect(x)
+}
+
+// form birl
+
+pub fn birl_time_iso8601_parser() -> form.Parser(birl.Time) {
+  birl_time_parser(parse: fn(str) {
+    str
+    |> birl.parse
+    |> result.replace_error("Invalid ISO8601 date/time")
+  })
+}
+
+fn birl_time_parser(
+  parse parse: fn(String) -> Result(birl.Time, String),
+) -> form.Parser(birl.Time) {
+  form.parse(fn(strs) {
+    strs
+    |> fn(strs) {
+      case strs {
+        [str] -> {
+          Ok(str)
+        }
+
+        [_, ..] -> {
+          Error(#(zero_birl_time(), "Expected a single ISO8601 but got multiple"))
+        }
+
+        [] -> {
+          Error(#(zero_birl_time(), "Didn't find an ISO8601 date/time"))
+        }
+      }
+    }
+    |> result.try(fn(str) {
+      str
+      |> parse
+      |> result.map_error(pair.new(zero_birl_time(), _))
+      // |> birl.parse
+      // |> result.replace_error(#(birl.from_unix(0), "Invalid ISO8601 date/time"))
+    })
+  })
+}
+
+fn zero_birl_time() -> birl.Time {
+  birl.from_unix(0)
 }
 
 // `derive form` static lookup funcs

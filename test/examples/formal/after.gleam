@@ -1,3 +1,4 @@
+import birl
 import deriv/util
 import formal/form
 import gleam/option.{type Option}
@@ -51,6 +52,7 @@ pub type Form {
     //$ form parse_time
     date_time: #(calendar.Date, calendar.TimeOfDay),
     //$ form parse_date_time
+    birl_time: birl.Time,
     //
     email_confirm: String,
     //$ form parse_email
@@ -166,6 +168,7 @@ pub fn form_form() -> form.Form(Form) {
     use date <- form.field("date", { form.parse_date })
     use time <- form.field("time", { form.parse_time })
     use date_time <- form.field("date_time", { form.parse_date_time })
+    use birl_time <- form.field("birl_time", { util.birl_time_iso8601_parser() })
     use email_confirm <- form.field("email_confirm", {
       form.parse_email |> form.check_confirms(email)
     })
@@ -219,6 +222,7 @@ pub fn form_form() -> form.Form(Form) {
       date:,
       time:,
       date_time:,
+      birl_time:,
       email_confirm:,
       bool_accepted:,
       float_check_less:,
