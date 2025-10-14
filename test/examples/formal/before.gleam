@@ -48,6 +48,8 @@ pub type Form {
     //$ form parse_date
     time: calendar.TimeOfDay,
     //$ form parse_time
+    date_time: #(calendar.Date, calendar.TimeOfDay),
+    //$ form parse_date_time
     //
     email_confirm: String,
     //$ form parse_email

@@ -284,6 +284,20 @@ fn build_form_fields_(
       |> list.wrap
     }
 
+    glance.TupleType(elements: [
+      glance.NamedType(name: "Date", parameters: [], ..),
+      glance.NamedType(name: "TimeOfDay", parameters: [], ..),
+    ], ..) -> {
+      FormField(
+        name:,
+        prefix:,
+        parser: DateTimeParser,
+        checks: opt.checks,
+        type_:,
+      )
+      |> list.wrap
+    }
+
     glance.TupleType(..) |
     glance.FunctionType(..) |
     glance.VariableType(..) |
@@ -477,6 +491,49 @@ fn panic_parsing(
   panic as { "`deriv`'s `" <> opt_name <> "` expected a `" <> type_ <> "`, but got: `" <> string.inspect(str) <> "`" }
 }
 
+fn parser_for(
+  formal_func_name func_name: String,
+  type_name type_name: String,
+  params params: List(glance.Type),
+) -> Parser {
+  case func_name, type_name, params {
+    "parse_email", "String", [] ->
+      EmailParser
+
+    "parse_phone_number", "String", [] ->
+      PhoneNumberParser
+
+    "parse_colour", "String", [] ->
+      ColourParser
+
+    "parse_url", "Uri", [] ->
+      UriParser
+
+    "parse_date", "Date", [] ->
+      DateParser
+
+    "parse_time", "TimeOfDay", [] ->
+      TimeParser
+
+    "parse_date_time", _, _ -> {
+      panic as { "`deriv` Usage of `formal/form.parse_date_time` not yet implemented" }
+    }
+
+    "parse_email", _, _ |
+    "parse_phone_number", _, _ |
+    "parse_colour", _, _ |
+    "parse_url", _, _ |
+    "parse_date", _, _ |
+    "parse_time", _, _ -> {
+      panic as { "`deriv` Type mismatch using `formal/form.`" <> func_name <> " with type: " <> type_name }
+    }
+
+    _, _, _ -> {
+      panic as { "`deriv` Unknown `formal/form` func override: " <> func_name }
+    }
+  }
+}
+
 fn to_parser(
   type_ type_: glance.Type,
   opt opt: FormFieldOpt,
@@ -486,43 +543,8 @@ fn to_parser(
   case opt.parser_override, type_ {
     // OVERRIDES
 
-    Some(ParserOverrideFormal(func_name:)), glance.NamedType(name: type_name, parameters: params, ..) -> {
-      case func_name, type_name, params {
-        "parse_email", "String", [] ->
-          EmailParser
-
-        "parse_phone_number", "String", [] ->
-          PhoneNumberParser
-
-        "parse_colour", "String", [] ->
-          ColourParser
-
-        "parse_url", "Uri", [] ->
-          UriParser
-
-        "parse_date", "Date", [] ->
-          DateParser
-
-        "parse_time", "TimeOfDay", [] ->
-          TimeParser
-
-        "parse_date_time", _, _ -> {
-          panic as { "`deriv` Usage of `formal/form.parse_date_time` not yet implemented" }
-        }
-
-        "parse_email", _, _ |
-        "parse_phone_number", _, _ |
-        "parse_colour", _, _ |
-        "parse_url", _, _ |
-        "parse_date", _, _ |
-        "parse_time", _, _ -> {
-          panic as { "`deriv` Type mismatch using `formal/form.`" <> func_name <> " with type: " <> string.inspect(type_) }
-        }
-
-        _, _, _ -> {
-          panic as { "`deriv` Unknown `formal/form` func override: " <> func_name }
-        }
-      }
+    Some(ParserOverrideFormal(func_name: formal_func_name)), glance.NamedType(name: type_name, parameters: params, ..) -> {
+      parser_for(formal_func_name:, type_name:, params:)
     }
 
     Some(ParserOverrideInner(func_name:)), glance.NamedType(name: "Option", parameters: [_param_type], ..) -> {
@@ -601,6 +623,38 @@ fn to_parser(
 
         Ok(#(_module, glance.Definition(definition: glance.CustomType(name: _name, variants: [_variant], ..) as nested_type, ..))) -> {
           panic as { "`derive form` will eventually treat non-standard types as nested forms, but this is not yet implemented. This was triggered by usage of: " <> string.inspect(nested_type) }
+        }
+      }
+    }
+
+    // DATE TIME PARSERS
+
+    None, glance.TupleType(elements: [
+      glance.NamedType(name: "Date", parameters: [], ..),
+      glance.NamedType(name: "TimeOfDay", parameters: [], ..),
+    ], ..) -> {
+      DateTimeParser
+    }
+
+    Some(override), glance.TupleType(elements: [
+      glance.NamedType(name: "Date", parameters: [], ..),
+      glance.NamedType(name: "TimeOfDay", parameters: [], ..),
+    ], ..) -> {
+      case override {
+        ParserOverride(func_name:) -> {
+          CustomParser(func_name:, type_:)
+        }
+
+        ParserOverrideFormal(func_name: "parse_date_time") -> {
+          DateTimeParser
+        }
+
+        ParserOverrideFormal(..) -> {
+          panic as { "`derive form` `formal/form.parse_date_time` is the only parser that works for: " <> string.inspect(type_) }
+        }
+
+        ParserOverrideInner(..) -> {
+          panic as { "`derive form`'s `parser inner` doesn't make sense for: " <> string.inspect(type_) }
         }
       }
     }

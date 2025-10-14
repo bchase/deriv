@@ -49,6 +49,8 @@ pub type Form {
     //$ form parse_date
     time: calendar.TimeOfDay,
     //$ form parse_time
+    date_time: #(calendar.Date, calendar.TimeOfDay),
+    //$ form parse_date_time
     //
     email_confirm: String,
     //$ form parse_email
@@ -163,6 +165,7 @@ pub fn form_form() -> form.Form(Form) {
     use uri <- form.field("uri", { form.parse_url })
     use date <- form.field("date", { form.parse_date })
     use time <- form.field("time", { form.parse_time })
+    use date_time <- form.field("date_time", { form.parse_date_time })
     use email_confirm <- form.field("email_confirm", {
       form.parse_email |> form.check_confirms(email)
     })
@@ -215,6 +218,7 @@ pub fn form_form() -> form.Form(Form) {
       uri:,
       date:,
       time:,
+      date_time:,
       email_confirm:,
       bool_accepted:,
       float_check_less:,
