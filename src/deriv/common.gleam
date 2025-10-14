@@ -168,6 +168,12 @@ pub fn func_str(func: Definition(Function)) -> String {
   |> gleam_format
 }
 
+pub fn type_str(type_: Definition(CustomType)) -> String {
+  Module([], [type_], [], [], [])
+  |> glance_printer.print
+  |> gleam_format
+}
+
 pub fn gleam_format(src: String) -> String {
   let escaped_src =
     src

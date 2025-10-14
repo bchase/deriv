@@ -300,14 +300,19 @@ pub fn build_same_file_writes(xs: List(Gen)) -> List(Write) {
       |> list.flat_map(fn(gen) { gen.funcs })
       |> list.map(fn(func) { #(common.func_name(func), common.func_str(func)) })
 
+    let types =
+      gens
+      |> list.flat_map(fn(gen) { gen.types })
+      |> list.map(fn(type_) { #(type_.definition.name, common.type_str(type_)) })
+
     let module_imports: List(Import) = build_module_imports(gens, output)
     let deriv_imports: List(Import) = list.flat_map(gens, fn(gen) { gen.imports })
     let all_imports: List(Import) = [module_imports, deriv_imports] |> list.flatten
 
-    let func_src_with_imports = common.update_funcs(orig_src, funcs)
-
     let output_src =
-      func_src_with_imports
+      orig_src
+      |> common.update_types(types)
+      |> common.update_funcs(funcs)
       |> consolidate_imports_for(all_imports)
       |> string.trim
 

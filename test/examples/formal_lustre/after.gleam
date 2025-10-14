@@ -18,15 +18,15 @@ pub type Form {
   )
 }
 
+pub type FormField {
+  FormStr
+}
+
 pub fn form_form() -> form.Form(Form) {
   form.new({
     use str <- form.field("str", { form.parse_string })
     form.success(Form(str:))
   })
-}
-
-pub type FormField {
-  FormStr
 }
 
 pub fn form_field_lookups() -> util.DerivedFormLookups(FormField, Form) {

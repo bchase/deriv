@@ -42,7 +42,7 @@ pub fn gen(
         |> list.map(common.func_str)
         |> string.join("\n\n")
 
-      Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
+      Gen(file:, deriv:, imports:, funcs:, types: [], src:, meta: dict.new())
     }
   }
 }

@@ -59,6 +59,7 @@ pub type Gen {
     file: File,
     deriv: Derivation,
     imports: List(Import),
+    types: List(Definition(glance.CustomType)),
     funcs: List(Definition(glance.Function)),
     src: String,
     meta: Dict(String, String),
