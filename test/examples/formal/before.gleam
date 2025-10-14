@@ -90,7 +90,7 @@ pub type Dir {
 }
 
 fn custom_parse_int() -> form.Parser(Int) {
-  todo
+  util.formal_scalar_parser(type_display: "integer", zero: 0, parse: int.parse)
 }
 fn custom_parse_int_option() -> form.Parser(Option(Int)) {
   todo
