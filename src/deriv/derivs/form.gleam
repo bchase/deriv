@@ -915,13 +915,19 @@ fn field_variant_name(
   type_.name <> common.pascal_case(field.name)
 }
 
+fn form_field_type_name(
+  type_ type_: CustomType,
+) -> String {
+  type_.name <> "Field"
+}
+
 fn form_field_type(
   type_ type_: CustomType,
   fields fields: List(FormField),
 ) -> Definition(CustomType) {
   let x = common.dummy_location()
 
-  let field_type_name = "FormField"
+  let field_type_name = form_field_type_name(type_:)
 
   let variants =
     fields
@@ -1084,7 +1090,7 @@ fn form_field_lookups_func(
   let gleam_type_module = "util"
 
   let form_type_name = type_.name
-  let form_field_type_name = type_.name <> "Field"
+  let form_field_type_name = form_field_type_name(type_:)
 
   let lookups_func_name = lookups_func_name(type_:)
 
