@@ -17,8 +17,13 @@ pub opaque type InputOverrides {
   )
 }
 
+pub fn no_overrides() -> InputOverrides {
+  zero_overrides()
+}
+
 fn zero_overrides() -> InputOverrides {
   InputOverrides(
+    // todo rm from input overrides, as it's separate from `<input>`
     label: None,
     placeholder: None,
     required: False,
