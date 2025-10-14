@@ -11,25 +11,9 @@ import glance.{type Expression, type CustomType, type Definition, type Function,
 import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/common
 
-
-// form.Lookups(
-//   name_to_field:, // need this
-//   field_to_name:, // need this
-//   field_to_type:, // need this
-//
-//   field_to_id:, // just `string.inspect` `FooField` variant
-//
-//   field_is_required:, // RELY ON `formal`
-//   field_to_label:, // GEN AS USER?
-// )
-
 // TODO
 //   - `CustomCheck`
 // IMPROVE
-//   - intuit below
-    // UriParser // `parse_url` -> `uri.Uri`
-    // DateParser // `parse_date` -> `calendar.Date`
-    // TimeParser // `parse_time` -> `calendar.TimeOfDay`
 //   - support `parse_date_time` (breaks on non-`glance.NamedType`)
     // use date_time <- form.field("date_time", {
     //   form.parse_date_time
@@ -585,6 +569,18 @@ fn to_parser(
       param_type
       |> to_parser(opt:, module:, read_module:,)
       |> ListParser
+    }
+
+    None, glance.NamedType(name: "Uri", parameters: [], ..) -> {
+      UriParser
+    }
+
+    None, glance.NamedType(name: "Date", parameters: [], ..) -> {
+      DateParser
+    }
+
+    None, glance.NamedType(name: "TimeOfDay", parameters: [], ..) -> {
+      TimeParser
     }
 
     None, glance.NamedType(name:, ..) -> {
