@@ -707,6 +707,9 @@ fn zero_form_field_opt() -> FormFieldOpt {
   )
 }
 
+// derive form                -- form parser
+// derive form lookups        -- form parser, plus field type & lookups
+// derive form lookups lustre -- form parser, plus field type & lookups, plus lustre html example func
 pub fn gen(
   t: deriv.Type,
   deriv: Derivation,
@@ -723,7 +726,7 @@ pub fn gen(
 
     deriv.Type(type_:) -> {
       let module = file.module
-      let imports = gen_imports(type_)
+      let imports = gen_imports(type_, deriv)
       let fields = build_form_fields(type_:, opts:, module:, read_module: module_reader)
 
       let funcs =
@@ -733,9 +736,20 @@ pub fn gen(
         )
         |> list.wrap
 
-      let #(types, lustre_funcs) =
-        case deriv.opts {
-          ["lustre", ..] -> {
+      let _checked_deriv_opts =
+        case deriv.opts |> list.contains("lustre"), deriv.opts |> list.contains("lookups") {
+          True, False -> {
+            panic as "`derive form` requires the opt `lookups` if using the `lustre` opt"
+          }
+
+          _, _ -> {
+            Nil
+          }
+        }
+
+      let #(types, lookups_funcs) =
+        case deriv.opts |> list.contains("lookups") {
+          True -> {
             let types = [
               form_field_type(type_:, fields:),
             ]
@@ -747,14 +761,14 @@ pub fn gen(
             #(types, funcs)
           }
 
-          _ -> {
+          False -> {
             #([], [])
           }
         }
 
       let lustre_example_funcs =
         case deriv.opts {
-          ["lustre", "example"] -> {
+          ["lookups", "lustre"] | ["lustre", "lookups"] -> {
             [
               example_lustre_html_form_func(type_:, fields:),
             ]
@@ -767,7 +781,7 @@ pub fn gen(
 
       let funcs =
         funcs
-        |> list.append(lustre_funcs)
+        |> list.append(lookups_funcs)
         |> list.append(lustre_example_funcs)
 
       let src = ""
@@ -782,9 +796,57 @@ pub fn gen(
 
 fn gen_imports(
   _type_: CustomType,
+  deriv: Derivation,
 ) -> List(Import) {
+// import formal/form -- FORM
+
+// import deriv/util -- LOOKUPS EXAMPLE
+
+// import deriv/lustre as f -- EXAMPLE
+// import gleam/list -- EXAMPLE
+// import gleam/option.{None} -- EXAMPLE
+// import gleam/string -- EXAMPLE
+
+// import lustre/element
+// import lustre/element/html
+// import lustre/event
+  let lookups_imports =
+    case deriv.opts {
+      ["lookups", ..] -> lookups_imports()
+      _ -> []
+    }
+
+  let example_imports =
+    case deriv.opts {
+      ["lookups", "lustre"] -> example_imports()
+      _ -> []
+    }
+
+  base_imports()
+  |> list.append(lookups_imports)
+  |> list.append(example_imports)
+}
+
+fn base_imports() -> List(Import) {
   [
     common.import_("formal/form"),
+  ]
+}
+
+fn lookups_imports() -> List(Import) {
+  [
+    common.import_("deriv/util"),
+  ]
+}
+
+fn example_imports() -> List(Import) {
+  [
+    common.import__("deriv/lustre", as_: Some("f"), types: [], values: []),
+    common.import_("gleam/list"),
+    common.import__("gleam/option", as_: None, types: [], values: ["None"]),
+    common.import_("lustre/element"),
+    common.import_("lustre/element/html"),
+    common.import_("lustre/event"),
   ]
 }
 
@@ -825,7 +887,8 @@ fn example_lustre_html_form_func(
     "example_lustre_html_form_for_" <> common.snake_case(type_.name)
 
   let form_type_name = type_.name
-  let form_field_type_name = form_type_name <> "Field"
+
+  let lookups_func_name = lookups_func_name(type_:)
 
   let inputs =
     fields
@@ -843,12 +906,11 @@ fn example_lustre_html_form_func(
     [
       FunctionParameter(Some("submit_msg"), Named("submit_msg"), Some(FunctionType(x, [NamedType(x, "List", None, [TupleType(x, [NamedType(x, "String", None, []), NamedType(x, "String", None, [])])])], VariableType(x, "msg")))),
       FunctionParameter(Some("form"), Named("form"), Some(NamedType(x, "Form", Some("form"), [NamedType(x, form_type_name, None, [])]))),
-      FunctionParameter(Some("lookup"), Named("lookup"), Some(NamedType(x, "DerivedFormLookups", Some("util"), [NamedType(x, form_field_type_name, None, []), NamedType(x, form_type_name, None, [])]))),
     ],
     Some(NamedType(x, "Element", Some("element"), [VariableType(x, "msg")])),
     [
       // STATIC `input` HELPER FUNC
-      Assignment(x, Let, PatternVariable(x, "input"), None, Fn(x, [FnParameter(Named("field"), None), FnParameter(Named("label_str"), None)], None, [Assignment(x, Let, PatternVariable(x, "input"), None, Call(x, FieldAccess(x, Variable(x, "f"), "input"), [ShorthandField("field"), LabelledField("overrides", Call(x, FieldAccess(x, Variable(x, "f"), "label"), [UnlabelledField(Variable(x, "label_str"))])), LabelledField("err", Variable(x, "None")), ShorthandField("lookup"), ShorthandField("form")])), Assignment(x, Let, PatternVariable(x, "errs"), None, Call(x, FieldAccess(x, Variable(x, "html"), "ul"), [UnlabelledField(List(x, [], None)), UnlabelledField(Call(x, FieldAccess(x, Variable(x, "list"), "map"), [UnlabelledField(FieldAccess(x, FieldAccess(x, Variable(x, "input"), "field"), "errs")), UnlabelledField(Fn(x, [FnParameter(Named("err"), None)], None, [Expression(Call(x, FieldAccess(x, Variable(x, "html"), "li"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "html"), "text"), [UnlabelledField(Variable(x, "err"))])], None))]))]))]))])), Expression(Call(x, FieldAccess(x, Variable(x, "html"), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "input"), "render"), [UnlabelledField(Call(x, FieldAccess(x, Variable(x, "f"), "InputParams"), [LabelledField("class", Variable(x, "None"))]))]), Variable(x, "errs")], None))]))])),
+      Assignment(x, Let, PatternVariable(x, "input"), None, Fn(x, [FnParameter(Named("field"), None), FnParameter(Named("label_str"), None)], None, [Assignment(x, Let, PatternVariable(x, "input"), None, Call(x, FieldAccess(x, Variable(x, "f"), "input"), [ShorthandField("field"), LabelledField("overrides", Call(x, FieldAccess(x, Variable(x, "f"), "label"), [UnlabelledField(Variable(x, "label_str"))])), LabelledField("err", Variable(x, "None")), LabelledField("lookup", Call(x, Variable(x, lookups_func_name), [])), ShorthandField("form")])), Assignment(x, Let, PatternVariable(x, "errs"), None, Call(x, FieldAccess(x, Variable(x, "html"), "ul"), [UnlabelledField(List(x, [], None)), UnlabelledField(Call(x, FieldAccess(x, Variable(x, "list"), "map"), [UnlabelledField(FieldAccess(x, FieldAccess(x, Variable(x, "input"), "field"), "errs")), UnlabelledField(Fn(x, [FnParameter(Named("err"), None)], None, [Expression(Call(x, FieldAccess(x, Variable(x, "html"), "li"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "html"), "text"), [UnlabelledField(Variable(x, "err"))])], None))]))]))]))])), Expression(Call(x, FieldAccess(x, Variable(x, "html"), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "input"), "render"), [UnlabelledField(Call(x, FieldAccess(x, Variable(x, "f"), "InputParams"), [LabelledField("class", Variable(x, "None"))]))]), Variable(x, "errs")], None))]))])),
 
       // LUSTRE `html.form`
       Expression(
@@ -951,6 +1013,12 @@ fn lookup_field(
   )
 }
 
+fn lookups_func_name(
+  type_ type_: CustomType,
+) -> String {
+  common.snake_case(type_.name) <> "_field_lookups"
+}
+
 fn form_field_lookups_func(
   type_ type_: CustomType,
   fields fields: List(FormField),
@@ -958,6 +1026,8 @@ fn form_field_lookups_func(
   let x = common.dummy_location()
 
   let gleam_type_module = "util"
+
+  let lookups_func_name = lookups_func_name(type_:)
 
   let fields = fields |> list.map(lookup_field(field: _, type_:))
 
@@ -994,11 +1064,11 @@ fn form_field_lookups_func(
       ShorthandField("name_to_field"),
       ShorthandField("field_to_name"),
       ShorthandField("field_to_type"),
-      LabelledField("field_to_dom_id", FieldAccess(x, Variable(x, "string"), "inspect")),
+      LabelledField("field_to_dom_id", FieldAccess(x, Variable(x, "util"), "inspect")),
       LabelledField("field_to_default_label", FnCapture(x, None, FieldAccess(x, Variable(x, "util"), "field_to_default_label"), [], [ShorthandField("field_to_name")]))
     ]))
 
-  Function(x, "form_field_lookups", Public, [],
+  Function(x, lookups_func_name, Public, [],
     Some(NamedType(x, "DerivedFormLookups", Some("util"), [NamedType(x, "FormField", None, []), NamedType(x, "Form", None, [])])),
     [
       field_to_name,

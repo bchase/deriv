@@ -3,13 +3,12 @@ import deriv/util
 import formal/form
 import gleam/list
 import gleam/option.{None}
-import gleam/string
 import lustre/element
 import lustre/element/html
 import lustre/event
 
 pub type Form {
-  //$ derive form lustre example
+  //$ derive form lookups lustre
   Form(
     str: String,
   )
@@ -47,7 +46,7 @@ pub fn form_field_lookups() -> util.DerivedFormLookups(FormField, Form) {
     name_to_field:,
     field_to_name:,
     field_to_type:,
-    field_to_dom_id: string.inspect,
+    field_to_dom_id: util.inspect,
     field_to_default_label: util.field_to_default_label(_, field_to_name:),
   )
 }
@@ -55,11 +54,16 @@ pub fn form_field_lookups() -> util.DerivedFormLookups(FormField, Form) {
 pub fn example_lustre_html_form_for_form(
   submit_msg submit_msg: fn(List(#(String, String))) -> msg,
   form form: form.Form(Form),
-  lookup lookup: util.DerivedFormLookups(FormField, Form),
 ) -> element.Element(msg) {
   let input = fn(field, label_str) {
     let input =
-      f.input(field:, overrides: f.label(label_str), err: None, lookup:, form:)
+      f.input(
+        field:,
+        overrides: f.label(label_str),
+        err: None,
+        lookup: form_field_lookups(),
+        form:,
+      )
     let errs =
       html.ul(
         [],

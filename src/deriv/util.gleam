@@ -237,6 +237,12 @@ pub fn formal_scalar_parser(
   |> form.parse
 }
 
+//
+
+pub fn inspect(x: a) -> String {
+  string.inspect(x)
+}
+
 // `derive form` static lookup funcs
 
 pub fn field_to_default_label(

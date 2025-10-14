@@ -1,4 +1,4 @@
-import gleam/option.{None}
+import gleam/option.{type Option, None}
 import gleam/dict
 import gleam/list
 import gleam/string
@@ -352,14 +352,33 @@ pub fn are_any_fields_options(
   })
 }
 
-pub fn import_(module module: String) -> glance.Import {
+pub fn import_(
+  module module: String,
+) -> glance.Import {
+  import__(module:, as_: None, types: [], values: [])
+}
+
+pub fn import__(
+  module module: String,
+  as_ alias: Option(String),
+  types types: List(String),
+  values values: List(String),
+) -> glance.Import {
+  let alias = alias |> option.map(glance.Named)
+
   glance.Import(
     location: dummy_location(),
     module:,
-    alias: None,
-    unqualified_values: [],
-    unqualified_types: [],
+    alias:,
+    unqualified_values: values |> list.map(unq_import),
+    unqualified_types: types |> list.map(unq_import),
   )
+}
+
+fn unq_import(
+  str str: String,
+) -> glance.UnqualifiedImport {
+  glance.UnqualifiedImport(name: str, alias: None)
 }
 
 pub fn util_import() -> glance.Import {
