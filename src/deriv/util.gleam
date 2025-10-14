@@ -1,3 +1,4 @@
+import gleam/list
 import formal/form
 import gleam/result
 import gleam/int
@@ -9,7 +10,7 @@ import youid/uuid.{type Uuid}
 import birl.{type Time}
 import deriv/common
 
-pub type DerivedFormLookups(field) {
+pub type DerivedFormLookups(field, form) {
   DerivedFormLookups(
     name_to_field: fn(String) -> Result(field, Nil),
     field_to_name: fn(field) -> String,
@@ -234,4 +235,21 @@ pub fn formal_scalar_parser(
     }
   }
   |> form.parse
+}
+
+// `derive form` static lookup funcs
+
+pub fn field_to_default_label(
+  field field: field,
+  field_to_name field_to_name: fn(field) -> String,
+) -> String {
+  field
+  |> field_to_name
+  |> common.snake_case_to_label
+}
+
+pub fn field_to_dom_id(
+  field field: field,
+) -> String {
+  string.inspect(field)
 }

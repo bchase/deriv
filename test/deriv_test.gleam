@@ -121,6 +121,10 @@ pub fn formal_form_test() {
   should_derive(example_dir_name: "formal")
 }
 
+pub fn formal_lustre_form_test() {
+  should_derive(example_dir_name: "formal_lustre")
+}
+
 // TEST DERIVE ZERO
 
 pub fn zero_test() {

@@ -2,9 +2,15 @@ import deriv/util
 import formal/form
 import gleam/string
 import gleam/list
-import gleam/option.{type Option}
+import gleam/option.{type Option, Some, None}
 import gleam/time/calendar
 import gleam/uri
+//
+import deriv/lustre as f
+import lustre/element.{type Element}
+import lustre/element/html
+import lustre/attribute as attr
+import lustre/event
 
 // BASIC
 //   - override parse (inner/outer)
@@ -24,6 +30,10 @@ import gleam/uri
 // ? - derive `Dict` (not sure how to parse keys...)
 // PUNT
 //   - specify parse/check on nested fields
+//
+// LUSTRE
+//   - gen lookups                   -- //$ derive form lustre
+//   - gen example lustre form func  -- //$ derive form lustre example
 
 pub type Form {
   //$ derive form
@@ -446,9 +456,7 @@ pub type FormField {
   FormStrCheckLengthMore
 }
 
-type FormFieldLookups = util.DerivedFormLookups(FormField)
-
-pub fn form_field_lookups() -> FormFieldLookups {
+pub fn form_field_lookups() -> util.DerivedFormLookups(FormField, Form) {
   let field_to_name = fn(field) {
     case field {
       FormStr -> "str"
@@ -561,56 +569,45 @@ pub fn form_field_lookups() -> FormFieldLookups {
     }
   }
 
-  // let field_to_value = fn(f: form.Form(Form), field: FormField) -> String {
-  //   case field {
-  //     FormStr -> form.field_value(f, field_to_name(field))
-  //     FormStrOption ->
-  //     FormStrList -> todo
-  //     FormInt -> form.field_value(f, field_to_name(field))
-  //     FormIntOption -> todo
-  //     FormIntList -> todo
-  //     FormFloat -> todo
-  //     FormFloatOption -> todo
-  //     FormFloatList -> todo
-  //     FormBool -> todo
-  //     FormBoolOption -> todo
-  //     FormBoolList -> todo
-  //     FormParseInt -> todo
-  //     FormParseIntOption -> todo
-  //     FormParseIntOptionInner -> todo
-  //     FormParseIntList -> todo
-  //     FormParseIntListInner -> todo
-  //     FormEmail -> todo
-  //     FormPhoneNumber -> todo
-  //     FormColour -> todo
-  //     FormUri -> todo
-  //     FormDate -> todo
-  //     FormTime -> todo
-  //     FormEmailConfirm -> todo
-  //     FormBoolAccepted -> todo
-  //     FormFloatCheckLess -> todo
-  //     FormFloatCheckMore -> todo
-  //     FormIntCheckLess -> todo
-  //     FormIntCheckMore -> todo
-  //     FormStrCheckNotEmpty -> todo
-  //     FormStrCheckLengthLess -> todo
-  //     FormStrCheckLengthMore -> todo
-  //   }
-  // }
-
-  let field_to_default_label = fn(field) {
-    field
-    |> field_to_name
-    |> string.split("_")
-    |> list.map(string.capitalise)
-    |> string.join(" ")
-  }
-
   util.DerivedFormLookups(
     name_to_field:,
     field_to_name:,
     field_to_type:,
-    field_to_dom_id: string.inspect,
-    field_to_default_label:,
+    field_to_dom_id: util.field_to_dom_id,
+    field_to_default_label: util.field_to_default_label(_, field_to_name:),
   )
+}
+
+fn example_lustre_html_form_for_form(
+  form form: form.Form(Form),
+  submit_msg submit_msg: fn(List(#(String, String))) -> msg,
+) -> Element(msg) {
+  let input = fn(field, label_str) {
+    let f.InputRender(field:, render:) =
+      f.input(
+        field:,
+        overrides: f.label(label_str),
+        err: None,
+        lookup: form_field_lookups(),
+        form:,
+      )
+
+    html.div([], [
+      render(f.InputParams(class: None)),
+
+      html.ul([], list.map(field.errs, fn(err) {
+        html.li([], [
+          html.text(err),
+        ])
+      }))
+    ])
+  }
+
+  html.form([
+    event.on_submit(submit_msg),
+  ], [
+    input(FormStr, "Str"),
+    input(FormStrOption, "Str Option"),
+    // ...
+  ])
 }

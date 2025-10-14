@@ -379,6 +379,17 @@ pub fn dummy_location() -> glance.Span {
   glance.Span(start: -1, end: -1)
 }
 
+// FORM
+
+pub fn snake_case_to_label(
+  str str: String,
+) -> String {
+  str
+  |> string.split("_")
+  |> list.map(string.capitalise)
+  |> string.join(" ")
+}
+
 // // // CASE HELPERS // // //
 
 pub fn pascal_case(str: String) -> String {
