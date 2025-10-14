@@ -1083,6 +1083,9 @@ fn form_field_lookups_func(
 
   let gleam_type_module = "util"
 
+  let form_type_name = type_.name
+  let form_field_type_name = type_.name <> "Field"
+
   let lookups_func_name = lookups_func_name(type_:)
 
   let fields = fields |> list.map(lookup_field(field: _, type_:))
@@ -1125,7 +1128,7 @@ fn form_field_lookups_func(
     ]))
 
   Function(x, lookups_func_name, Public, [],
-    Some(NamedType(x, "DerivedFormLookups", Some("util"), [NamedType(x, "FormField", None, []), NamedType(x, "Form", None, [])])),
+    Some(NamedType(x, "DerivedFormLookups", Some("util"), [NamedType(x, form_field_type_name, None, []), NamedType(x, form_type_name, None, [])])),
     [
       field_to_name,
       name_to_field,
