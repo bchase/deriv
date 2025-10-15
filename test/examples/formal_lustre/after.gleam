@@ -3,9 +3,6 @@ import deriv/util
 import formal/form
 import gleam/list
 import gleam/option.{None}
-import lustre/element
-import lustre/element/html
-import lustre/event
 
 pub type Form {
   //$ derive form lookups lustre
@@ -54,22 +51,22 @@ pub fn form_field_lookups() -> util.DerivedFormLookups(FormField, Form) {
 pub fn example_lustre_html_form_for_form(
   submit_msg submit_msg: fn(List(#(String, String))) -> msg,
   form form: form.Form(Form),
-) -> element.Element(msg) {
+) -> f.Element(msg) {
   let input = fn(field, label_str) {
     let input =
       f.input(
         field:,
-        overrides: f.label(label_str),
+        overrides: f.placeholder(label_str),
         err: None,
         lookup: form_field_lookups(),
         form:,
       )
     let errs =
-      html.ul(
-        [],
-        list.map(input.field.errs, fn(err) { html.li([], [html.text(err)]) }),
-      )
-    html.div([], [input.render(f.InputParams(class: None)), errs])
+      f.ul([], list.map(input.field.errs, fn(err) { f.li([], [f.text(err)]) }))
+    f.div([], [
+      f.div([], [f.label([f.for(input.field.id)], [f.text(label_str)])]),
+      f.div([], [input.render(f.InputParams(class: None)), errs]),
+    ])
   }
-  html.form([event.on_submit(submit_msg)], [input(FormStr, "Str")])
+  f.form([f.on_submit(submit_msg)], [input(FormStr, "Str")])
 }

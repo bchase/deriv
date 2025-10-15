@@ -854,18 +854,6 @@ fn gen_imports(
   _type_: CustomType,
   deriv: Derivation,
 ) -> List(Import) {
-// import formal/form -- FORM
-
-// import deriv/util -- LOOKUPS EXAMPLE
-
-// import deriv/lustre as f -- EXAMPLE
-// import gleam/list -- EXAMPLE
-// import gleam/option.{None} -- EXAMPLE
-// import gleam/string -- EXAMPLE
-
-// import lustre/element
-// import lustre/element/html
-// import lustre/event
   let lookups_imports =
     case deriv.opts {
       ["lookups", ..] -> lookups_imports()
@@ -900,9 +888,10 @@ fn example_imports() -> List(Import) {
     common.import__("deriv/lustre", as_: Some("f"), types: [], values: []),
     common.import_("gleam/list"),
     common.import__("gleam/option", as_: None, types: [], values: ["None"]),
-    common.import_("lustre/element"),
-    common.import_("lustre/element/html"),
-    common.import_("lustre/event"),
+    // import lustre/element
+    // import lustre/element/html
+    // import lustre/attribute
+    // import lustre/event
   ]
 }
 
@@ -945,6 +934,12 @@ fn example_lustre_html_form_func(
 ) -> Definition(Function) {
   let x = common.dummy_location()
 
+  // `import deriv/lustre as f`
+  let element = "f" // re-exporting `lustre/element`
+  let html = "f"    // re-exporting `lustre/element/html`
+  let attr = "f"    // re-exporting `lustre/attribute`
+  let event = "f"   // re-exporting `lustre/event`
+
   let example_func_name =
     "example_lustre_html_form_for_" <> common.snake_case(type_.name)
 
@@ -969,15 +964,15 @@ fn example_lustre_html_form_func(
       FunctionParameter(Some("submit_msg"), Named("submit_msg"), Some(FunctionType(x, [NamedType(x, "List", None, [TupleType(x, [NamedType(x, "String", None, []), NamedType(x, "String", None, [])])])], VariableType(x, "msg")))),
       FunctionParameter(Some("form"), Named("form"), Some(NamedType(x, "Form", Some("form"), [NamedType(x, form_type_name, None, [])]))),
     ],
-    Some(NamedType(x, "Element", Some("element"), [VariableType(x, "msg")])),
+    Some(NamedType(x, "Element", Some(element), [VariableType(x, "msg")])),
     [
       // STATIC `input` HELPER FUNC
-      Assignment(x, Let, PatternVariable(x, "input"), None, Fn(x, [FnParameter(Named("field"), None), FnParameter(Named("label_str"), None)], None, [Assignment(x, Let, PatternVariable(x, "input"), None, Call(x, FieldAccess(x, Variable(x, "f"), "input"), [ShorthandField("field"), LabelledField("overrides", Call(x, FieldAccess(x, Variable(x, "f"), "label"), [UnlabelledField(Variable(x, "label_str"))])), LabelledField("err", Variable(x, "None")), LabelledField("lookup", Call(x, Variable(x, lookups_func_name), [])), ShorthandField("form")])), Assignment(x, Let, PatternVariable(x, "errs"), None, Call(x, FieldAccess(x, Variable(x, "html"), "ul"), [UnlabelledField(List(x, [], None)), UnlabelledField(Call(x, FieldAccess(x, Variable(x, "list"), "map"), [UnlabelledField(FieldAccess(x, FieldAccess(x, Variable(x, "input"), "field"), "errs")), UnlabelledField(Fn(x, [FnParameter(Named("err"), None)], None, [Expression(Call(x, FieldAccess(x, Variable(x, "html"), "li"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "html"), "text"), [UnlabelledField(Variable(x, "err"))])], None))]))]))]))])), Expression(Call(x, FieldAccess(x, Variable(x, "html"), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "input"), "render"), [UnlabelledField(Call(x, FieldAccess(x, Variable(x, "f"), "InputParams"), [LabelledField("class", Variable(x, "None"))]))]), Variable(x, "errs")], None))]))])),
+      Assignment(x, Let, PatternVariable(x, "input"), None, Fn(x, [FnParameter(Named("field"), None), FnParameter(Named("label_str"), None)], None, [Assignment(x, Let, PatternVariable(x, "input"), None, Call(x, FieldAccess(x, Variable(x, html), "input"), [ShorthandField("field"), LabelledField("overrides", Call(x, FieldAccess(x, Variable(x, html), "placeholder"), [UnlabelledField(Variable(x, "label_str"))])), LabelledField("err", Variable(x, "None")), LabelledField("lookup", Call(x, Variable(x, lookups_func_name), [])), ShorthandField("form")])), Assignment(x, Let, PatternVariable(x, "errs"), None, Call(x, FieldAccess(x, Variable(x, html), "ul"), [UnlabelledField(List(x, [], None)), UnlabelledField(Call(x, FieldAccess(x, Variable(x, "list"), "map"), [UnlabelledField(FieldAccess(x, FieldAccess(x, Variable(x, "input"), "field"), "errs")), UnlabelledField(Fn(x, [FnParameter(Named("err"), None)], None, [Expression(Call(x, FieldAccess(x, Variable(x, html), "li"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, html), "text"), [UnlabelledField(Variable(x, "err"))])], None))]))]))]))])), Expression(Call(x, FieldAccess(x, Variable(x, html), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, html), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, html), "label"), [UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, attr), "for"), [UnlabelledField(FieldAccess(x, FieldAccess(x, Variable(x, "input"), "field"), "id"))])], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, html), "text"), [UnlabelledField(Variable(x, "label_str"))])], None))])], None))]), Call(x, FieldAccess(x, Variable(x, html), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "input"), "render"), [UnlabelledField(Call(x, FieldAccess(x, Variable(x, html), "InputParams"), [LabelledField("class", Variable(x, "None"))]))]), Variable(x, "errs")], None))])], None))]))])),
 
       // LUSTRE `html.form`
       Expression(
-        Call(x, FieldAccess(x, Variable(x, "html"), "form"), [
-          UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "event"), "on_submit"), [UnlabelledField(Variable(x, "submit_msg"))])], None)
+        Call(x, FieldAccess(x, Variable(x, html), "form"), [
+          UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, event), "on_submit"), [UnlabelledField(Variable(x, "submit_msg"))])], None)
           ),
 
           UnlabelledField(List(x, inputs, None))
@@ -986,6 +981,7 @@ fn example_lustre_html_form_func(
   )
   |> Definition(attributes: [], definition: _)
 }
+
 
 type LookupField {
   LookupField(

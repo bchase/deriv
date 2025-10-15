@@ -3,15 +3,15 @@ import gleam/list
 import formal/form
 import gleam/option.{type Option, Some, None}
 import lustre/element/html
-import lustre/element.{type Element}
+import lustre/element
 import lustre/attribute as attr
+import lustre/event
 import deriv/util
 
 // OVERRIDES
 
 pub opaque type InputOverrides {
   InputOverrides(
-    label: Option(String),
     placeholder: Option(String),
     required: Bool,
   )
@@ -23,18 +23,9 @@ pub fn no_overrides() -> InputOverrides {
 
 fn zero_overrides() -> InputOverrides {
   InputOverrides(
-    // todo rm from input overrides, as it's separate from `<input>`
-    label: None,
     placeholder: None,
     required: False,
   )
-}
-
-pub fn label(
-  label label: String,
-) -> InputOverrides {
-  zero_overrides()
-  |> label_(label:)
 }
 
 pub fn placeholder(
@@ -49,13 +40,6 @@ pub fn required(
 ) -> InputOverrides {
   zero_overrides()
   |> required_(required:)
-}
-
-pub fn label_(
-  overrides overrides: InputOverrides,
-  label label: String,
-) -> InputOverrides {
-  InputOverrides(..overrides, label: Some(label))
 }
 
 pub fn placeholder_(
@@ -124,6 +108,7 @@ pub fn input_(
 
 pub fn input_labelled_bs(
   input input: InputRender(msg),
+  label label: String,
   wrapper_class wrapper_class: Option(String),
 ) -> Element(msg) {
   let wrapper =
@@ -173,7 +158,7 @@ pub fn input_labelled_bs(
     html.label([
       attr.for(input.field.id),
     ], [
-      html.text(input.field.label),
+      html.text(label),
     ]),
 
     wrapped_input,
@@ -205,7 +190,6 @@ pub type InputField(msg) {
     type_: util.GleamType,
     name: String,
     required: Bool,
-    label: String,
     placeholder: Option(String),
     value: String,
     errs: List(String),
@@ -224,10 +208,6 @@ fn build_input_field(
 
   let id = lookup.field_to_dom_id(field)
   let required = False
-
-  let label =
-    overrides.label
-    |> option.unwrap(lookup.field_to_default_label(field))
 
   let placeholder = overrides.placeholder
 
@@ -249,7 +229,7 @@ fn build_input_field(
       }
     }
 
-  InputField(id:, type_:, name:, required:, label:, placeholder:, value:, errs:)
+  InputField(id:, type_:, name:, required:, placeholder:, value:, errs:)
 }
 
 fn build_input_attrs(
@@ -308,3 +288,15 @@ fn gleam_type_to_input_type(t: util.GleamType) -> String {
     // util.Uuid -> "hidden"
   }
 }
+
+// lustre re-exports
+
+pub type Element(msg) = element.Element(msg)
+pub const div = html.div
+pub const form = html.form
+pub const ul = html.ul
+pub const li = html.li
+pub const label = html.li
+pub const text = html.text
+pub const for = attr.for
+pub const on_submit = event.on_submit

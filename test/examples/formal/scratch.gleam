@@ -586,7 +586,7 @@ fn example_lustre_html_form_for_form(
     let f.InputRender(field:, render:) =
       f.input(
         field:,
-        overrides: f.label(label_str),
+        overrides: f.placeholder(label_str),
         err: None,
         lookup: form_field_lookups(),
         form:,

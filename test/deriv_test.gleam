@@ -143,6 +143,7 @@ pub fn formal_form_test() {
 }
 
 pub fn formal_lustre_form_test() {
+  // glance_read_and_write(from: "test/examples/formal_lustre/after.gleam", to: "expr.gleam")
   should_derive(example_dir_name: "formal_lustre")
 }
 
