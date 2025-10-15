@@ -68,5 +68,8 @@ pub fn example_lustre_html_form_for_form(
       f.div([], [input.render(f.InputParams(class: None)), errs]),
     ])
   }
-  f.form([f.on_submit(submit_msg)], [input(FormStr, "Str")])
+  f.form([f.on_submit(submit_msg)], [
+    input(FormStr, "Str"),
+    f.p([], [f.button([f.type_("submit")], [f.text("Submit")])]),
+  ])
 }

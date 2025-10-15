@@ -975,7 +975,12 @@ fn example_lustre_html_form_func(
           UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, event), "on_submit"), [UnlabelledField(Variable(x, "submit_msg"))])], None)
           ),
 
-          UnlabelledField(List(x, inputs, None))
+          {
+            let submit =
+              Call(x, FieldAccess(x, Variable(x, "f"), "p"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "f"), "button"), [UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "f"), "type_"), [UnlabelledField(String(x, "submit"))])], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "f"), "text"), [UnlabelledField(String(x, "Submit"))])], None))])], None))])
+
+            UnlabelledField(List(x, inputs |> list.append([submit]), None))
+          },
         ])),
     ],
   )
