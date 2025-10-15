@@ -1,8 +1,6 @@
 import deriv/lustre as f
 import deriv/util
 import formal/form
-import gleam/list
-import gleam/option.{None}
 
 pub type Form {
   //$ derive form lookups lustre
@@ -57,15 +55,18 @@ pub fn example_lustre_html_form_for_form(
       f.input(
         field:,
         overrides: f.placeholder(label_str),
-        err: None,
+        err: util.none,
         lookup: form_field_lookups(),
         form:,
       )
     let errs =
-      f.ul([], list.map(input.field.errs, fn(err) { f.li([], [f.text(err)]) }))
+      f.ul(
+        [],
+        util.list_map(input.field.errs, fn(err) { f.li([], [f.text(err)]) }),
+      )
     f.div([], [
       f.div([], [f.label([f.for(input.field.id)], [f.text(label_str)])]),
-      f.div([], [input.render(f.InputParams(class: None)), errs]),
+      f.div([], [input.render(f.InputParams(class: util.none)), errs]),
     ])
   }
   f.form([f.on_submit(submit_msg)], [

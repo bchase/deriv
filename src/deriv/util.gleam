@@ -10,8 +10,18 @@ import gleam/dynamic/decode.{type Decoder}
 import youid/uuid.{type Uuid}
 import birl
 import deriv/common
+import gleam/option
+
+// stdlib re-exports
+
+pub const none = option.None
+pub const list_map = list.map
+
+// dep re-exports
 
 pub type Time = birl.Time
+
+//
 
 pub type DerivedFormLookups(field, form) {
   DerivedFormLookups(
