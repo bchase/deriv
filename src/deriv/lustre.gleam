@@ -293,12 +293,12 @@ fn gleam_type_to_input_type(t: util.GleamType) -> String {
 
 pub type Element(msg) = element.Element(msg)
 pub const div = html.div
-pub const p = html.div
-pub const button = html.div
+pub const p = html.p
+pub const button = html.button
 pub const form = html.form
 pub const ul = html.ul
 pub const li = html.li
-pub const label = html.li
+pub const label = html.label
 pub const text = html.text
 pub const for = attr.for
 pub const type_ = attr.type_
