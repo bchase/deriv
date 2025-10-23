@@ -54,7 +54,7 @@ fn build_field_overrides(
   field_opts
   |> dict.map_values(fn(field, opts) {
     opts
-    |> list.map(build_field_override(_, field, module_reader))
+    |> list.filter_map(build_field_override(_, field, module_reader))
   })
   |> dict.to_list
 }
@@ -213,7 +213,7 @@ fn build_field_override(
   field_opt: DerivFieldOpt,
   deriv_field: DerivField,
   module_reader: ModuleReader,
-) -> FromFieldOverride {
+) -> Result(FromFieldOverride, Nil) {
   case field_opt {
     DerivFieldOpt(strs: ["from", "field", ident, override]) -> {
       let #(module_name, type_) =
@@ -228,18 +228,17 @@ fn build_field_override(
 
       let field = deriv_field.field
 
-      FromFieldOverride(
+      Ok(FromFieldOverride(
         ident:,
         field:,
         override:,
         module_name:,
         type_:,
-      )
+      ))
     }
 
     _ -> {
-      common.debug(field_opt)
-      panic as "Invalid `from` `DerivFieldOpt` (printed above)"
+      Error(Nil)
     }
   }
 }
