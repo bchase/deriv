@@ -483,7 +483,7 @@ type Mapping {
 
 fn into_variant_(
   m: Mapping,
-  prefix: String,
+  // prefix: String,
 ) -> IntoFunc {
   // let Mapping(
   //   direction:,
@@ -499,12 +499,17 @@ fn into_variant_(
   // let return_type = return_type.name
   // let return_constr = return_variant.name
 
+  let into = common.snake_case(m.remote_type.name)
+  let from = common.snake_case(m.local_type.name)
+
+  let func_name = "into_" <> into <> "_from_" <> from
+
   let fields = build_fields(m)
 
   case m.direction {
     LocalToRemote -> {
       IntoFunc(
-        func_name: prefix <> common.snake_case(m.remote_type.name),
+        func_name:,
         param_type: m.local_type.name,
         param_alias: None,
         return_type: m.remote_type.name,
@@ -515,15 +520,16 @@ fn into_variant_(
     }
 
     RemoteToLocal ->
-      IntoFunc(
-        func_name: prefix <> common.snake_case(m.local_type.name),
-        param_type: m.remote_type.name,
-        param_alias: m.remote_alias,
-        return_type: m.local_type.name,
-        return_constr: m.local_variant.name,
-        return_alias: None,
-        fields:,
-      )
+      todo
+      // IntoFunc(
+      //   func_name: prefix <> common.snake_case(m.local_type.name),
+      //   param_type: m.remote_type.name,
+      //   param_alias: m.remote_alias,
+      //   return_type: m.local_type.name,
+      //   return_constr: m.local_variant.name,
+      //   return_alias: None,
+      //   fields:,
+      // )
   }
 }
 
@@ -828,7 +834,8 @@ fn into_(
           remote_type_module:,
           overrides:,
         )
-        |> into_variant_("into_")
+        // |> into_variant_("into_")
+        |> into_variant_
       })
     }
     _, -> {

@@ -9,6 +9,6 @@ pub type Bar {
   )
 }
 
-pub fn into_foo(value: Bar) -> f.Foo {
+pub fn into_foo_from_bar(value: Bar) -> f.Foo {
   f.Foo(name: value.title, count: value.count)
 }

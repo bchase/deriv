@@ -163,7 +163,10 @@ fn from_variant(
     overrides,
   )
 
-  let func_name = common.snake_case(param_type.name)
+  let from = common.snake_case(param_type.name)
+  let to = common.snake_case(return_type.name)
+
+  let func_name = "from_" <> from <> "_to_" <> to
   let param_type = param_type.name
   let return_type = return_type.name
   let return_contr = return_variant.name

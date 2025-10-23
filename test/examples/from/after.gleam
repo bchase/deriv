@@ -25,7 +25,7 @@ pub type Friend {
   )
 }
 
-pub fn authe_a(value: AutheA) -> AutheTokens {
+pub fn from_authe_a_to_authe_tokens(value: AutheA) -> AutheTokens {
   Authe(
     id: value.authe_id,
     encrypted_access_token: value.encrypted_access_token,
@@ -33,7 +33,7 @@ pub fn authe_a(value: AutheA) -> AutheTokens {
   )
 }
 
-pub fn authe_b(value: AutheB) -> AutheTokens {
+pub fn from_authe_b_to_authe_tokens(value: AutheB) -> AutheTokens {
   Authe(
     id: value.authe_id,
     encrypted_access_token: value.encrypted_access_token,
@@ -41,10 +41,10 @@ pub fn authe_b(value: AutheB) -> AutheTokens {
   )
 }
 
-pub fn person(value: Person) -> Friend {
+pub fn from_person_to_friend(value: Person) -> Friend {
   Friend(name: value.first_name)
 }
 
-pub fn pet(value: Pet) -> Friend {
+pub fn from_pet_to_friend(value: Pet) -> Friend {
   Friend(name: value.name)
 }
