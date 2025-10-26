@@ -8,5 +8,6 @@ pub type Foo {
     bool: Bool,
     float: Float,
     option_string: Option(String),
+    list_int: List(Int),
   )
 }
