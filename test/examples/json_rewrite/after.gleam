@@ -10,6 +10,7 @@ pub type Foo {
     bool: Bool,
     float: Float,
     option_string: Option(String),
+    list_int: List(Int),
   )
 }
 
@@ -27,5 +28,6 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     deriv.none,
     decode.optional(decode.string),
   )
-  decode.success(Foo(int:, string:, bool:, float:, option_string:))
+  use list_int <- decode.optional_field("list_int", [], decode.list(decode.int))
+  decode.success(Foo(int:, string:, bool:, float:, option_string:, list_int:))
 }

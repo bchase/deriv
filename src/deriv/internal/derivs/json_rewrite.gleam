@@ -499,6 +499,17 @@ fn decode_field_call(
   field field: DecodeField,
 ) -> g.Expression {
   case field.type_.name, field.type_.params {
+    "List", [T(params: [], ..) as t] -> {
+      let type_ =
+        t.name |> common.snake_case
+
+      "decode" |> dot("optional_field") |> call([
+        string(field.json),
+        list([]),
+        "decode" |> dot("list") |> call(["decode" |> dot(type_)]),
+      ])
+    }
+
     "Option", [T(params: [], ..) as t] -> {
       let type_ =
         t.name |> common.snake_case
