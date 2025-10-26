@@ -11,7 +11,7 @@ import shellout
 import tom
 import deriv/internal/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/internal/parser
-import deriv/internal/derivs/json as deriv_json
+import deriv/internal/derivs/json_rewrite as deriv_json
 import deriv/internal/derivs/from as deriv_from
 import deriv/internal/derivs/zero as deriv_zero
 import deriv/internal/derivs/into as deriv_into
