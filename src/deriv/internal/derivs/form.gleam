@@ -2,14 +2,13 @@ import deriv/util
 import gleam/int
 import gleam/float
 import gleam/option.{type Option, Some, None}
-import deriv/types
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/result
 import gleam/string
 import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type Span, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, Span, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, BinaryOperator, Pipe, FnCapture}
-import deriv/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
-import deriv/common
+import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader, DerivFieldOpt} as deriv
+import deriv/internal/common
 import birl
 
 // IMPROVE
@@ -356,13 +355,13 @@ fn build_form_field_opts(
 }
 
 fn build_form_field_opt(
-  from opts: List(types.DerivFieldOpt),
+  from opts: List(DerivFieldOpt),
   constr constr: String,
   name name: String,
 ) -> FormFieldOpt {
   opts
   |> list.fold(zero_form_field_opt(), fn(acc, opt) {
-    let types.DerivFieldOpt(strs: tokens) = opt
+    let DerivFieldOpt(strs: tokens) = opt
 
     case tokens, acc {
       // FORM PARSER

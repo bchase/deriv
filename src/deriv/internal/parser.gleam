@@ -7,7 +7,7 @@ import gleam/list
 import gleam/string
 import gleam/regexp.{Match}
 import glance.{type CustomType, type TypeAlias}
-import deriv/types.{type Derivation, Derivation, DerivField, type DerivFieldOpt, DerivFieldOpt, type DerivFieldOpts}
+import deriv/internal/types.{type Derivation, Derivation, DerivField, type DerivFieldOpt, DerivFieldOpt, type DerivFieldOpts}
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 

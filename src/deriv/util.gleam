@@ -9,7 +9,7 @@ import gleam/json.{type Json}
 import gleam/dynamic/decode.{type Decoder}
 import youid/uuid.{type Uuid}
 import birl
-import deriv/common
+import deriv/internal/common
 import gleam/option
 
 // stdlib re-exports

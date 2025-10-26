@@ -9,15 +9,15 @@ import gleam/regexp
 import simplifile
 import shellout
 import tom
-import deriv/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
-import deriv/parser
-import deriv/derivs/json as deriv_json
-import deriv/derivs/from as deriv_from
-import deriv/derivs/zero as deriv_zero
-import deriv/derivs/into as deriv_into
-import deriv/derivs/form as deriv_form
-import deriv/derivs/enum as deriv_enum
-import deriv/common
+import deriv/internal/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
+import deriv/internal/parser
+import deriv/internal/derivs/json as deriv_json
+import deriv/internal/derivs/from as deriv_from
+import deriv/internal/derivs/zero as deriv_zero
+import deriv/internal/derivs/into as deriv_into
+import deriv/internal/derivs/form as deriv_form
+import deriv/internal/derivs/enum as deriv_enum
+import deriv/internal/common
 import gleam/io
 import argv
 import glint

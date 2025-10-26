@@ -1,15 +1,15 @@
-import simplifile
+import deriv
+import deriv/internal/common
+import deriv/internal/parser
+import deriv/internal/types.{File, DerivFieldOpt, DerivField}
+import glance
 import gleam/dict
 import gleam/option.{Some}
+import gleam/string
 import gleeunit
 import gleeunit/should
-import gleam/string
-import deriv/types.{File, DerivFieldOpt, DerivField}
-import deriv/parser
-import deriv
-import deriv/common
 import gleam/io
-import glance
+import simplifile
 
 pub fn glance_read(file_path: String) -> glance.Module {
   let assert Ok(src) = simplifile.read(file_path)
