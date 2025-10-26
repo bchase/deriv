@@ -11,22 +11,51 @@ import shellout
 import tom
 import deriv/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/parser
-import deriv/json as deriv_json
-import deriv/unify as deriv_unify
-import deriv/zero as deriv_zero
-import deriv/into as deriv_into
+import deriv/derivs/json as deriv_json
+import deriv/derivs/from as deriv_from
+import deriv/derivs/zero as deriv_zero
+import deriv/derivs/into as deriv_into
+import deriv/derivs/form as deriv_form
+import deriv/derivs/enum as deriv_enum
 import deriv/common
 import gleam/io
+import argv
+import glint
 
 const all_type_gen_funcs: List(#(String, GenFunc)) =
   [
     #("json", deriv_json.gen),
-    #("unify", deriv_unify.gen),
+    #("from", deriv_from.gen),
     #("zero", deriv_zero.gen),
     #("into", deriv_into.gen),
+    #("form", deriv_form.gen),
+    #("enum", deriv_enum.gen),
   ]
 
-pub fn main() {
+pub fn main() -> Nil {
+  let args = argv.load().arguments
+
+  glint.new()
+  |> glint.as_module()
+  |> glint.add(at: [], do: code_gen_cmd())
+  |> glint.run(args)
+}
+
+fn code_gen_cmd(
+) -> glint.Command(Nil) {
+  use <- glint.command_help("Generates derivations")
+  // use own <- glint.flag(own_flag())
+  use _named_args, _args, _flags <- glint.command()
+  // let assert Ok(own) = own(flags)
+
+  exec_code_gen()
+}
+// fn own_flag() -> glint.Flag(List(String)) {
+//   glint.strings_flag("own")
+//   |> glint.flag_default([])
+//   |> glint.flag_help("Specify your own derivations: --own=module_name1,module_name2")
+// }
+fn exec_code_gen() -> Nil {
   let filepaths = find_project_src_gleam_filepaths()
 
   filepaths
@@ -37,7 +66,13 @@ pub fn main() {
 }
 
 fn find_project_src_gleam_filepaths() -> List(String) {
-  let assert Ok(output) = shellout.command(in: ".", run: "find", with: ["src", "-name", "*.gleam"], opt: [])
+  let assert Ok(output) = shellout.command(in: ".", opt: [],
+    run: "find", with: [
+      "src/",
+      "-name", "*.gleam",
+      "-exec", "grep", "-l", "derive", "{}", "+",
+    ]
+  )
 
   output
   |> string.trim
@@ -265,14 +300,19 @@ pub fn build_same_file_writes(xs: List(Gen)) -> List(Write) {
       |> list.flat_map(fn(gen) { gen.funcs })
       |> list.map(fn(func) { #(common.func_name(func), common.func_str(func)) })
 
+    let types =
+      gens
+      |> list.flat_map(fn(gen) { gen.types })
+      |> list.map(fn(type_) { #(type_.definition.name, common.type_str(type_)) })
+
     let module_imports: List(Import) = build_module_imports(gens, output)
     let deriv_imports: List(Import) = list.flat_map(gens, fn(gen) { gen.imports })
     let all_imports: List(Import) = [module_imports, deriv_imports] |> list.flatten
 
-    let func_src_with_imports = common.update_funcs(orig_src, funcs)
-
     let output_src =
-      func_src_with_imports
+      orig_src
+      |> common.update_types(types)
+      |> common.update_funcs(funcs)
       |> consolidate_imports_for(all_imports)
       |> string.trim
 

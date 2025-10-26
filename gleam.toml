@@ -11,12 +11,17 @@ glance = ">= 5.0.0 and < 6.0.0"
 gleam_regexp = ">= 1.0.0 and < 2.0.0"
 gleam_json = ">= 3.0.1 and < 4.0.0"
 youid = ">= 1.2.0 and < 2.0.0"
-tom = ">= 1.1.1 and < 2.0.0"
+tom = ">= 2.0.0 and < 3.0.0"
 # glance_printer = ">= 2.0.0 and < 3.0.0"
-glance_printer = { git = "git@github.com:bchase/glance_printer.git", ref = "upgrade-glance-5.0.0" }
+glance_printer = { git = "git@github.com:bchase/glance_printer.git", ref = "dev" }
 birl = ">= 1.8.0 and < 2.0.0"
 simplifile = ">= 2.2.0 and < 3.0.0"
 shellout = ">= 1.6.0 and < 2.0.0"
+glint = ">= 1.2.1 and < 2.0.0"
+argv = ">= 1.0.2 and < 2.0.0"
+formal = ">= 3.0.0 and < 4.0.0"
+gleam_time = ">= 1.4.0 and < 2.0.0"
+lustre = ">= 5.3.5 and < 6.0.0"
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"

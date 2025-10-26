@@ -19,7 +19,7 @@ pub fn gen(
 ) -> Gen {
   case t {
     deriv.TypeAlias(..) ->
-      panic as "`deriv.TypeAlias` unimplemented for `deriv/unify` "
+      panic as "`deriv.TypeAlias` unimplemented for `deriv/from` "
 
     deriv.Type(type_:) -> {
       let overrides = build_field_overrides(field_opts, module_reader)
@@ -29,20 +29,20 @@ pub fn gen(
       let imports = []
 
       let funcs =
-        unify(
+        from(
           type_,
           idents,
           overrides,
           module_reader,
         )
-        |> list.map(unify_func)
+        |> list.map(from_func)
 
       let src =
         funcs
         |> list.map(common.func_str)
         |> string.join("\n\n")
 
-      Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
+      Gen(file:, deriv:, imports:, funcs:, types: [], src:, meta: dict.new())
     }
   }
 }
@@ -50,17 +50,17 @@ pub fn gen(
 fn build_field_overrides(
   field_opts: DerivFieldOpts,
   module_reader: ModuleReader,
-) -> UnifyFieldOverrides {
+) -> FromFieldOverrides {
   field_opts
   |> dict.map_values(fn(field, opts) {
     opts
-    |> list.map(build_field_override(_, field, module_reader))
+    |> list.filter_map(build_field_override(_, field, module_reader))
   })
   |> dict.to_list
 }
 
-type UnifyFunc {
-  UnifyFunc(
+type FromFunc {
+  FromFunc(
     func_name: String,
     param_type: String,
     return_type: String,
@@ -93,7 +93,7 @@ fn get_param_types_and_variants(
       Error(err) -> {
         common.debug(idents)
         common.debug(err)
-        panic as "`unify` issue with the above `idents`"
+        panic as "`from` issue with the above `idents`"
       }
 
       Ok(list) ->
@@ -109,18 +109,18 @@ fn get_param_types_and_variants(
 
       _, -> {
         common.debug(type_)
-        panic as "`unify` derivation currently only supports invariant types"
+        panic as "`from` derivation currently only supports invariant types"
       }
     }
   })
 }
 
-fn unify(
+fn from(
   return_type: CustomType,
   idents: List(String),
-  overrides: UnifyFieldOverrides,
+  overrides: FromFieldOverrides,
   module_reader: ModuleReader,
-) -> List(UnifyFunc) {
+) -> List(FromFunc) {
   case return_type.variants {
     [return_variant] ->
       idents
@@ -129,7 +129,7 @@ fn unify(
         let #(param_type_def, param_variant, param_type_module) = x
         let param_type = param_type_def.definition
 
-        unify_variant(
+        from_variant(
           param_type_module,
           param_type,
           param_variant,
@@ -141,20 +141,20 @@ fn unify(
 
     _, -> {
       common.debug(return_type)
-      panic as "`unify` derivation currently only supports invariant types"
+      panic as "`from` derivation currently only supports invariant types"
     }
   }
 }
 
-fn unify_variant(
+fn from_variant(
   param_type_module: String,
   param_type: CustomType,
   param_variant: Variant,
   return_type: CustomType,
   return_variant: Variant,
-  overrides: UnifyFieldOverrides,
-) -> UnifyFunc {
-  let fields = unify_func_fields(
+  overrides: FromFieldOverrides,
+) -> FromFunc {
+  let fields = from_func_fields(
     param_type_module,
     param_type,
     param_variant,
@@ -163,12 +163,15 @@ fn unify_variant(
     overrides,
   )
 
-  let func_name = common.snake_case(param_type.name)
+  let from = common.snake_case(param_type.name)
+  let to = common.snake_case(return_type.name)
+
+  let func_name = "from_" <> from <> "_to_" <> to
   let param_type = param_type.name
   let return_type = return_type.name
   let return_contr = return_variant.name
 
-  UnifyFunc(
+  FromFunc(
     func_name:,
     param_type:,
     return_type:,
@@ -177,10 +180,10 @@ fn unify_variant(
   )
 }
 
-// fn unify_func_fields(
+// fn from_func_fields(
 //   param_variant: Variant,
 //   return_variant: Variant,
-//   overrides: UnifyFieldOverrides,
+//   overrides: FromFieldOverrides,
 // ) -> List(Field) {
 //   return_variant.fields
 //   |> list.map(fn(f1) {
@@ -197,10 +200,10 @@ type Field {
   )
 }
 
-type UnifyFieldOverrides = List(#(DerivField, List(UnifyFieldOverride)))
+type FromFieldOverrides = List(#(DerivField, List(FromFieldOverride)))
 
-type UnifyFieldOverride {
-  UnifyFieldOverride(
+type FromFieldOverride {
+  FromFieldOverride(
     ident: String,
     field: String,
     override: String,
@@ -213,9 +216,9 @@ fn build_field_override(
   field_opt: DerivFieldOpt,
   deriv_field: DerivField,
   module_reader: ModuleReader,
-) -> UnifyFieldOverride {
+) -> Result(FromFieldOverride, Nil) {
   case field_opt {
-    DerivFieldOpt(strs: ["unify", "field", ident, override]) -> {
+    DerivFieldOpt(strs: ["from", "field", ident, override]) -> {
       let #(module_name, type_) =
         case common.fetch_custom_type(ident, module_reader) {
           Error(err) -> {
@@ -228,18 +231,17 @@ fn build_field_override(
 
       let field = deriv_field.field
 
-      UnifyFieldOverride(
+      Ok(FromFieldOverride(
         ident:,
         field:,
         override:,
         module_name:,
         type_:,
-      )
+      ))
     }
 
     _ -> {
-      common.debug(field_opt)
-      panic as "Invalid `unify` `DerivFieldOpt` (printed above)"
+      Error(Nil)
     }
   }
 }
@@ -247,7 +249,7 @@ fn build_field_override(
 // fn field_overrides(
 //   ident: String,
 //   field_name: String,
-//   overrides: UnifyFieldOverrides,
+//   overrides: FromFieldOverrides,
 // ) -> Option(String) {
 //   overrides
 //   |> list.find_map(fn(x) {
@@ -259,7 +261,7 @@ fn build_field_override(
 //       True -> {
 //         list.find_map(opts, fn(opt) {
 //           case opt {
-//             UnifyFieldOverride(override:, ..) as uf -> {
+//             FromFieldOverride(override:, ..) as uf -> {
 //               case uf.ident == ident {
 //                 False -> Error(Nil)
 //                 True -> Ok(override)
@@ -280,13 +282,13 @@ fn build_ident(
   module_name <> "." <> type_.name
 }
 
-fn unify_func_fields(
+fn from_func_fields(
   param_type_module: String,
   param_type: CustomType,
   param_variant: Variant,
   return_type: CustomType,
   return_variant: Variant,
-  overrides: UnifyFieldOverrides,
+  overrides: FromFieldOverrides,
 ) -> List(Field) {
   let param_fields = fields(param_variant)
   let return_fields = fields(return_variant)
@@ -340,7 +342,7 @@ fn unify_func_fields(
         common.debug(param_type)
         common.debug(param_variant)
         common.debug(param_field)
-        panic as "`unify` param field doesn't exist"
+        panic as "`from` param field doesn't exist"
       }
 
       Ok(param_field_type) if param_field_type == result_field_type ->
@@ -355,7 +357,7 @@ fn unify_func_fields(
         common.debug(return_type)
         common.debug(return_variant)
         common.debug(return_field)
-        panic as "`unify` param & return field types don't match"
+        panic as "`from` param & return field types don't match"
       }
     }
 
@@ -383,10 +385,10 @@ fn fields(variant: Variant) -> List(#(String, String)) {
   })
 }
 
-fn unify_func(
-  uf: UnifyFunc
+fn from_func(
+  uf: FromFunc
 ) -> Definition(Function) {
-  let UnifyFunc(
+  let FromFunc(
     func_name:,
     param_type:,
     return_type:,

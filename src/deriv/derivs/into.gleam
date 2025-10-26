@@ -40,7 +40,7 @@ pub fn gen(
         |> list.map(common.func_str)
         |> string.join("\n\n")
 
-      Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
+      Gen(file:, deriv:, imports:, funcs:, types: [], src:, meta: dict.new())
     }
   }
 }
@@ -241,6 +241,7 @@ fn build_field_override(
       let #(module_name, type_) =
         case common.fetch_custom_type(ident, module_reader) {
           Error(err) -> {
+            common.debug(ident)
             common.debug(err)
             panic
           }
@@ -482,7 +483,7 @@ type Mapping {
 
 fn into_variant_(
   m: Mapping,
-  prefix: String,
+  // prefix: String,
 ) -> IntoFunc {
   // let Mapping(
   //   direction:,
@@ -498,12 +499,17 @@ fn into_variant_(
   // let return_type = return_type.name
   // let return_constr = return_variant.name
 
+  let into = common.snake_case(m.remote_type.name)
+  let from = common.snake_case(m.local_type.name)
+
+  let func_name = "into_" <> into <> "_from_" <> from
+
   let fields = build_fields(m)
 
   case m.direction {
     LocalToRemote -> {
       IntoFunc(
-        func_name: prefix <> common.snake_case(m.remote_type.name),
+        func_name:,
         param_type: m.local_type.name,
         param_alias: None,
         return_type: m.remote_type.name,
@@ -514,15 +520,16 @@ fn into_variant_(
     }
 
     RemoteToLocal ->
-      IntoFunc(
-        func_name: prefix <> common.snake_case(m.local_type.name),
-        param_type: m.remote_type.name,
-        param_alias: m.remote_alias,
-        return_type: m.local_type.name,
-        return_constr: m.local_variant.name,
-        return_alias: None,
-        fields:,
-      )
+      todo
+      // IntoFunc(
+      //   func_name: prefix <> common.snake_case(m.local_type.name),
+      //   param_type: m.remote_type.name,
+      //   param_alias: m.remote_alias,
+      //   return_type: m.local_type.name,
+      //   return_constr: m.local_variant.name,
+      //   return_alias: None,
+      //   fields:,
+      // )
   }
 }
 
@@ -590,7 +597,7 @@ fn fields_(
   let os = conv(m.overrides)
   let fs = fields(variant)
 
-  // RemoteToLocal (UNIFY) // overrides refer to remote field as return
+  // RemoteToLocal (FROM) // overrides refer to remote field as return
   // LocalToRemote (INTO)  // overrides refer to remote field as param
 
   case m.direction, role {
@@ -761,7 +768,7 @@ fn build_fields(
             common.debug(param_type)
             common.debug(param_variant)
             common.debug(param_field)
-            panic as "`unify` param field doesn't exist"
+            panic as "`into` `RemoteToLocal` -- param field doesn't exist"
           }
 
           Ok(param_field_type) if param_field_type == result_field_type ->
@@ -776,7 +783,7 @@ fn build_fields(
             common.debug(return_type)
             common.debug(return_variant)
             common.debug(return_field)
-            panic as "`unify` param & return field types don't match"
+            panic as "`into` `RemoteToLocal` -- param & return field types don't match"
           }
         }
 
@@ -827,7 +834,8 @@ fn into_(
           remote_type_module:,
           overrides:,
         )
-        |> into_variant_("into_")
+        // |> into_variant_("into_")
+        |> into_variant_
       })
     }
     _, -> {

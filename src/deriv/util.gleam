@@ -1,10 +1,50 @@
+import gleam/pair
+import gleam/list
+import formal/form
+import gleam/result
 import gleam/int
 import gleam/float
 import gleam/string
 import gleam/json.{type Json}
 import gleam/dynamic/decode.{type Decoder}
 import youid/uuid.{type Uuid}
-import birl.{type Time}
+import birl
+import deriv/common
+import gleam/option
+
+// stdlib re-exports
+
+pub const none = option.None
+pub const list_map = list.map
+
+// dep re-exports
+
+pub type Time = birl.Time
+
+//
+
+pub type DerivedFormLookups(field, form) {
+  DerivedFormLookups(
+    name_to_field: fn(String) -> Result(field, Nil),
+    field_to_name: fn(field) -> String,
+    field_to_type: fn(field) -> GleamType,
+    field_to_dom_id: fn(field) -> String,
+    field_to_default_label: fn(field) -> String,
+  )
+}
+
+pub type GleamType {
+  String
+  Int
+  Float
+  Bool
+  Option(GleamType)
+  List(GleamType)
+  //
+  Uri
+  Date
+  TimeOfDay
+}
 
 fn decoder_from_string(
   parse: fn(String) -> Result(t, err),
@@ -180,4 +220,99 @@ fn decoder_birl_int_to_time(
     |> func
     |> decode.success
   })
+}
+
+pub fn snake_case(str: String) -> String {
+  common.snake_case(str)
+}
+
+pub fn formal_scalar_parser(
+  parse parse: fn(String) -> Result(t, Nil),
+  type_display type_display: String,
+  zero zero: t,
+) -> form.Parser(t) {
+  fn(strs) {
+    case strs {
+      [] -> {
+        Error(#(zero, "Missing " <> type_display))
+      }
+
+      [str] -> {
+        parse(str)
+        |> result.replace_error(#(zero, "Invalid " <> type_display))
+      }
+
+      _multiple -> {
+        Error(#(zero, "Invalid " <> type_display <> " (multiple)"))
+      }
+    }
+  }
+  |> form.parse
+}
+
+// re-exports
+
+pub fn inspect(x: a) -> String {
+  string.inspect(x)
+}
+
+// form birl
+
+pub fn birl_time_iso8601_parser() -> form.Parser(birl.Time) {
+  birl_time_parser(parse: fn(str) {
+    str
+    |> birl.parse
+    |> result.replace_error("Invalid ISO8601 date/time")
+  })
+}
+
+fn birl_time_parser(
+  parse parse: fn(String) -> Result(birl.Time, String),
+) -> form.Parser(birl.Time) {
+  form.parse(fn(strs) {
+    strs
+    |> fn(strs) {
+      case strs {
+        [str] -> {
+          Ok(str)
+        }
+
+        [_, ..] -> {
+          Error(#(zero_birl_time(), "Expected a single ISO8601 but got multiple"))
+        }
+
+        [] -> {
+          Error(#(zero_birl_time(), "Didn't find an ISO8601 date/time"))
+        }
+      }
+    }
+    |> result.try(fn(str) {
+      str
+      |> parse
+      |> result.map_error(pair.new(zero_birl_time(), _))
+      // |> birl.parse
+      // |> result.replace_error(#(birl.from_unix(0), "Invalid ISO8601 date/time"))
+    })
+  })
+}
+
+fn zero_birl_time() -> birl.Time {
+  birl.from_unix(0)
+}
+
+// `derive form` static lookup funcs
+
+pub fn field_to_default_label(
+  field field: field,
+  field_to_name field_to_name: fn(field) -> String,
+) -> String {
+  field
+  |> field_to_name
+  |> common.snake_case_to_label
+}
+
+pub fn field_to_dom_id(
+  field field: field,
+) -> String {
+  string.inspect(field)
 }

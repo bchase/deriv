@@ -1,4 +1,4 @@
-import gleam/option.{None}
+import gleam/option.{type Option, None}
 import gleam/dict
 import gleam/list
 import gleam/string
@@ -168,6 +168,12 @@ pub fn func_str(func: Definition(Function)) -> String {
   |> gleam_format
 }
 
+pub fn type_str(type_: Definition(CustomType)) -> String {
+  Module([], [type_], [], [], [])
+  |> glance_printer.print
+  |> gleam_format
+}
+
 pub fn gleam_format(src: String) -> String {
   let escaped_src =
     src
@@ -239,7 +245,14 @@ pub fn birl_time_kind(
 }
 
 pub fn fetch_module(path: String) -> Result(Module, ModuleReaderErr) {
-  let filepath = "src/" <> path <> ".gleam"
+  fetch_module_(path_prefix: "src/", path:)
+}
+
+pub fn fetch_module_(
+  path path: String,
+  path_prefix prefix: String,
+) -> Result(Module, ModuleReaderErr) {
+  let filepath = prefix <> path <> ".gleam"
   use src <- result.try(simplifile.read(filepath) |> result.map_error(types.FileErr))
   use module <- result.try(glance.module(src) |> result.map_error(types.GlanceErr))
 
@@ -247,8 +260,8 @@ pub fn fetch_module(path: String) -> Result(Module, ModuleReaderErr) {
 }
 
 pub fn fetch_custom_type(
-  ident: String,
-  read_module: ModuleReader,
+  ident ident: String,
+  read_module read_module: ModuleReader,
 ) -> Result(#(String, glance.Definition(glance.CustomType)), ModuleReaderErr) {
   use #(module_name, ref) <- result.try(parse_ident(ident))
   use module <- result.try(read_module(module_name))
@@ -339,6 +352,39 @@ pub fn are_any_fields_options(
   })
 }
 
+pub fn import_(
+  module module: String,
+) -> glance.Import {
+  import__(module:, as_: None, types: [], values: [])
+}
+
+pub fn import__(
+  module module: String,
+  as_ alias: Option(String),
+  types types: List(String),
+  values values: List(String),
+) -> glance.Import {
+  let alias = alias |> option.map(glance.Named)
+
+  glance.Import(
+    location: dummy_location(),
+    module:,
+    alias:,
+    unqualified_values: values |> list.map(unq_import),
+    unqualified_types: types |> list.map(unq_import),
+  )
+}
+
+fn unq_import(
+  str str: String,
+) -> glance.UnqualifiedImport {
+  glance.UnqualifiedImport(name: str, alias: None)
+}
+
+pub fn util_import() -> glance.Import {
+  import_(module: "deriv/util")
+}
+
 pub fn none_constr_import() -> glance.Import {
   glance.Import(
     location: dummy_location(),
@@ -358,6 +404,17 @@ pub fn dummy_location() -> glance.Span {
   glance.Span(start: -1, end: -1)
 }
 
+// FORM
+
+pub fn snake_case_to_label(
+  str str: String,
+) -> String {
+  str
+  |> string.split("_")
+  |> list.map(string.capitalise)
+  |> string.join(" ")
+}
+
 // // // CASE HELPERS // // //
 
 pub fn pascal_case(str: String) -> String {
@@ -368,105 +425,54 @@ pub fn pascal_case(str: String) -> String {
 }
 
 pub fn snake_case(str: String) -> String {
-  let assert Ok(is_capital) = regexp.from_string("[A-Z]")
-
-  let step_snake_case = fn(state, char) { step_snake_case(char:, state:, is_capital:) }
+  let assert Ok(capital_re) = regexp.from_string("[A-Z]")
+  let assert Ok(initial_underscore_re) = regexp.from_string("^[_]")
 
   str
-  |> string.split("")
-  |> list.reverse
-  |> list.fold(SC(acc: [], curr: [], next_is_capital: True), step_snake_case)
-  |> fn(sc) {
-    case sc.curr {
-      [] -> sc
-      _ -> SC(..sc, acc: list.append(sc.acc, [sc.curr]))
-    }
-    |> fn(sc) {
-      case sc.acc {
-        [[last, second_to_last, ..rest], ..rest_chunks] -> {
-          case regexp.check(is_capital, last) {
-            False -> sc.acc
-            True -> {
-              let second_to_last_chunk = [second_to_last, ..rest]
-              let last_chunk = [last]
-
-              [last_chunk, second_to_last_chunk, ..rest_chunks]
-            }
-          }
-        }
-
-        _ -> sc.acc
-      }
-    }
-    |> list.map(fn(group) {
-      group
-      |> list.reverse
-      |> string.join("")
-      |> string.lowercase
-    })
-    |> list.reverse
-    |> string.join("_")
-  }
+  |> regexp.match_map(each: capital_re, in: _, with: fn(match) {
+    match.content
+    |> string.lowercase
+    |> string.append(to: "_", suffix: _)
+  })
+  |> regexp.replace(each: initial_underscore_re, in: _, with: "")
 }
 
-type SC {
-  SC(
-    acc: List(List(String)),
-    curr: List(String),
-    next_is_capital: Bool,
-  )
-}
+//
 
-fn step_snake_case(
-  char char: String,
-  state state: SC,
-  is_capital is_capital: Regexp,
-) -> SC {
-  let char_is_capital = is_capital |> regexp.check(char)
-
-  case char_is_capital, state.next_is_capital {
-    True, False -> {
-      process_as_final_in_token(char:,
-        next_is_capital: char_is_capital,
-        sc: state,
-      )
+pub fn mono_variant_or_panic(
+  type_ type_: types.Type,
+  deriv_name deriv_name: String,
+) -> #(glance.CustomType, glance.Variant) {
+  case type_ {
+    types.Type(type_: glance.CustomType(variants: [variant], ..) as type_) -> {
+     #(type_, variant)
     }
 
-    True, True -> {
-      add_to_curr_token(char:,
-        next_is_capital: !char_is_capital,
-        sc: state,
-      )
+    types.TypeAlias(..) -> {
+      panic as { "`" <> deriv_name <> "` doesn't know how to handle type aliases, namely: " <> string.inspect(type_) }
     }
 
-    _, _ -> {
-      add_to_curr_token(char:,
-        next_is_capital: char_is_capital,
-        sc: state,
-      )
+    types.Type(type_: glance.CustomType(variants: [], ..)) -> {
+      panic as { "`" <> deriv_name <> "` doesn't know how to handle types without any variants, namely: " <> string.inspect(type_) }
+    }
+
+    types.Type(..) -> {
+      panic as { "`" <> deriv_name <> "` doesn't know how to handle multi-variant types, namely: " <> string.inspect(type_) }
     }
   }
 }
 
-fn process_as_final_in_token(
-  char char: String,
-  sc sc: SC,
-  next_is_capital next_is_capital: Bool,
-) -> SC {
-  SC(
-    acc: sc.acc |> list.append([sc.curr |> list.append([char])]),
-    curr: [],
-    next_is_capital:,
-  )
-}
+pub fn custom_type_or_panic(
+  type_ type_: types.Type,
+  deriv_name deriv_name: String,
+) -> glance.CustomType {
+  case type_ {
+    types.Type(type_:) -> {
+      type_
+    }
 
-fn add_to_curr_token(
-  char char: String,
-  sc sc: SC,
-  next_is_capital next_is_capital: Bool,
-) -> SC {
-  SC(..sc,
-    curr: sc.curr |> list.append([char]),
-    next_is_capital:,
-  )
+    types.TypeAlias(..) -> {
+      panic as { "`" <> deriv_name <> "` doesn't know how to handle type aliases, namely: " <> string.inspect(type_) }
+    }
+  }
 }

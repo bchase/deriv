@@ -192,7 +192,7 @@ fn parse_all_deriv_field_opts(lines: List(String)) -> DerivFieldOpts {
     |> regexp.from_string
 
   let assert Ok(variant_re) =
-    "^\\s*([A-Z]\\w*)\\s*[(]"
+    "^\\s*([A-Z]\\w*)\\s*[(]?"
     |> regexp.from_string
 
   let assert Ok(field_re) =
@@ -237,11 +237,20 @@ fn parse_all_deriv_field_opts(lines: List(String)) -> DerivFieldOpts {
         _ -> acc
       }
 
-    case acc.type_, acc.variant, acc.field {
-      Ok(type_), Ok(variant), Ok(field) ->
+    case acc.type_, acc.variant {
+      Ok(type_), Ok(variant) -> {
         case parse_deriv_field_opts(line) {
           [] -> acc
           new_opts -> {
+            let field =
+              case acc.field {
+                Ok(field) ->
+                  field
+
+                Error(Nil) ->
+                  ""
+              }
+
             let key = DerivField(type_:, variant:, field:)
 
             let opts =
@@ -255,8 +264,9 @@ fn parse_all_deriv_field_opts(lines: List(String)) -> DerivFieldOpts {
             DerivFieldOptsAcc(..acc, opts:)
           }
         }
+      }
 
-      _, _, _ -> acc
+      _, _ -> acc
     }
   })
   |> fn(acc) {

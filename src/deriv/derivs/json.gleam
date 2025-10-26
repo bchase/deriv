@@ -7,9 +7,6 @@ import glance.{type CustomType, type Variant, type VariantField, LabelledVariant
 import deriv/types.{type File, type Derivation, type DerivFieldOpt, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt} as deriv
 import deriv/common.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
-// TODO refactor
-//   - `dict_key_decoder` for anything other than `String` should import `util`
-
 const deriv_variant_json_key = "_var"
 
 type Context {
@@ -52,7 +49,7 @@ pub fn gen(
     ]
     |> dict.from_list
 
-  let imports =
+  let imports_based_on_type_or_type_alias =
     case type_ {
       deriv.Type(type_:) ->
         gen_imports(opts, type_)
@@ -71,6 +68,15 @@ pub fn gen(
         }
     }
 
+  let imports =
+    imports_based_on_type_or_type_alias
+    |> list.append({
+      case type_ |> uses_dict(with_key: fn(t) { t.name != "String" && t.parameters == [] }) {
+        True -> [ common.util_import() ]
+        _ -> []
+      }
+    })
+
   let funcs =
     opts
     |> list.map(dict.get(gen_funcs_for_opts, _))
@@ -82,50 +88,23 @@ pub fn gen(
     |> list.map(common.func_str)
     |> string.join("\n\n")
 
-  Gen(file:, deriv:, imports:, funcs:, src:, meta: dict.new())
+  Gen(file:, deriv:, imports:, funcs:, types: [], src:, meta: dict.new())
 }
 
 fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
-  // TODO use `default_imports`
   let json_imports =
-    [
-      #("decode", [
-        // import decode.{type Decoder}
-        Import(
-          location: common.dummy_location(),
-          module: "gleam/dynamic/decode",
-          alias: None,
-          unqualified_types: [
-            UnqualifiedImport(
-              name: "Decoder",
-              alias: None,
-            ),
-          ],
-          unqualified_values: [],
-        ),
-      ] |> list.append({
+    default_imports
+    |> dict.from_list
+    |> dict.upsert("decode", fn(imports) {
+      imports
+      |> option.unwrap([])
+      |> list.append({
         case common.are_any_fields_options(type_) {
           True -> [common.none_constr_import()]
           False -> []
         }
-      })),
-      #("encode", [
-        // import gleam/json.{type Json}
-        Import(
-          location: common.dummy_location(),
-          module: "gleam/json",
-          alias: None,
-          unqualified_types: [
-            UnqualifiedImport(
-              name: "Json",
-              alias: None,
-            ),
-          ],
-          unqualified_values: [],
-        ),
-      ]),
-      ]
-    |> dict.from_list
+      })
+    })
 
   opts
   |> list.unique
@@ -139,35 +118,7 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
     |> list.append(
       case needs_util_import(type_) {
         False -> []
-        True -> {
-          // import deriv/util
-          [
-            Import(
-              location: common.dummy_location(),
-              module: "deriv/util",
-              alias: None,
-              unqualified_types: [],
-              unqualified_values: [],
-            )
-          ]
-        }
-      }
-    )
-    |> list.append(
-      case needs_list_import(type_) {
-        False -> []
-        True -> {
-          // import gleam/list
-          [
-            Import(
-              location: common.dummy_location(),
-              module: "gleam/list",
-              alias: None,
-              unqualified_types: [],
-              unqualified_values: [],
-            )
-          ]
-        }
+        True -> [ common.util_import() ]
       }
     )
   }
@@ -176,7 +127,6 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
 const default_imports =
   [
     #("decode", [
-      // import decode.{type Decoder}
       Import(
         location: glance.Span(start: -1, end: -1),
         module: "gleam/dynamic/decode",
@@ -191,7 +141,6 @@ const default_imports =
       ),
     ]),
     #("encode", [
-      // import gleam/json.{type Json}
       Import(
         location: glance.Span(start: -1, end: -1),
         module: "gleam/json",
@@ -211,44 +160,80 @@ fn needs_util_import(type_: CustomType) -> Bool {
   is_multi_variant(type_) || uses_uuid(type_) || uses_birl_time(type_)
 }
 
-fn needs_list_import(type_: CustomType) -> Bool {
-  uses_list(type_)
+fn to_jtypes(type_: deriv.Type) -> List(JType) {
+  case type_ {
+    deriv.Type(type_:) -> {
+      type_.variants
+      |> list.flat_map(fn(var) {
+        var.fields
+        |> list.flat_map(fn(field) {
+          let field = variant_field(field)
+
+          field.type_
+          |> jtype
+          |> list.wrap
+        })
+      })
+    }
+
+    deriv.TypeAlias(type_alias: glance.TypeAlias(aliased: type_, ..)) -> {
+      type_
+      |> jtype
+      |> list.wrap
+    }
+  }
 }
 
 fn is_multi_variant(type_: CustomType) -> Bool {
   list.length(type_.variants) > 1
 }
 
+fn uses_type(
+  type_ type_: deriv.Type,
+  any check: fn(JType) -> Bool,
+) -> Bool {
+  type_
+  |> to_jtypes
+  |> list.any(check_type_recursively(type_: _, check:))
+}
+
 fn uses_uuid(type_: CustomType) -> Bool {
-  type_.variants
-  |> list.any(fn(var) {
-    list.any(var.fields, fn(field) {
-      let field = variant_field(field)
-      let type_ = jtype(field.type_)
-      type_.name == "Uuid"
-    })
+  deriv.Type(type_:)
+  |> uses_type(any: fn(t) {
+    t.name == "Uuid" && t.parameters == []
   })
 }
 
 fn uses_birl_time(type_: CustomType) -> Bool {
-  type_.variants
-  |> list.any(fn(var) {
-    list.any(var.fields, fn(field) {
-      let field = variant_field(field)
-      let type_ = jtype(field.type_)
-      type_.name == "Time"
-    })
+  deriv.Type(type_:)
+  |> uses_type(any: fn(t) {
+    t.name == "Time" && t.parameters == []
   })
 }
 
-fn uses_list(type_: CustomType) -> Bool {
-  type_.variants
-  |> list.any(fn(var) {
-    list.any(var.fields, fn(field) {
-      let field = variant_field(field)
-      let type_ = jtype(field.type_)
-      type_.name |> string.starts_with("List")
-    })
+fn uses_dict(
+  type_ type_: deriv.Type,
+  with_key check_key: fn(JType) -> Bool,
+) -> Bool {
+  type_
+  |> to_jtypes
+  |> list.any(uses_dict_(_, with_key: check_key))
+}
+
+fn uses_dict_(
+  type_ type_: JType,
+  with_key check_key: fn(JType) -> Bool,
+) -> Bool {
+  check_type_recursively(type_, check: fn(t) {
+    case t.name, t.parameters {
+      "Dict", [key, val] -> {
+        check_key(key) || uses_dict_(val, with_key: check_key)
+      }
+
+      _, _ -> {
+        False
+      }
+    }
   })
 }
 
@@ -315,6 +300,13 @@ fn tuple(
     elements:,
     location: common.dummy_location(),
   )
+}
+
+fn check_type_recursively(
+  type_ type_: JType,
+  check check: fn(JType) -> Bool,
+) -> Bool {
+  check(type_) || list.any(type_.parameters, check)
 }
 
 fn fn_capture(
@@ -550,7 +542,7 @@ fn type_encode_expr(
         let params =
           [
             encode_arg,
-            UnlabelledField(field_access(variable("string"), "inspect"))
+            UnlabelledField(identity_func(param: "str")),
           ]
           |> list.append({
             type_.parameters
@@ -605,6 +597,21 @@ fn type_encode_expr(
     None -> expr
     Some(f) -> f(expr)
   }
+}
+
+fn identity_func(
+  param param: String,
+) -> Expression {
+  glance.Fn(
+    common.dummy_location(),
+    [
+      glance.FnParameter(Named(param), None),
+    ],
+    None,
+    [
+      Expression(glance.Variable(common.dummy_location(), param)),
+    ],
+  )
 }
 
 fn encode_field(
