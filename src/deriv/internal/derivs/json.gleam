@@ -786,6 +786,68 @@ fn encode_variant_json_object_expr(
   )
 }
 
+// pub type EncodeFunc {
+//   EncodeFunc(
+//     type_name: String,
+//     type_params: List(String),
+//   )
+// }
+
+// fn encode_type_func_(
+//   encode encode: EncodeFunc,
+//   type_ type_: CustomType,
+//   ctx ctx: Context,
+// ) -> Definition(Function) {
+//   let name = "encode_" <> common.snake_case(encode.type_name)
+
+//   let parameters =
+//     [FunctionParameter(None, Named("value"), Some(named_type(encode.type_name, None,
+//       type_.parameters
+//       |> list.map(variable_type)
+//     )))]
+//     |> list.append({
+//       type_.parameters
+//       |> list.map(fn(param_type_name) {
+//         FunctionParameter(None, Named("encode_" <> param_type_name),
+//           Some(FunctionType(common.dummy_location(), [variable_type(param_type_name)], named_type("Json", None, [])))
+//         )
+//       })
+//     })
+
+//   let return = Some(named_type("Json", None, []))
+
+//   let encode_variant_clause_exprs =
+//     type_.variants
+//     |> list.map(fn(variant) {
+//       let encode_json_object_expr = encode_variant_json_object_expr(type_, variant, ctx)
+
+//       Clause([[PatternAssignment(common.dummy_location(), PatternVariant(common.dummy_location(), None, variant.name, [], True), "value")]], None,
+//         encode_json_object_expr
+//       )
+//     })
+
+//   let body =
+//     Expression(
+//       Case(
+//         common.dummy_location(),
+//         [variable("value")],
+//         encode_variant_clause_exprs,
+//       )
+//     )
+//     |> fn(expr) { [ expr ] }
+
+//   Definition([],
+//     Function(
+//       location: dummy_location(),
+//       publicity: Public,
+//       name:,
+//       parameters:,
+//       return:,
+//       body:,
+//     )
+//   )
+// }
+
 fn encode_type_func(
   type_: CustomType,
   ctx: Context,
