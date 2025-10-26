@@ -221,7 +221,7 @@ type DecodeVariant {
 type DecodeField {
   DecodeField(
     gleam: String,
-    json: String,
+    json: List(String),
     type_: T,
   )
 }
@@ -329,12 +329,15 @@ fn to_decode_field(
           ], "\n"),
           matching: fn(opt) {
             case opt {
-              ["json", "named", name] -> Ok(name)
-              _ -> Error(Nil)
+              ["json", "named", path] ->
+                Ok(path |> string.split("."))
+
+              _ ->
+                Error(Nil)
             }
           },
         )
-        |> result.unwrap(label)
+        |> result.unwrap([label])
 
       DecodeField(
         gleam: label,
@@ -524,35 +527,57 @@ fn use_decode_field_line(
 fn decode_field_call(
   field field: DecodeField,
 ) -> g.Expression {
-  case field.type_.name, field.type_.params {
-    "List", [T(params: [], ..) as t] -> {
-      let type_ =
+  case field.json, field.type_.name, field.type_.params {
+    [], _, _ -> {
+      panic as { "`derive decode` needs a JSON property, but found none for: " <> string.inspect(field) }
+    }
+
+    [prop], "List", [T(params: [], ..) as t] -> {
+     let type_ =
         t.name |> common.snake_case
 
       "decode" |> dot("optional_field") |> call([
-        string(field.json),
+        string(prop),
         list([]),
         "decode" |> dot("list") |> call(["decode" |> dot(type_)]),
       ])
     }
+    [_prop1, _prop2, ..] as props, "List", [T(params: [], ..) as t] -> {
+      // TODO
+      panic as "UNIMPLEMENTED (`decode.subfield` for `List(t)`)"
+    }
 
-    "Option", [T(params: [], ..) as t] -> {
+    [prop], "Option", [T(params: [], ..) as t] -> {
       let type_ =
         t.name |> common.snake_case
 
       "decode" |> dot("optional_field") |> call([
-        string(field.json),
+        string(prop),
         "deriv" |> dot("none"),
         "decode" |> dot("optional") |> call(["decode" |> dot(type_)]),
       ])
     }
+    [_prop1, _prop2, ..] as props, "Option", [T(params: [], ..) as t] -> {
+      // TODO
+      panic as "UNIMPLEMENTED (`decode.subfield` for `Option(t)`)"
+    }
 
-    _, _ -> {
+    [prop], _, _ -> {
       let type_ =
         field.type_.name |> common.snake_case
 
       "decode" |> dot("field") |> call([
-        string(field.json),
+        string(prop),
+        "decode" |> dot(type_),
+      ])
+    }
+
+    [_prop1, _prop2, ..] as props, _, _ -> {
+      let type_ =
+        field.type_.name |> common.snake_case
+
+      "decode" |> dot("subfield") |> call([
+        list(props |> list.map(string)),
         "decode" |> dot(type_),
       ])
     }

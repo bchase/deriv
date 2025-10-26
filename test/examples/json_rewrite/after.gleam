@@ -12,8 +12,10 @@ pub type Foo {
     option_string: Option(String),
     list_int: List(Int),
     //
-    override_name: String,
-    //$ json named override
+    override: String,
+    //$ json named property
+    nested: Float,
+    //$ json named some.nested.prop
   )
 }
 
@@ -32,7 +34,8 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     decode.optional(decode.string),
   )
   use list_int <- decode.optional_field("list_int", [], decode.list(decode.int))
-  use override_name <- decode.field("override", decode.string)
+  use override <- decode.field("property", decode.string)
+  use nested <- decode.subfield(["some", "nested", "prop"], decode.float)
   decode.success(Foo(
     int:,
     string:,
@@ -40,6 +43,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     float:,
     option_string:,
     list_int:,
-    override_name:,
+    override:,
+    nested:,
   ))
 }
