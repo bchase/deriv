@@ -10,7 +10,9 @@ pub type Foo {
     option_string: Option(String),
     list_int: List(Int),
     //
-    override_name: String,
-    //$ json named override
+    override: String,
+    //$ json named property
+    nested: Float,
+    //$ json named some.nested.prop
   )
 }
