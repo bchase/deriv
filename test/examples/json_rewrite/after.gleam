@@ -11,6 +11,9 @@ pub type Foo {
     float: Float,
     option_string: Option(String),
     list_int: List(Int),
+    //
+    override_name: String,
+    //$ json named override
   )
 }
 
@@ -29,5 +32,14 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     decode.optional(decode.string),
   )
   use list_int <- decode.optional_field("list_int", [], decode.list(decode.int))
-  decode.success(Foo(int:, string:, bool:, float:, option_string:, list_int:))
+  use override_name <- decode.field("override", decode.string)
+  decode.success(Foo(
+    int:,
+    string:,
+    bool:,
+    float:,
+    option_string:,
+    list_int:,
+    override_name:,
+  ))
 }

@@ -60,7 +60,7 @@ pub fn gen(
 
 fn gen_json_decoders(
   type_: deriv.Type,
-  field_opts: DerivFieldOpts,
+  opts: DerivFieldOpts,
   file: File,
 ) -> List(g.Definition(g.Function)) {
   case type_ {
@@ -68,7 +68,7 @@ fn gen_json_decoders(
       panic as "not implemented"
 
     deriv.Type(type_:) -> {
-      let type_ = to_decode_type(type_:)
+      let type_ = to_decode_type(type_:, opts:)
 
       [
         type_decoder_func(type_:),
@@ -258,6 +258,7 @@ fn to_glance_type(
 
 fn to_decode_type(
   type_ type_: g.CustomType,
+  opts opts: DerivFieldOpts,
 ) -> DecodeType {
   DecodeType(
     publicity: type_.publicity,
@@ -269,6 +270,7 @@ fn to_decode_type(
       |> list.map(to_decode_variant(
         type_:,
         variant: _,
+        opts:,
       ))
     },
   )
@@ -276,6 +278,7 @@ fn to_decode_type(
 fn to_decode_variant(
   type_ type_: g.CustomType,
   variant variant: g.Variant,
+  opts opts: DerivFieldOpts,
 ) -> DecodeVariant {
   DecodeVariant(
     pascal_case: variant.name,
@@ -286,6 +289,7 @@ fn to_decode_variant(
         type_:,
         variant:,
         field: _,
+        opts:,
       ))
     }
   )
@@ -294,6 +298,7 @@ fn to_decode_field(
   type_ custom_type: g.CustomType,
   variant variant: g.Variant,
   field field: g.VariantField,
+  opts opts: DerivFieldOpts,
 ) -> DecodeField {
   case field {
     g.UnlabelledVariantField(..) -> {
@@ -310,15 +315,36 @@ fn to_decode_field(
       }
     }
 
-    g.LabelledVariantField(label:, item: type_) ->
+    g.LabelledVariantField(label:, item: type_) -> {
+      let json =
+        common.get_field_opt(
+          opts:,
+          type_: custom_type,
+          variant:,
+          field: field.label,
+          err_msg: string.join([
+            "`deriv` found multiple `json named` opts for:",
+            string.inspect(custom_type),
+            string.inspect(field),
+          ], "\n"),
+          matching: fn(opt) {
+            case opt {
+              ["json", "named", name] -> Ok(name)
+              _ -> Error(Nil)
+            }
+          },
+        )
+        |> result.unwrap(label)
+
       DecodeField(
         gleam: label,
-        json: label,
+        json:,
         type_: to_t(
           type_:,
           custom_type:,
         ),
       )
+    }
   }
 }
 fn to_t(

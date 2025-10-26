@@ -9,5 +9,8 @@ pub type Foo {
     float: Float,
     option_string: Option(String),
     list_int: List(Int),
+    //
+    override_name: String,
+    //$ json named override
   )
 }
