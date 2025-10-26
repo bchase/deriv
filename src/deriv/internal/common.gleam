@@ -187,10 +187,10 @@ pub fn gleam_format(src: String) -> String {
 }
 
 pub fn get_field_opts(
-  all_field_opts: DerivFieldOpts,
-  type_: CustomType,
-  variant: Variant,
-  field: String,
+  opts opts: DerivFieldOpts,
+  type_ type_: CustomType,
+  variant variant: Variant,
+  field field: String,
 ) -> List(DerivFieldOpt) {
   let key =
     DerivField(
@@ -199,9 +199,29 @@ pub fn get_field_opts(
       field:,
     )
 
-  all_field_opts
+  opts
   |> dict.get(key)
   |> result.unwrap([])
+}
+
+pub fn get_field_opt(
+  opts opts: DerivFieldOpts,
+  type_ type_: CustomType,
+  variant variant: Variant,
+  field field: String,
+  err_msg err: String,
+  matching matching: fn(List(String)) -> Result(t, Nil),
+) -> Result(t, Nil) {
+  get_field_opts(opts:, type_:, variant:, field:)
+  |> list.map(fn(opt) { opt.strs })
+  |> list.filter_map(matching)
+  |> fn(xs) {
+    case xs {
+      [] -> Error(Nil)
+      [x] -> Ok(x)
+      _ -> panic as err
+    }
+  }
 }
 
 pub type BirlTimeKind {
