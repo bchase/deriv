@@ -1,3 +1,13 @@
+# PENDING
+- implement `derive form`
+- provide `lustre` helpers for use with gen'd `derive form` types
+- implement `derive enum`
+- use `glint` for CLI
+- change `derive from` gen'd funcs to format `from_X_to_Y`
+- change `derive into` gen'd funcs to format `into_X_from_Y`
+- refactor `derive json`
+- refactor test to use `before.gleam` & `after.gleam` files in `test/examples/TEST_NAME/`
+
 ## v2.0.0 - 2024-04-08
 
  - override decoder at top-level, skip e.g. `decode.list`, `decode.option` in code gen
