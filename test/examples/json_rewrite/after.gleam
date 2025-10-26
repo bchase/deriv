@@ -1,4 +1,6 @@
+import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
+import gleam/option.{type Option}
 
 pub type Foo {
   //$ derive json decode
@@ -7,6 +9,7 @@ pub type Foo {
     string: String,
     bool: Bool,
     float: Float,
+    option_string: Option(String),
   )
 }
 
@@ -19,5 +22,10 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
   use string <- decode.field("string", decode.string)
   use bool <- decode.field("bool", decode.bool)
   use float <- decode.field("float", decode.float)
-  decode.success(Foo(int:, string:, bool:, float:))
+  use option_string <- decode.optional_field(
+    "option_string",
+    deriv.none,
+    decode.optional(decode.string),
+  )
+  decode.success(Foo(int:, string:, bool:, float:, option_string:))
 }

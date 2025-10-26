@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/io
 import gleam/option.{type Option, Some, None}
 import gleam/dict
@@ -114,20 +115,10 @@ fn type_aliases_in(
 
 fn gen_imports(
   opts: List(String),
-  _type_: g.CustomType,
+  type_: g.CustomType,
 ) -> List(g.Import) {
   let decode_imports =
-    case opts |> list.contains("decode") {
-      False -> []
-      True -> [
-        common.import__(
-          module: "gleam/dynamic/decode",
-          as_: None,
-          values: [],
-          types: ["Decoder"],
-        )
-      ]
-    }
+    decode_imports(opts:, type_:)
 
   let encode_imports =
     case opts |> list.contains("encode") {
@@ -140,6 +131,38 @@ fn gen_imports(
     encode_imports,
   ]
   |> list.flatten
+}
+
+fn decode_imports(
+  opts opts: List(String),
+  type_ type_: g.CustomType,
+) -> List(g.Import) {
+  use <- bool.guard(!{opts |> list.contains("decode")}, return: [])
+
+  let standard = [
+    common.import__(
+      module: "gleam/dynamic/decode",
+      as_: None,
+      values: [],
+      types: ["Decoder"],
+    )
+  ]
+
+  let util_import = {
+    use <- bool.guard(!{type_ |> common.are_any_fields_options}, return: [])
+
+    [
+      common.import__(
+        module: "deriv/util",
+        as_: Some("deriv"),
+        values: [],
+        types: [],
+      )
+    ]
+  }
+
+  standard
+  |> list.append(util_import)
 }
 
 const default_imports =
@@ -463,21 +486,40 @@ fn use_decode_field_line(
       annotation: None,
     )
 
-  let decoder =
-    "decode" |> dot(field.type_.name |> common.snake_case)
-
   let decode_field_call =
-    "decode"
-    |> dot("field")
-    |> call([
-      string(field.json),
-      decoder,
-    ])
+    decode_field_call(field:)
 
   g.Use(x,
     patterns: [field_gleam_name],
     function: decode_field_call,
   )
+}
+
+fn decode_field_call(
+  field field: DecodeField,
+) -> g.Expression {
+  case field.type_.name, field.type_.params {
+    "Option", [T(params: [], ..) as t] -> {
+      let type_ =
+        t.name |> common.snake_case
+
+      "decode" |> dot("optional_field") |> call([
+        string(field.json),
+        "deriv" |> dot("none"),
+        "decode" |> dot("optional") |> call(["decode" |> dot(type_)]),
+      ])
+    }
+
+    _, _ -> {
+      let type_ =
+        field.type_.name |> common.snake_case
+
+      "decode" |> dot("field") |> call([
+        string(field.json),
+        "decode" |> dot(type_),
+      ])
+    }
+  }
 }
 
 fn decode_success(
