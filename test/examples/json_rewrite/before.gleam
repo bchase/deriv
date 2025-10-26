@@ -1,3 +1,5 @@
+import gleam/option.{type Option}
+
 pub type Foo {
   //$ derive json decode
   Foo(
@@ -5,5 +7,6 @@ pub type Foo {
     string: String,
     bool: Bool,
     float: Float,
+    option_string: Option(String),
   )
 }
