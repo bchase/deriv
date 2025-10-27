@@ -86,7 +86,19 @@ fn gen_json_encoders(
   type_: deriv.Type,
   ctx: Context,
 ) -> List(g.Definition(g.Function)) {
-  []
+  case type_ {
+    deriv.TypeAlias(..) ->
+      panic as "not implemented"
+
+    deriv.Type(type_:) -> {
+      let type_ = to_decode_type(type_:, opts: ctx.all_field_opts)
+
+      [
+        type_encode_func(type_:, opts: ctx.all_field_opts),
+      ]
+      |> list.map(g.Definition([], _))
+    }
+  }
 }
 
 fn to_gen_func(
@@ -117,18 +129,9 @@ fn gen_imports(
   opts: List(String),
   type_: g.CustomType,
 ) -> List(g.Import) {
-  let decode_imports =
-    decode_imports(opts:, type_:)
-
-  let encode_imports =
-    case opts |> list.contains("encode") {
-      False -> []
-      True -> []
-    }
-
   [
-    decode_imports,
-    encode_imports,
+    decode_imports(opts:, type_:),
+    encode_imports(opts:, type_:),
   ]
   |> list.flatten
 }
@@ -165,40 +168,39 @@ fn decode_imports(
   |> list.append(util_import)
 }
 
-const default_imports =
-  [
-    #("decode", [
-      g.Import(
-        location: g.Span(start: -1, end: -1),
-        module: "gleam/dynamic/decode",
-        alias: None,
-        unqualified_types: [
-          g.UnqualifiedImport(
-            name: "Decoder",
-            alias: None,
-          ),
-        ],
-        unqualified_values: [],
-      ),
-    ]),
-    #("encode", [
-      g.Import(
-        location: g.Span(start: -1, end: -1),
-        module: "gleam/json",
-        alias: None,
-        unqualified_types: [
-          g.UnqualifiedImport(
-            name: "Json",
-            alias: None,
-          ),
-        ],
-        unqualified_values: [],
-      ),
-    ]),
+fn encode_imports(
+  opts opts: List(String),
+  type_ type_: g.CustomType,
+) -> List(g.Import) {
+  use <- bool.guard(!{opts |> list.contains("decode")}, return: [])
+
+  let standard = [
+    common.import__(
+      module: "gleam/json",
+      as_: None,
+      values: [],
+      types: ["Json"],
+    )
   ]
 
+  // let util_import = {
+  //   use <- bool.guard(!{type_ |> common.are_any_fields_options}, return: [])
 
-// DECODE
+  //   [
+  //     common.import__(
+  //       module: "deriv/util",
+  //       as_: Some("deriv"),
+  //       values: [],
+  //       types: [],
+  //     )
+  //   ]
+  // }
+
+  standard
+  // |> list.append(util_import)
+}
+
+//
 
 type Type {
   Type(
@@ -665,4 +667,164 @@ fn variant_decoder_constructor(
 
   constr
   |> call_(arguments:)
+}
+
+// ENCODE FUNC GEN
+
+fn type_encode_func(
+  type_ type_: Type,
+  opts opts: DerivFieldOpts,
+) -> g.Function {
+  g.Function(x,
+    name: "encode_" <> type_.snake_case,
+    publicity: type_.publicity,
+    parameters: [
+      g.FunctionParameter(
+        label: None,
+        name: g.Named("value"),
+        type_: Some(type_.type_),
+      )
+    ],
+    return: Some(g.NamedType(x, name: "Json", module: None, parameters: [])),
+    body: {
+      g.Case(x, subjects: ["value" |> term], clauses: {
+        type_.variants
+        |> list.map(variant_encode_case_clause(variant: _, type_:, opts:))
+      })
+      |> g.Expression
+      |> list.wrap
+    },
+  )
+}
+
+fn variant_encode_case_clause(
+  type_ type_: Type,
+  variant variant: Variant,
+  opts opts: DerivFieldOpts,
+) -> g.Clause {
+  g.Clause(
+    patterns: [[
+      g.PatternAssignment(x,
+        attern: g.PatternVariant(x,
+          module: None,
+          constructor: variant.pascal_case,
+          arguments: [],
+          with_spread: True,
+        ),
+        name: "value",
+      ),
+    ]],
+    guard: None,
+    body: {
+      "json" |> dot("object") |> call({
+        variant.fields
+        |> list.map(encode_field(field: _, opts:))
+        |> list
+        |> list.wrap
+      })
+    }
+  )
+}
+
+fn encode_field(
+  field field: Field,
+  opts opts: DerivFieldOpts,
+) -> g.Expression {
+  case field.json {
+    [json] ->
+      g.Tuple(x, [
+        string(json),
+        encode_call(type_: field.type_, field:, opts:),
+      ])
+
+    _ ->
+      panic as "IMPLEMENT nested field"
+  }
+}
+
+fn encode_call(
+  type_ type_: T,
+  field field: Field,
+  opts opts: DerivFieldOpts,
+) -> g.Expression {
+  let encode_override =
+    get_field_opt(field:, opts:, desc: "json encode", matching: fn(opt) {
+      case opt {
+        ["json", "encode", encode] ->
+          Ok(encode)
+
+        _ ->
+          Error(Nil)
+      }
+    })
+
+  encode_override
+  |> result.map(fn(encode_name) {
+    encode_name |> term |> call([
+      "value" |> dot(field.gleam)
+    ])
+  })
+  |> result.lazy_unwrap(fn() {
+    encode_call_(type_:, field:, opts:)
+  })
+}
+
+fn encode_call_(
+  type_ type_: T,
+  field field: Field,
+  opts opts: DerivFieldOpts,
+) -> g.Expression {
+  case type_.name, type_.params {
+    "Option", [T(params:[], ..) as inner_type] ->
+      "json" |> dot("nullable") |> call([
+        "value" |> dot(field.gleam),
+        json_encode_func(field:, opts:, type_: inner_type),
+      ])
+
+    "List", [T(params:[], ..) as inner_type] ->
+      "json" |> dot("array") |> call([
+        "value" |> dot(field.gleam),
+        json_encode_func(field:, opts:, type_: inner_type),
+      ])
+
+    "String", [] |
+    "Int", [] |
+    "Float", [] |
+    "Bool", [] ->
+      json_encode_func(type_:, field:, opts:) |> call([
+        "value" |> dot(field.gleam),
+      ])
+
+    _, _ ->
+      { "encode_" <> type_.name |> common.snake_case } |> term |> call([
+        "value" |> dot(field.gleam),
+      ])
+  }
+}
+
+fn json_encode_func(
+  type_ type_: T,
+  field field: Field,
+  opts opts: DerivFieldOpts,
+) -> g.Expression {
+  case type_.name, type_.params {
+    // "Option", [T(params:[], ..) as inner_type] ->
+    //   "json" |> dot("nullable") |> call([
+    //     encode_call_(field:, opts:, type_: inner_type),
+    //   ])
+
+    // "List", [T(params:[], ..) as inner_type] ->
+    //   "json" |> dot("array") |> call([
+    //     encode_call_(field:, opts:, type_: inner_type),
+    //   ])
+
+    "String", [] |
+    "Int", [] |
+    "Float", [] |
+    "Bool", [] ->
+      "json" |> dot(type_.name |> common.snake_case)
+
+    _, _ ->
+      { "encode_" <> type_.name |> common.snake_case } |> term
+  }
 }
