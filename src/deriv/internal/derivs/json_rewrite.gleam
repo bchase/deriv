@@ -200,26 +200,26 @@ const default_imports =
 
 // DECODE
 
-type DecodeType {
-  DecodeType(
+type Type {
+  Type(
     publicity: g.Publicity,
     type_: g.Type,
     pascal_case: String,
     snake_case: String,
-    variants: List(DecodeVariant),
+    variants: List(Variant),
   )
 }
 
-type DecodeVariant {
-  DecodeVariant(
+type Variant {
+  Variant(
     pascal_case: String,
     snake_case: String,
-    fields: List(DecodeField),
+    fields: List(Field),
   )
 }
 
-type DecodeField {
-  DecodeField(
+type Field {
+  Field(
     gleam: String,
     json: List(String),
     type_: T,
@@ -261,8 +261,8 @@ fn to_glance_type(
 fn to_decode_type(
   type_ type_: g.CustomType,
   opts opts: DerivFieldOpts,
-) -> DecodeType {
-  DecodeType(
+) -> Type {
+  Type(
     publicity: type_.publicity,
     type_: type_ |> to_glance_type,
     pascal_case: type_.name,
@@ -281,8 +281,8 @@ fn to_decode_variant(
   type_ type_: g.CustomType,
   variant variant: g.Variant,
   opts opts: DerivFieldOpts,
-) -> DecodeVariant {
-  DecodeVariant(
+) -> Variant {
+  Variant(
     pascal_case: variant.name,
     snake_case: variant.name |> common.snake_case,
     fields: {
@@ -301,7 +301,7 @@ fn to_decode_field(
   variant variant: g.Variant,
   field field: g.VariantField,
   opts opts: DerivFieldOpts,
-) -> DecodeField {
+) -> Field {
   case field {
     g.UnlabelledVariantField(..) -> {
       io.println("")
@@ -319,7 +319,7 @@ fn to_decode_field(
 
     g.LabelledVariantField(label:, item: type_) -> {
       let field =
-        DecodeField(
+        Field(
           gleam: label,
           json: [label],
           type_: type_ |> to_t(custom_type:),
@@ -340,7 +340,7 @@ fn to_decode_field(
         })
         |> result.unwrap([label])
 
-      DecodeField(..field, json:)
+      Field(..field, json:)
     }
   }
 }
@@ -378,7 +378,7 @@ fn to_t(
 }
 
 fn get_field_opt(
-  field field: DecodeField,
+  field field: Field,
   opts opts: DerivFieldOpts,
   desc desc: String,
   matching matching: fn(List(String)) -> Result(t, Nil),
@@ -448,7 +448,7 @@ fn dot(
 // DECODER FUNC GEN
 
 fn type_decoder_func(
-  type_ type_: DecodeType,
+  type_ type_: Type,
 ) -> g.Function {
   case type_.variants {
     [variant, ..variants] ->
@@ -460,9 +460,9 @@ fn type_decoder_func(
 }
 
 fn type_decoder_func_(
-  type_ type_: DecodeType,
-  variant variant: DecodeVariant,
-  variants variants: List(DecodeVariant),
+  type_ type_: Type,
+  variant variant: Variant,
+  variants variants: List(Variant),
 ) -> g.Function {
   let call_decoder = fn(variant) {
     variant
@@ -490,14 +490,14 @@ fn type_decoder_func_(
 }
 
 fn variant_decoder_name(
-  type_ type_: DecodeType,
-  variant variant: DecodeVariant,
+  type_ type_: Type,
+  variant variant: Variant,
 ) -> String {
   "decoder_" <> type_.snake_case <> "_" <> variant.snake_case
 }
 
 fn decoder_return_type(
-  type_ type_: DecodeType,
+  type_ type_: Type,
 ) -> g.Type {
   g.NamedType(x, module: None,
     name: "Decoder",
@@ -506,8 +506,8 @@ fn decoder_return_type(
 }
 
 fn variant_decoder_func(
-  type_ type_: DecodeType,
-  variant variant: DecodeVariant,
+  type_ type_: Type,
+  variant variant: Variant,
   opts opts: DerivFieldOpts,
 ) -> g.Function {
   let use_lines =
@@ -527,7 +527,7 @@ fn variant_decoder_func(
 }
 
 fn use_decode_field_line(
-  field field: DecodeField,
+  field field: Field,
   opts opts: DerivFieldOpts,
 ) -> g.Statement {
   let field_gleam_name =
@@ -547,7 +547,7 @@ fn use_decode_field_line(
 
 fn decoder_call(
   type_ type_: T,
-  field field: DecodeField,
+  field field: Field,
   opts opts: DerivFieldOpts,
 ) -> g.Expression {
   let type_name =
@@ -589,7 +589,7 @@ fn decoder_call(
 }
 
 fn decode_field_call(
-  field field: DecodeField,
+  field field: Field,
   opts opts: DerivFieldOpts,
 ) -> g.Expression {
   case field.json, field.type_.name, field.type_.params {
@@ -638,7 +638,7 @@ fn decode_field_call(
 }
 
 fn decode_success(
-  variant variant: DecodeVariant,
+  variant variant: Variant,
 ) -> g.Statement {
   let constr_call =
     variant
@@ -651,7 +651,7 @@ fn decode_success(
 }
 
 fn variant_decoder_constructor(
-  variant variant: DecodeVariant,
+  variant variant: Variant,
 ) -> g.Expression {
   let constr =
     variant.pascal_case
