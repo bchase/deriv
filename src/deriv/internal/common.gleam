@@ -204,15 +204,29 @@ pub fn get_field_opts(
   |> result.unwrap([])
 }
 
+pub fn get_field_opts_(
+  opts opts: DerivFieldOpts,
+  type_ type_: String,
+  variant variant: String,
+  field field: String,
+) -> List(DerivFieldOpt) {
+  let key =
+    DerivField(type_:, variant:, field:)
+
+  opts
+  |> dict.get(key)
+  |> result.unwrap([])
+}
+
 pub fn get_field_opt(
   opts opts: DerivFieldOpts,
-  type_ type_: CustomType,
-  variant variant: Variant,
+  type_ type_: String,
+  variant variant: String,
   field field: String,
   err_msg err: String,
   matching matching: fn(List(String)) -> Result(t, Nil),
 ) -> Result(t, Nil) {
-  get_field_opts(opts:, type_:, variant:, field:)
+  get_field_opts_(opts:, type_:, variant:, field:)
   |> list.map(fn(opt) { opt.strs })
   |> list.filter_map(matching)
   |> fn(xs) {
