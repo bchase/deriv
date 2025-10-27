@@ -74,7 +74,7 @@ fn gen_json_decoders(
         type_decoder_func(type_:),
         ..{
           type_.variants
-          |> list.map(variant_decoder_func(type_:, variant: _))
+          |> list.map(variant_decoder_func(type_:, variant: _, opts:))
         }
       ]
       |> list.map(g.Definition([], _))
@@ -223,6 +223,8 @@ type DecodeField {
     gleam: String,
     json: List(String),
     type_: T,
+    variant_pascal_case: String,
+    type_pascal_case: String,
   )
 }
 
@@ -291,7 +293,7 @@ fn to_decode_variant(
         field: _,
         opts:,
       ))
-    }
+    },
   )
 }
 fn to_decode_field(
@@ -319,8 +321,8 @@ fn to_decode_field(
       let json =
         common.get_field_opt(
           opts:,
-          type_: custom_type,
-          variant:,
+          type_: custom_type.name,
+          variant: variant.name,
           field: field.label,
           err_msg: string.join([
             "`deriv` found multiple `json named` opts for:",
@@ -346,6 +348,8 @@ fn to_decode_field(
           type_:,
           custom_type:,
         ),
+        type_pascal_case: custom_type.name,
+        variant_pascal_case: variant.name,
       )
     }
   }
@@ -489,10 +493,11 @@ fn decoder_return_type(
 fn variant_decoder_func(
   type_ type_: DecodeType,
   variant variant: DecodeVariant,
+  opts opts: DerivFieldOpts,
 ) -> g.Function {
   let use_lines =
     variant.fields
-    |> list.map(use_decode_field_line)
+    |> list.map(use_decode_field_line(field: _, opts:))
 
   g.Function(x,
     name: variant_decoder_name(type_:, variant:),
@@ -508,6 +513,7 @@ fn variant_decoder_func(
 
 fn use_decode_field_line(
   field field: DecodeField,
+  opts opts: DerivFieldOpts,
 ) -> g.Statement {
   let field_gleam_name =
     g.UsePattern(
@@ -516,7 +522,7 @@ fn use_decode_field_line(
     )
 
   let decode_field_call =
-    decode_field_call(field:)
+    decode_field_call(field:, opts:)
 
   g.Use(x,
     patterns: [field_gleam_name],
@@ -524,9 +530,56 @@ fn use_decode_field_line(
   )
 }
 
+fn get_field_opt(
+  field field: DecodeField,
+  opts opts: DerivFieldOpts,
+  desc desc: String,
+  matching matching: fn(List(String)) -> Result(t, Nil),
+) -> Result(t, Nil) {
+  common.get_field_opt(
+    opts:,
+    type_: field.type_pascal_case,
+    variant: field.variant_pascal_case,
+    field: field.gleam,
+    err_msg: string.join([
+      "`deriv` found multiple `",
+      desc,
+      "` opts for: ",
+      field.type_pascal_case,
+      " ",
+      field.variant_pascal_case,
+      ".",
+      field.gleam,
+    ], ""),
+    matching:,
+  )
+}
+
 fn decode_field_call(
   field field: DecodeField,
+  opts opts: DerivFieldOpts,
 ) -> g.Expression {
+  let decoder = fn(type_name) {
+    let decoder_override =
+      get_field_opt(field:, opts:, desc: "json decoder", matching: fn(opt) {
+        case opt {
+          ["json", "decoder", decoder] ->
+            Ok(decoder)
+
+          _ ->
+            Error(Nil)
+        }
+      })
+
+    decoder_override
+    |> result.map(fn(decoder_name) {
+      decoder_name |> term |> call([])
+    })
+    |> result.unwrap(
+      "decode" |> dot(type_name |> common.snake_case)
+    )
+  }
+
   case field.json, field.type_.name, field.type_.params {
     [], _, _ -> {
       panic as { "`derive decode` needs a JSON property, but found none for: " <> string.inspect(field) }
@@ -539,7 +592,7 @@ fn decode_field_call(
       "decode" |> dot("optional_field") |> call([
         string(prop),
         list([]),
-        "decode" |> dot("list") |> call(["decode" |> dot(type_)]),
+        "decode" |> dot("list") |> call([decoder(type_)]),
       ])
     }
     [_prop1, _prop2, ..] as props, "List", [T(params: [], ..) as t] -> {
@@ -554,7 +607,7 @@ fn decode_field_call(
       "decode" |> dot("optional_field") |> call([
         string(prop),
         "deriv" |> dot("none"),
-        "decode" |> dot("optional") |> call(["decode" |> dot(type_)]),
+        "decode" |> dot("optional") |> call([decoder(type_)]),
       ])
     }
     [_prop1, _prop2, ..] as props, "Option", [T(params: [], ..) as t] -> {
@@ -568,7 +621,7 @@ fn decode_field_call(
 
       "decode" |> dot("field") |> call([
         string(prop),
-        "decode" |> dot(type_),
+        decoder(type_),
       ])
     }
 
@@ -578,7 +631,7 @@ fn decode_field_call(
 
       "decode" |> dot("subfield") |> call([
         list(props |> list.map(string)),
-        "decode" |> dot(type_),
+        decoder(type_),
       ])
     }
   }

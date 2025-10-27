@@ -1,4 +1,5 @@
 import deriv/util as deriv
+import examples/json_rewrite/bar.{type Bar, decoder_bar, decoder_custom_string}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/option.{type Option}
 
@@ -12,10 +13,12 @@ pub type Foo {
     option_string: Option(String),
     list_int: List(Int),
     //
-    override: String,
+    named: String,
     //$ json named property
     nested: Float,
     //$ json named some.nested.prop
+    decoder: String,
+    //$ json decoder decoder_custom_string
   )
 }
 
@@ -34,8 +37,9 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     decode.optional(decode.string),
   )
   use list_int <- decode.optional_field("list_int", [], decode.list(decode.int))
-  use override <- decode.field("property", decode.string)
+  use named <- decode.field("property", decode.string)
   use nested <- decode.subfield(["some", "nested", "prop"], decode.float)
+  use decoder <- decode.field("decoder", decoder_custom_string())
   decode.success(Foo(
     int:,
     string:,
@@ -43,7 +47,8 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     float:,
     option_string:,
     list_int:,
-    override:,
+    named:,
     nested:,
+    decoder:,
   ))
 }
