@@ -10,6 +10,7 @@ pub type Foo {
     float: Float,
     option_string: Option(String),
     list_int: List(Int),
+    bar: Bar,
     //
     named: String,
     //$ json named property

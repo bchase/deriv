@@ -545,44 +545,63 @@ fn use_decode_field_line(
   )
 }
 
+fn decoder_call(
+  type_ type_: T,
+  field field: DecodeField,
+  opts opts: DerivFieldOpts,
+) -> g.Expression {
+  let type_name =
+    type_.name |> common.snake_case
+
+  let decoder_override =
+    get_field_opt(field:, opts:, desc: "json decoder", matching: fn(opt) {
+      case opt {
+        ["json", "decoder", decoder] ->
+          Ok(decoder)
+
+        _ ->
+          Error(Nil)
+      }
+    })
+
+  decoder_override
+  |> result.map(fn(decoder_name) {
+    decoder_name |> term |> call([])
+  })
+  |> result.lazy_unwrap(fn() {
+    case type_.name, type_.params {
+      "Option", [T(params:[], ..) as inner_type] ->
+        "decode" |> dot("optional") |> call([decoder_call(field:, opts:, type_: inner_type)])
+
+      "List", [T(params:[], ..) as inner_type] ->
+        "decode" |> dot("list") |> call([decoder_call(field:, opts:, type_: inner_type)])
+
+      "String", [] |
+      "Int", [] |
+      "Float", [] |
+      "Bool", [] ->
+        "decode" |> dot(type_name |> common.snake_case)
+
+      type_name, _ ->
+        { "decoder_" <> type_name |> common.snake_case } |> term |> call([])
+    }
+  })
+}
+
 fn decode_field_call(
   field field: DecodeField,
   opts opts: DerivFieldOpts,
 ) -> g.Expression {
-  let decoder = fn(type_name) {
-    let decoder_override =
-      get_field_opt(field:, opts:, desc: "json decoder", matching: fn(opt) {
-        case opt {
-          ["json", "decoder", decoder] ->
-            Ok(decoder)
-
-          _ ->
-            Error(Nil)
-        }
-      })
-
-    decoder_override
-    |> result.map(fn(decoder_name) {
-      decoder_name |> term |> call([])
-    })
-    |> result.unwrap(
-      "decode" |> dot(type_name |> common.snake_case)
-    )
-  }
-
   case field.json, field.type_.name, field.type_.params {
     [], _, _ -> {
       panic as { "`derive decode` needs a JSON property, but found none for: " <> string.inspect(field) }
     }
 
     [prop], "List", [T(params: [], ..) as t] -> {
-     let type_ =
-        t.name |> common.snake_case
-
       "decode" |> dot("optional_field") |> call([
         string(prop),
         list([]),
-        "decode" |> dot("list") |> call([decoder(type_)]),
+        decoder_call(field:, opts:, type_: field.type_),
       ])
     }
     [_prop1, _prop2, ..] as props, "List", [T(params: [], ..) as t] -> {
@@ -591,13 +610,10 @@ fn decode_field_call(
     }
 
     [prop], "Option", [T(params: [], ..) as t] -> {
-      let type_ =
-        t.name |> common.snake_case
-
       "decode" |> dot("optional_field") |> call([
         string(prop),
         "deriv" |> dot("none"),
-        "decode" |> dot("optional") |> call([decoder(type_)]),
+        decoder_call(field:, opts:, type_: field.type_),
       ])
     }
     [_prop1, _prop2, ..] as props, "Option", [T(params: [], ..) as t] -> {
@@ -606,22 +622,16 @@ fn decode_field_call(
     }
 
     [prop], _, _ -> {
-      let type_ =
-        field.type_.name |> common.snake_case
-
       "decode" |> dot("field") |> call([
         string(prop),
-        decoder(type_),
+        decoder_call(field:, opts:, type_: field.type_),
       ])
     }
 
     [_prop1, _prop2, ..] as props, _, _ -> {
-      let type_ =
-        field.type_.name |> common.snake_case
-
       "decode" |> dot("subfield") |> call([
         list(props |> list.map(string)),
-        decoder(type_),
+        decoder_call(field:, opts:, type_: field.type_),
       ])
     }
   }
