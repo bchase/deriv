@@ -1,10 +1,11 @@
 import deriv/util as deriv
-import examples/json_rewrite/bar.{type Bar, decoder_bar, decoder_custom_string}
+import examples/json_rewrite/bar.{type Bar, decoder_bar, decoder_custom_string, encode_bar}
 import gleam/dynamic/decode.{type Decoder}
+import gleam/json.{type Json}
 import gleam/option.{type Option}
 
 pub type Foo {
-  //$ derive json decode
+  //$ derive json decode encode
   Foo(
     int: Int,
     string: String,
@@ -16,8 +17,6 @@ pub type Foo {
     //
     named: String,
     //$ json named property
-    nested: Float,
-    //$ json named some.nested.prop
     decoder: String,
     //$ json decoder decoder_custom_string
   )
@@ -40,7 +39,6 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
   use list_int <- decode.optional_field("list_int", [], decode.list(decode.int))
   use bar <- decode.field("bar", decoder_bar())
   use named <- decode.field("property", decode.string)
-  use nested <- decode.subfield(["some", "nested", "prop"], decode.float)
   use decoder <- decode.field("decoder", decoder_custom_string())
   decode.success(Foo(
     int:,
@@ -51,7 +49,23 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     list_int:,
     bar:,
     named:,
-    nested:,
     decoder:,
   ))
+}
+
+pub fn encode_foo(value: Foo) -> Json {
+  case value {
+    Foo(..) as value ->
+      json.object([
+        #("int", json.int(value.int)),
+        #("string", json.string(value.string)),
+        #("bool", json.bool(value.bool)),
+        #("float", json.float(value.float)),
+        #("option_string", json.nullable(value.option_string, json.string)),
+        #("list_int", json.array(value.list_int, json.int)),
+        #("bar", encode_bar(value.bar)),
+        #("property", json.string(value.named)),
+        #("decoder", json.string(value.decoder)),
+      ])
+  }
 }
