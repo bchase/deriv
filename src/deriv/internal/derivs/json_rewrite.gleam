@@ -318,39 +318,29 @@ fn to_decode_field(
     }
 
     g.LabelledVariantField(label:, item: type_) -> {
-      let json =
-        common.get_field_opt(
-          opts:,
-          type_: custom_type.name,
-          variant: variant.name,
-          field: field.label,
-          err_msg: string.join([
-            "`deriv` found multiple `json named` opts for:",
-            string.inspect(custom_type),
-            string.inspect(field),
-          ], "\n"),
-          matching: fn(opt) {
-            case opt {
-              ["json", "named", path] ->
-                Ok(path |> string.split("."))
-
-              _ ->
-                Error(Nil)
-            }
-          },
+      let field =
+        DecodeField(
+          gleam: label,
+          json: [label],
+          type_: type_ |> to_t(custom_type:),
+          type_pascal_case: custom_type.name,
+          variant_pascal_case: variant.name,
         )
+
+
+      let json =
+        get_field_opt(field:, opts:, desc: "json named", matching: fn(opt) {
+          case opt {
+            ["json", "named", path] ->
+              Ok(path |> string.split("."))
+
+            _ ->
+              Error(Nil)
+          }
+        })
         |> result.unwrap([label])
 
-      DecodeField(
-        gleam: label,
-        json:,
-        type_: to_t(
-          type_:,
-          custom_type:,
-        ),
-        type_pascal_case: custom_type.name,
-        variant_pascal_case: variant.name,
-      )
+      DecodeField(..field, json:)
     }
   }
 }
@@ -385,6 +375,31 @@ fn to_t(
         },
       )
   }
+}
+
+fn get_field_opt(
+  field field: DecodeField,
+  opts opts: DerivFieldOpts,
+  desc desc: String,
+  matching matching: fn(List(String)) -> Result(t, Nil),
+) -> Result(t, Nil) {
+  common.get_field_opt(
+    opts:,
+    type_: field.type_pascal_case,
+    variant: field.variant_pascal_case,
+    field: field.gleam,
+    err_msg: string.join([
+      "`deriv` found multiple `",
+      desc,
+      "` opts for: ",
+      field.type_pascal_case,
+      " ",
+      field.variant_pascal_case,
+      ".",
+      field.gleam,
+    ], ""),
+    matching:,
+  )
 }
 
 // HELPERS
@@ -527,31 +542,6 @@ fn use_decode_field_line(
   g.Use(x,
     patterns: [field_gleam_name],
     function: decode_field_call,
-  )
-}
-
-fn get_field_opt(
-  field field: DecodeField,
-  opts opts: DerivFieldOpts,
-  desc desc: String,
-  matching matching: fn(List(String)) -> Result(t, Nil),
-) -> Result(t, Nil) {
-  common.get_field_opt(
-    opts:,
-    type_: field.type_pascal_case,
-    variant: field.variant_pascal_case,
-    field: field.gleam,
-    err_msg: string.join([
-      "`deriv` found multiple `",
-      desc,
-      "` opts for: ",
-      field.type_pascal_case,
-      " ",
-      field.variant_pascal_case,
-      ".",
-      field.gleam,
-    ], ""),
-    matching:,
   )
 }
 
