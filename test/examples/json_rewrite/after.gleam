@@ -12,6 +12,7 @@ pub type Foo {
     float: Float,
     option_string: Option(String),
     list_int: List(Int),
+    bar: Bar,
     //
     named: String,
     //$ json named property
@@ -37,6 +38,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     decode.optional(decode.string),
   )
   use list_int <- decode.optional_field("list_int", [], decode.list(decode.int))
+  use bar <- decode.field("bar", decoder_bar())
   use named <- decode.field("property", decode.string)
   use nested <- decode.subfield(["some", "nested", "prop"], decode.float)
   use decoder <- decode.field("decoder", decoder_custom_string())
@@ -47,6 +49,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     float:,
     option_string:,
     list_int:,
+    bar:,
     named:,
     nested:,
     decoder:,
