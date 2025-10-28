@@ -14,6 +14,8 @@ pub type Foo {
     //
     named: String,
     //$ json named property
+    nested: Float,
+    //$ json named some.nested.prop
     decoder: String,
     //$ json decoder decoder_custom_string
   )
