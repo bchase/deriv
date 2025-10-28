@@ -9,10 +9,14 @@ pub fn decoder_bar() -> Decoder(Bar) {
   decode.success(Bar)
 }
 
+pub fn encode_bar(_value: Bar) -> Json {
+  json.null()
+}
+
 pub fn decoder_custom_string() -> Decoder(String) {
   decode.string
 }
 
-pub fn encode_bar(_value: Bar) -> Json {
-  json.null()
+pub fn encode_custom_string(value: String) -> Json {
+  json.string(value)
 }
