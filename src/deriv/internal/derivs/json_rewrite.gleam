@@ -718,7 +718,9 @@ fn variant_encode_case_clause(
     body: {
       "json" |> dot("object") |> call({
         variant.fields
-        |> list.map(encode_field(field: _, opts:))
+        |> list.map(fn(field) {
+          encode_field(properties: field.json, field:, opts:)
+        })
         |> list
         |> list.wrap
       })
@@ -727,18 +729,27 @@ fn variant_encode_case_clause(
 }
 
 fn encode_field(
+  properties path: List(String),
   field field: Field,
   opts opts: DerivFieldOpts,
 ) -> g.Expression {
-  case field.json {
-    [json] ->
+  case path {
+    [prop] ->
       g.Tuple(x, [
-        string(json),
+        string(prop),
         encode_call(type_: field.type_, field:, opts:),
       ])
 
-    _ ->
-      panic as "IMPLEMENT nested field"
+    [prop, ..properties] ->
+      g.Tuple(x, [
+        string(prop),
+        "json" |> dot("object") |> call([list([
+          encode_field(properties:, field:, opts:),
+        ])])
+      ])
+
+    [] ->
+      panic
   }
 }
 

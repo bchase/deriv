@@ -17,6 +17,8 @@ pub type Foo {
     //
     named: String,
     //$ json named property
+    nested: Float,
+    //$ json named some.nested.prop
     decoder: String,
     //$ json decoder decoder_custom_string
   )
@@ -39,6 +41,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
   use list_int <- decode.optional_field("list_int", [], decode.list(decode.int))
   use bar <- decode.field("bar", decoder_bar())
   use named <- decode.field("property", decode.string)
+  use nested <- decode.subfield(["some", "nested", "prop"], decode.float)
   use decoder <- decode.field("decoder", decoder_custom_string())
   decode.success(Foo(
     int:,
@@ -49,6 +52,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     list_int:,
     bar:,
     named:,
+    nested:,
     decoder:,
   ))
 }
@@ -65,6 +69,12 @@ pub fn encode_foo(value: Foo) -> Json {
         #("list_int", json.array(value.list_int, json.int)),
         #("bar", encode_bar(value.bar)),
         #("property", json.string(value.named)),
+        #(
+          "some",
+          json.object([
+            #("nested", json.object([#("prop", json.float(value.nested))])),
+          ]),
+        ),
         #("decoder", json.string(value.decoder)),
       ])
   }
