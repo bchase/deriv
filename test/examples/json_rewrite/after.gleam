@@ -1,5 +1,5 @@
 import deriv/util as deriv
-import examples/json_rewrite/bar.{type Bar, decoder_bar, decoder_custom_string, encode_bar}
+import examples/json_rewrite/bar.{type Bar, decoder_bar, decoder_custom_string, encode_bar, encode_custom_string}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 import gleam/option.{type Option}
@@ -21,6 +21,8 @@ pub type Foo {
     //$ json named some.nested.prop
     decoder: String,
     //$ json decoder decoder_custom_string
+    encode: String,
+    //$ json encode encode_custom_string
   )
 }
 
@@ -43,6 +45,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
   use named <- decode.field("property", decode.string)
   use nested <- decode.subfield(["some", "nested", "prop"], decode.float)
   use decoder <- decode.field("decoder", decoder_custom_string())
+  use encode <- decode.field("encode", decode.string)
   decode.success(Foo(
     int:,
     string:,
@@ -54,6 +57,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     named:,
     nested:,
     decoder:,
+    encode:,
   ))
 }
 
@@ -76,6 +80,7 @@ pub fn encode_foo(value: Foo) -> Json {
           ]),
         ),
         #("decoder", json.string(value.decoder)),
+        #("encode", encode_custom_string(value.encode)),
       ])
   }
 }

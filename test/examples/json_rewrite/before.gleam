@@ -1,4 +1,4 @@
-import examples/json_rewrite/bar.{type Bar, decoder_bar, decoder_custom_string, encode_bar}
+import examples/json_rewrite/bar.{type Bar, decoder_bar, decoder_custom_string, encode_bar, encode_custom_string}
 import gleam/option.{type Option}
 
 pub type Foo {
@@ -18,5 +18,7 @@ pub type Foo {
     //$ json named some.nested.prop
     decoder: String,
     //$ json decoder decoder_custom_string
+    encode: String,
+    //$ json encode encode_custom_string
   )
 }
