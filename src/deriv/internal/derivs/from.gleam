@@ -209,7 +209,7 @@ type FromFieldOverride {
     field: String,
     override: String,
     module_name: String,
-    type_: CustomType,
+    // type_: CustomType,
     using: Option(FromFieldOverrideConv),
   )
 }
@@ -230,11 +230,28 @@ type FromFieldOverrideConvArgs{
 fn parse_ident_with_field(
   ident ident: String,
 ) -> #(String, Option(String)) {
-  case string.split(ident, ".") {
-    [module, type_] -> #(module <> "." <> type_, None)
+  case string.split(ident, ".") |> echo {
+    [""] -> #("", None)
+    [a, b] -> {
+      let starts_with_uppercase = fn(str: String) -> Bool {
+        str
+        |> string.first
+        |> result.map(fn(ch) { ch == string.uppercase(ch) })
+        |> result.unwrap(False)
+      }
+
+      case a, b, starts_with_uppercase(a) {
+        module, type_, True -> #(module <> "." <> type_, None)
+        type_, field, False -> #(type_, Some(field))
+      }
+      // |> echo
+    }
     [module, type_, field] -> #(module <> "." <> type_, Some(field))
-    _ -> panic // TODO panic w/ error
+    [type_] -> #(type_, None)
+    // _ -> panic // TODO panic w/ error
+    _ -> #("", None)
   }
+  |> echo
 }
 
 fn build_field_override(
@@ -244,14 +261,19 @@ fn build_field_override(
 ) -> Result(FromFieldOverride, Nil) {
   case field_opt, "" {
     DerivFieldOpt(strs: ["from", ident_with_field]), _ as conv |
-    DerivFieldOpt(strs: ["from", ident_with_field, "using", conv]), _ -> {
+    DerivFieldOpt(strs: ["from", ident_with_field, "using", conv]), _ |
+    DerivFieldOpt(strs: ["from", "using", conv]), _ as ident_with_field -> {
       let #(ident, override) = parse_ident_with_field(ident_with_field)
 
       let args =
-        case override {
-          Some(_specified_field) -> ValueDotField
-          None -> EntireValue
+        case override, ident_with_field |> string.is_empty {
+          Some(_specified_field), _ -> ValueDotField
+          None, True -> ValueDotField
+          None, False -> EntireValue
         }
+
+      // echo { "IDENT: " <> ident }
+      // echo { "CONV: " <> conv }
 
       let conv =
         case conv |> string.split(".") {
@@ -262,17 +284,23 @@ fn build_field_override(
             "`from` field conv func specification invalid. Valid syntax is `func_name` or `module.func_name`, but got: " <> string.inspect(field_opt.strs |> string.join(" "))
           }
         }
+      echo { "CONV: " <> string.inspect(conv) }
 
 
-      let #(module_name, type_) =
+      let module_name =
         case common.fetch_custom_type(ident, module_reader) {
-          Error(err) -> {
-            common.debug(err)
-            panic
-          }
-
-          Ok(#(m, td)) -> #(m, td.definition)
+          Ok(#(m, _td)) -> m
+          Error(_err) -> ""
         }
+      // let #(module_name, type_) =
+      //   case common.fetch_custom_type(ident, module_reader) {
+      //     Error(err) -> {
+      //       common.debug(err)
+      //       panic
+      //     }
+
+      //     Ok(#(m, td)) -> #(m, td.definition)
+      //   }
 
       let field = deriv_field.field
 
@@ -290,7 +318,7 @@ fn build_field_override(
         field:,
         override:,
         module_name:,
-        type_:,
+        // type_:,
         using: conv,
       ))
     }
@@ -340,17 +368,16 @@ fn build_ident(
 fn from_func_fields(
   param_type_module: String,
   param_type: CustomType,
-  param_variant: Variant,
+  _param_variant: Variant,
   return_type: CustomType,
   return_variant: Variant,
   overrides: FromFieldOverrides,
 ) -> List(Field) {
-  let param_fields = fields(param_variant)
   let return_fields = fields(return_variant)
 
   return_fields
   |> list.map(fn(r_field) {
-    let #(return_field, result_field_type) = r_field
+    let #(return_field, _result_field_type) = r_field
 
     let overrides =
       overrides
@@ -363,7 +390,7 @@ fn from_func_fields(
         }
       })
 
-    let override =
+    let specfic_override =
       overrides
       |> list.find_map(fn(x) {
         let #(param_field, os) = x
@@ -377,6 +404,24 @@ fn from_func_fields(
         })
       })
 
+    let general_override = fn() {
+      overrides
+      |> list.find_map(fn(x) {
+        let #(param_field, os) = x
+
+        list.find_map(os, fn(o) {
+          case { o.ident == "" || o.ident == param_type.name } && o.field == return_field { // TODO RF-types better types, not `""`
+            False -> Error(Nil)
+            True -> Ok(#(param_field, o))
+          }
+        })
+      })
+    }
+
+    let override =
+      specfic_override
+      |> result.lazy_or(general_override)
+
     let conv =
       case override {
         Ok(#(_field, FromFieldOverride(using: conv, ..))) -> conv
@@ -385,11 +430,18 @@ fn from_func_fields(
 
     let #(param_field, _p_type) =
       case override {
-        Error(_) -> #(return_field, Nil)
-        Ok(#(_param_field, o)) -> #(o.override, Nil)
+        Error(_) ->
+          #(return_field, Nil)
+
+        Ok(#(_param_field, o)) if o.ident == "" || o.override == "" -> // TODO RF-types
+          #(return_field, Nil)
+
+        Ok(#(_param_field, o)) ->
+          #(o.override, Nil)
       }
 
     // // TODO check types match (commented out due to breaking change from impl `using`)
+    // // let param_fields = fields(param_variant)
     // // let param_field_type =
     // //   list.find_map(param_fields, fn(x) {
     // //     let #(name, type_) = x
@@ -453,6 +505,7 @@ fn from_func_fields(
       return_field:,
       conv:,
     )
+    |> echo
   })
 }
 
@@ -487,6 +540,10 @@ fn from_func(
     [FunctionParameter(None, Named("value"), Some(NamedType(common.dummy_location(), param_type, None, [])))],
     Some(NamedType(common.dummy_location(), return_type, None, [])),
     [Expression(Call(common.dummy_location(), Variable(common.dummy_location(), return_contr), list.map(fields, fn(field) {
+      // echo func_name
+      // echo param_type
+      // echo field.param_field
+      // echo field.conv
       case field.conv {
         None ->
           LabelledField(field.return_field, FieldAccess(common.dummy_location(), Variable(common.dummy_location(), "value"), field.param_field))
