@@ -9,8 +9,8 @@ pub type AutheTokens {
   //$ derive from examples/from/authe/b.AutheB
   Authe(
     id: Uuid,
-    //$ from field examples/from/authe/a.AutheA authe_id
-    //$ from field examples/from/authe/b.AutheB authe_id
+    //$ from examples/from/authe/a.AutheA.authe_id
+    //$ from examples/from/authe/b.AutheB.authe_id
     encrypted_access_token: String,
     encrypted_refresh_token: String,
   )
@@ -21,7 +21,17 @@ pub type Friend {
   //$ derive from examples/from/friend/pet.Pet
   Friend(
     name: String,
-    //$ from field examples/from/friend/person.Person first_name
+    //$ from examples/from/friend/person.Person.first_name
+  )
+}
+
+pub type HasAge {
+  //$ derive from examples/from/friend/person.Person
+  //$ derive from examples/from/friend/pet.Pet
+  HasAge(
+    human_years: Int,
+    //$ from examples/from/friend/person.Person.age
+    //$ from examples/from/friend/pet.Pet.age using pet.to_human_years
   )
 }
 
@@ -47,4 +57,12 @@ pub fn from_person_to_friend(value: Person) -> Friend {
 
 pub fn from_pet_to_friend(value: Pet) -> Friend {
   Friend(name: value.name)
+}
+
+pub fn from_person_to_has_age(value: Person) -> HasAge {
+  HasAge(human_years: value.age)
+}
+
+pub fn from_pet_to_has_age(value: Pet) -> HasAge {
+  HasAge(human_years: value.age |> pet.to_human_years)
 }
