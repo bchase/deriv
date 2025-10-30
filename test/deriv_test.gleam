@@ -132,62 +132,62 @@ pub fn main() {
 }
 
 
-pub fn from_overrides_test() {
-    //created_at__type_unspecified: Time,
-    ////$ from using birl.from_unix
+//pub fn from_overrides_test() {
+//    //created_at__type_unspecified: Time,
+//    ////$ from using birl.from_unix
 
-    //created_at__type_qualified__field__implicit: Time,
-    ////$ from examples/from/before.A.created_at__type_qualified__field__implicit using birl.from_unix
-    //created_at__type_unqualified__field__implicit: Time,
-    ////$ from A.created_at__type_qualified__field__implicit using birl.from_unix
+//    //created_at__type_qualified__field__implicit: Time,
+//    ////$ from examples/from/before.A.created_at__type_qualified__field__implicit using birl.from_unix
+//    //created_at__type_unqualified__field__implicit: Time,
+//    ////$ from A.created_at__type_qualified__field__implicit using birl.from_unix
 
-    //created_at__type_qualified__field__explicit: Time, <----------------------------
-    ////$ from examples/from/before.A.created_at__type_qualified__field__explicit using birl.from_unix
-    //created_at__type_unqualified__field__explicit: Time, <----------------------------
-    ////$ from A.created_at__type_qualified__field__explicit using birl.from_unix
+//    //created_at__type_qualified__field__explicit: Time, <----------------------------
+//    ////$ from examples/from/before.A.created_at__type_qualified__field__explicit using birl.from_unix
+//    //created_at__type_unqualified__field__explicit: Time, <----------------------------
+//    ////$ from A.created_at__type_qualified__field__explicit using birl.from_unix
 
-    //created_at__type_qualified__type: Time, <----------------------------------
-    ////$ from examples/from/before.A using to_time
-    //created_at__type_unqualified__type: Time,
-    ////$ from A using to_time
-  from.build_field_override(
-    DerivFieldOpt(strs: [ "from", "using", "birl.from_unix" ]),
-    DerivField(type_: "", variant: "", field: "field_name"),
-  )
-  |> should.be_ok
-  |> should.equal(from.FromFieldOverride(
-    field: "field_name",
-    ident: "",
-    module_name: "",
-    override: "",
-    using: Some(from.FromFieldOverrideConv(
-      module: Some("birl"),
-      func: "from_unix",
-      args: from.ValueDotField,
-    )),
-  ))
+//    //created_at__type_qualified__type: Time, <----------------------------------
+//    ////$ from examples/from/before.A using to_time
+//    //created_at__type_unqualified__type: Time,
+//    ////$ from A using to_time
+//  from.build_field_override(
+//    DerivFieldOpt(strs: [ "from", "using", "birl.from_unix" ]),
+//    DerivField(type_: "", variant: "", field: "field_name"),
+//  )
+//  |> should.be_ok
+//  |> should.equal(from.FromFieldOverride(
+//    field: "field_name",
+//    ident: "",
+//    module_name: "",
+//    override: "",
+//    using: Some(from.FromFieldOverrideConv(
+//      module: Some("birl"),
+//      func: "from_unix",
+//      args: from.ValueDotField,
+//    )),
+//  ))
 
-  from.build_field_override(
-    DerivFieldOpt(strs: [ "from", "examples/from/before.A", "using", "to_time" ]),
-    DerivField(type_: "", variant: "", field: "field_name"),
-  )
-  |> should.be_ok
-  |> should.equal(from.FromFieldOverride(
-    field: "field_name",
-    ident: "examples/from/before.A",
-    module_name: "A",
-    override: "",
-    using: Some(from.FromFieldOverrideConv(
-      module: option.None,
-      func: "to_time",
-      args: from.EntireValue,
-    )),
-  ))
+//  from.build_field_override(
+//    DerivFieldOpt(strs: [ "from", "examples/from/before.A", "using", "to_time" ]),
+//    DerivField(type_: "", variant: "", field: "field_name"),
+//  )
+//  |> should.be_ok
+//  |> should.equal(from.FromFieldOverride(
+//    field: "field_name",
+//    ident: "examples/from/before.A",
+//    module_name: "A",
+//    override: "",
+//    using: Some(from.FromFieldOverrideConv(
+//      module: option.None,
+//      func: "to_time",
+//      args: from.EntireValue,
+//    )),
+//  ))
+//}
+
+pub fn from_test() {
+  should_derive(example_dir_name: "from")
 }
-
-// pub fn from_test() {
-//   should_derive(example_dir_name: "from")
-// }
 
 //// TEST DERIVE ENUM
 
