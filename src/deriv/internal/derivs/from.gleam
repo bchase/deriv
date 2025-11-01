@@ -423,11 +423,6 @@ fn match_specific(
       SpecifyField(ident:, ..) |
       ConvTypeWith(ident:, ..) -> {
         generalize_field_ident(ident) == module_type
-        // echo f.type_ <> " " <> type_
-        // echo f.field <> " " <> field
-        // echo f.type_ == type_ && f.field == field
-        // f.type_ == type_ && f.field == field
-        // True
       }
 
       _ -> {
@@ -459,12 +454,11 @@ fn match_general(
   // TODO dup'd
   // TODO move up to `gen`
   let assert Ok(IdentType(module: Some(_module), type_: type__)) = parse_ident(ident)
-  echo type__
 
   let overrides_by_unqualified_type =
     overrides
     |> list.filter(fn(override) {
-      case override |> echo {
+      case override {
         ConvTypeWith(ident: IdentFieldForType(type_:, module: None, ..), ..) |
         SpecifyField(ident: IdentFieldForType(type_:, module: None, ..), ..) |
         ConvTypeWith(ident: IdentType(type_:, module: None), ..) -> {
@@ -549,7 +543,21 @@ fn build_field_override_(
 
         [ident, "using", conv] -> {
           result.try(parse_ident(ident:), fn(ident) {
-            Ok(ConvTypeWith(ident:, conv: { conv |> parse_conv_or_panic }(ValueDotField)))
+            let build_conv = conv |> parse_conv_or_panic
+            // TODO clean up `*` handling
+            let args =
+              case ident.type_ |> string.contains("*") {
+                True -> EntireValue
+                False -> ValueDotField
+               }
+            let conv = build_conv(args)
+            let type_ = ident.type_ |> string.replace("*", "")
+            let ident =
+              case ident {
+                IdentFieldForType(..) -> IdentFieldForType(..ident, type_:)
+                IdentType(..) -> IdentType(..ident, type_:)
+              }
+            Ok(ConvTypeWith(ident:, conv:))
           })
         }
 
@@ -734,7 +742,6 @@ fn from_func_field(
     return_field: field.field,
     conv:,
   )
-  // |> echo
 }
 
 // fn from_func_fields(
@@ -923,11 +930,11 @@ fn from_func(
           let value = Variable(x, "value")
 
           let value =
-            // case conv.args {
-            //   EntireValue -> value
-            //   ValueDotField -> FieldAccess(x, value, field.param_field)
-            // }
-              FieldAccess(x, value, field.param_field)
+            case conv.args {
+              EntireValue -> value
+              ValueDotField -> FieldAccess(x, value, field.param_field)
+            }
+              // FieldAccess(x, value, field.param_field)
 
           LabelledField(
             label: field.return_field,

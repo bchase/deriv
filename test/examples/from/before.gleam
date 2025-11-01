@@ -67,3 +67,14 @@ pub type Overrides {
     //$ from A.tf using birl.from_unix
   )
 }
+
+pub type OverrideUsingTypeNotField {
+  //$ derive from examples/from/before.A
+  OverrideUsingTypeNotField(
+    mt: Time,
+    //$ from A* using to_time
+
+    t: Time,
+    //$ from examples/from/before.A* using to_time
+  )
+}

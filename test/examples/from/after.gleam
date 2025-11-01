@@ -68,6 +68,17 @@ pub type Overrides {
   )
 }
 
+pub type OverrideUsingTypeNotField {
+  //$ derive from examples/from/before.A
+  OverrideUsingTypeNotField(
+    mt: Time,
+    //$ from A* using to_time
+
+    t: Time,
+    //$ from examples/from/before.A* using to_time
+  )
+}
+
 pub fn from_authe_a_to_authe_tokens(value: AutheA) -> AutheTokens {
   Authe(
     id: value.authe_id,
@@ -108,4 +119,10 @@ pub fn from_a_to_overrides(value: A) -> Overrides {
     mtf: value.mtf |> birl.from_unix,
     tf: value.tf |> birl.from_unix,
   )
+}
+
+pub fn from_a_to_override_using_type_not_field(
+  value: A,
+) -> OverrideUsingTypeNotField {
+  OverrideUsingTypeNotField(mt: value |> to_time, t: value |> to_time)
 }
