@@ -26,6 +26,48 @@ pub type Friend {
   )
 }
 
+pub type HasAge {
+  //$ derive from examples/from/friend/person.Person
+  //$ derive from examples/from/friend/pet.Pet
+  HasAge(
+    human_years: Int,
+    //$ from examples/from/friend/person.Person.age
+    //$ from examples/from/friend/pet.Pet.age using pet.to_human_years
+  )
+}
+
+pub type A {
+  A(
+    all: Int,
+    mt: Int,
+    t: Int,
+    mtf: Int,
+    tf: Int,
+  )
+}
+
+fn to_time(value: A) -> Time {
+  todo
+}
+
+pub type Overrides {
+  //$ derive from examples/from/before.A
+  Overrides(
+    all: Time,
+    //$ from using birl.from_unix
+
+    mt: Time,
+    //$ from examples/from/before.A using birl.from_unix
+    t: Time,
+    //$ from A using birl.from_unix
+
+    mtf: Time,
+    //$ from examples/from/before.A.mtf using birl.from_unix
+    tf: Time,
+    //$ from A.tf using birl.from_unix
+  )
+}
+
 pub fn from_authe_a_to_authe_tokens(value: AutheA) -> AutheTokens {
   Authe(
     id: value.authe_id,
@@ -48,4 +90,22 @@ pub fn from_person_to_friend(value: Person) -> Friend {
 
 pub fn from_pet_to_friend(value: Pet) -> Friend {
   Friend(name: value.name)
+}
+
+pub fn from_person_to_has_age(value: Person) -> HasAge {
+  HasAge(human_years: value.age)
+}
+
+pub fn from_pet_to_has_age(value: Pet) -> HasAge {
+  HasAge(human_years: value.age |> pet.to_human_years)
+}
+
+pub fn from_a_to_overrides(value: A) -> Overrides {
+  Overrides(
+    all: value.all |> birl.from_unix,
+    mt: value.mt |> birl.from_unix,
+    t: value.t |> birl.from_unix,
+    mtf: value.mtf |> birl.from_unix,
+    tf: value.tf |> birl.from_unix,
+  )
 }

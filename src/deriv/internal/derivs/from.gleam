@@ -395,21 +395,25 @@ type Override {
 }
 
 
+fn generalize_field_ident(
+  ident ident: Ident,
+) -> #(String, String) {
+  case ident {
+    IdentType(module:, type_:) -> #(module |> option.unwrap(""), type_)
+    IdentFieldForType(module:, type_:, ..) -> #(module |> option.unwrap(""), type_)
+  }
+}
+
 
 fn match_specific(
   field f: DerivField,
   ident ident: String,
   overrides overrides: List(Override),
 ) -> Result(Override, Nil) {
+  // TODO dup'd
+  // TODO move up to `gen`
   let assert Ok(IdentType(module: Some(module), type_:)) = parse_ident(ident)
   let module_type = #(module, type_)
-
-  let generalize_field_ident = fn(ident: Ident) -> #(String, String) {
-    case ident {
-      IdentType(module:, type_:) -> #(module |> option.unwrap(""), type_)
-      IdentFieldForType(module:, type_:, ..) -> #(module |> option.unwrap(""), type_)
-    }
-  }
 
   overrides
   |> list.filter(fn(override) {
@@ -452,36 +456,73 @@ fn match_general(
   ident ident: String,
   overrides overrides: List(Override),
 ) -> Result(Override, Nil) {
-  overrides
-  |> list.filter(fn(override) {
-    case override {
-      SpecifyField(ident: IdentFieldForType(type_:, field:, ..), ..) |
-      ConvTypeWith(ident: IdentFieldForType(type_:, field:, ..), ..) -> {
-        f.type_ == type_ && f.field == field
-      }
+  // TODO dup'd
+  // TODO move up to `gen`
+  let assert Ok(IdentType(module: Some(_module), type_: type__)) = parse_ident(ident)
+  echo type__
 
-      _ -> {
-        False
+  let overrides_by_unqualified_type =
+    overrides
+    |> list.filter(fn(override) {
+      case override |> echo {
+        ConvTypeWith(ident: IdentFieldForType(type_:, module: None, ..), ..) |
+        SpecifyField(ident: IdentFieldForType(type_:, module: None, ..), ..) |
+        ConvTypeWith(ident: IdentType(type_:, module: None), ..) -> {
+          type_ == type__
+        }
+
+        _ -> {
+          False
+        }
+      }
+    })
+    |> fn(os) {
+      case os {
+        [o, _, ..] -> {
+          [
+            "`from` found multiple options generally matching the following field:\n",
+            f |> string.inspect,
+            .. os |> list.map(string.inspect),
+          ]
+          |> string.join("")
+          |> io.println_error
+
+          Ok(o)
+        }
+        [o] -> Ok(o)
+        [] -> Error(Nil)
       }
     }
-  })
-  |> fn(os) {
-    case os {
-      [o, _, ..] -> {
-        [
-          "`from` found multiple options generally matching the following field:\n",
-          f |> string.inspect,
-          .. os |> list.map(string.inspect),
-        ]
-        |> string.join("")
-        |> io.println_error
 
-        Ok(o)
+  let overrides_for_all = fn() {
+    overrides
+    |> list.find(fn(override) {
+      case override {
+        ConvAllWith(..) -> True
+        _ -> False
       }
-      [o] -> Ok(o)
-      [] -> Error(Nil)
-    }
+    })
+    // |> fn(os) {
+    //   case os {
+    //     [o, _, ..] -> {
+    //       [
+    //         "`from` found multiple options generally matching the following field:\n",
+    //         f |> string.inspect,
+    //         .. os |> list.map(string.inspect),
+    //       ]
+    //       |> string.join("")
+    //       |> io.println_error
+
+    //       Ok(o)
+    //     }
+    //     [o] -> Ok(o)
+    //     [] -> Error(Nil)
+    //   }
+    // }
   }
+
+  overrides_by_unqualified_type
+  |> result.lazy_or(overrides_for_all)
 }
 
 fn build_field_override_(
@@ -667,9 +708,7 @@ fn from_func_field(
     |> result.lazy_or(fn() {
       match_general(field:, ident:, overrides:)
     })
-    |> echo
 
-  // here
   let #(param_field, conv) =
     case override {
       Error(Nil) ->
@@ -681,8 +720,13 @@ fn from_func_field(
       Ok(ConvAllWith(conv:)) ->
         #(field.field, Some(conv))
 
-      Ok(ConvTypeWith(ident: _, conv:)) ->
-        #(field.field, Some(conv))
+      Ok(ConvTypeWith(ident:, conv:)) ->
+        case ident {
+          IdentFieldForType(field:, ..) ->
+            #(field, Some(conv))
+          IdentType(..) ->
+            #(field.field, Some(conv))
+        }
     }
 
   Field(

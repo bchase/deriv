@@ -25,3 +25,45 @@ pub type Friend {
     //$ from examples/from/friend/person.Person.first_name
   )
 }
+
+pub type HasAge {
+  //$ derive from examples/from/friend/person.Person
+  //$ derive from examples/from/friend/pet.Pet
+  HasAge(
+    human_years: Int,
+    //$ from examples/from/friend/person.Person.age
+    //$ from examples/from/friend/pet.Pet.age using pet.to_human_years
+  )
+}
+
+pub type A {
+  A(
+    all: Int,
+    mt: Int,
+    t: Int,
+    mtf: Int,
+    tf: Int,
+  )
+}
+
+fn to_time(value: A) -> Time {
+  todo
+}
+
+pub type Overrides {
+  //$ derive from examples/from/before.A
+  Overrides(
+    all: Time,
+    //$ from using birl.from_unix
+
+    mt: Time,
+    //$ from examples/from/before.A using birl.from_unix
+    t: Time,
+    //$ from A using birl.from_unix
+
+    mtf: Time,
+    //$ from examples/from/before.A.mtf using birl.from_unix
+    tf: Time,
+    //$ from A.tf using birl.from_unix
+  )
+}
