@@ -25,21 +25,26 @@ pub fn gen(
       panic as "`deriv.TypeAlias` unimplemented for `deriv/from` "
 
     deriv.Type(type_:) -> {
-      let overrides = build_field_overrides(opts, module_reader)
+      // let overrides = build_field_overrides(opts, module_reader)
 
-      let idents = deriv.opts
+      let ident =
+        case deriv.opts {
+          [ident] -> ident
+          _ -> panic as "`from` requires specifying a single type in the form `m1/m2.T"
+        }
 
       let imports = []
 
       let funcs =
         from(
           type_,
-          idents,
-          overrides,
+          ident,
+          // overrides,
           module_reader,
           opts,
         )
-        |> list.map(from_func)
+        |> from_func
+        |> list.wrap
 
       let src =
         funcs
@@ -51,17 +56,18 @@ pub fn gen(
   }
 }
 
-fn build_field_overrides(
-  field_opts: DerivFieldOpts,
-  _module_reader: ModuleReader,
-) -> FromFieldOverrides {
-  field_opts
-  |> dict.map_values(fn(field, opts) {
-    opts
-    |> list.filter_map(build_field_override(_, field))
-  })
-  |> dict.to_list
-}
+// fn build_field_overrides(
+//   field_opts: DerivFieldOpts,
+//   _module_reader: ModuleReader,
+// ) -> FromFieldOverrides {
+//   // field_opts
+//   // |> dict.map_values(fn(field, opts) {
+//   //   opts
+//   //   |> list.filter_map(build_field_override(_, field))
+//   // })
+//   // |> dict.to_list
+//   []
+// }
 
 type FromFunc {
   FromFunc(
@@ -84,66 +90,57 @@ type FromFunc {
 // // ]
 
 fn get_param_types_and_variants(
-  idents: List(String),
+  ident: String,
   module_reader: ModuleReader,
-) -> List(#(Definition(CustomType), Variant, String)) {
-  idents
-  |> list.map(fn(ident) {
-    common.fetch_custom_type(ident, module_reader)
-  })
-  |> result.all
-  |> fn(x) {
-    case x {
+) -> #(Definition(CustomType), Variant, String) {
+  let #(module_name, type_) =
+    case common.fetch_custom_type(ident, module_reader) {
       Error(err) -> {
-        common.debug(idents)
+        common.debug(ident)
         common.debug(err)
-        panic as "`from` issue with the above `idents`"
+        panic as "`from` issue with the above `ident`"
       }
 
-      Ok(list) ->
-        list
+      Ok(x) ->
+        x
+    }
+
+  case type_.definition.variants {
+    [variant] ->
+      #(type_, variant, module_name)
+
+    _, -> {
+      common.debug(type_)
+      panic as "`from` derivation currently only supports invariant types"
     }
   }
-  |> list.map(fn(x) {
-    let #(module_name, type_) = x
-
-    case type_.definition.variants {
-      [variant] ->
-        #(type_, variant, module_name)
-
-      _, -> {
-        common.debug(type_)
-        panic as "`from` derivation currently only supports invariant types"
-      }
-    }
-  })
 }
 
 fn from(
   return_type: CustomType,
-  idents: List(String),
-  overrides: FromFieldOverrides,
+  ident: String,
+  // overrides: FromFieldOverrides,
   module_reader: ModuleReader,
   opts: DerivFieldOpts,
-) -> List(FromFunc) {
+) -> FromFunc {
   case return_type.variants {
-    [return_variant] ->
-      idents
-      |> get_param_types_and_variants(module_reader)
-      |> list.map(fn(x) {
-        let #(param_type_def, param_variant, param_type_module) = x
-        let param_type = param_type_def.definition
+    [return_variant] -> {
+      let #(param_type_def, param_variant, param_type_module) =
+        get_param_types_and_variants(ident, module_reader)
 
-        from_variant_(
-          param_type_module,
-          param_type,
-          param_variant,
-          return_type,
-          return_variant,
-          overrides,
-          opts,
-        )
-      })
+      let param_type = param_type_def.definition
+
+      from_variant_(
+        param_type_module,
+        param_type,
+        param_variant,
+        return_type,
+        return_variant,
+        // overrides,
+        ident,
+        opts,
+      )
+    }
 
     _, -> {
       common.debug(return_type)
@@ -158,7 +155,8 @@ fn from_variant_(
   param_variant: Variant,
   return_type: CustomType,
   return_variant: Variant,
-  overrides: FromFieldOverrides,
+  // overrides: FromFieldOverrides,
+  ident: String,
   opts: DerivFieldOpts,
 ) -> FromFunc {
   let fields =
@@ -168,7 +166,7 @@ fn from_variant_(
     let #(field, _type) = t
     field
   })
-  |> list.map(from_func_field(field: _, opts:))
+  |> list.map(from_func_field(field: _, ident:, opts:))
 
   let from = common.snake_case(param_type.name)
   let to = common.snake_case(return_type.name)
@@ -187,39 +185,39 @@ fn from_variant_(
   )
 }
 
-fn from_variant(
-  param_type_module: String,
-  param_type: CustomType,
-  param_variant: Variant,
-  return_type: CustomType,
-  return_variant: Variant,
-  overrides: FromFieldOverrides,
-) -> FromFunc {
-  let fields = from_func_fields(
-    param_type_module,
-    param_type,
-    param_variant,
-    return_type,
-    return_variant,
-    overrides,
-  )
+// fn from_variant(
+//   param_type_module: String,
+//   param_type: CustomType,
+//   param_variant: Variant,
+//   return_type: CustomType,
+//   return_variant: Variant,
+//   overrides: FromFieldOverrides,
+// ) -> FromFunc {
+//   let fields = from_func_fields(
+//     param_type_module,
+//     param_type,
+//     param_variant,
+//     return_type,
+//     return_variant,
+//     overrides,
+//   )
 
-  let from = common.snake_case(param_type.name)
-  let to = common.snake_case(return_type.name)
+//   let from = common.snake_case(param_type.name)
+//   let to = common.snake_case(return_type.name)
 
-  let func_name = "from_" <> from <> "_to_" <> to
-  let param_type = param_type.name
-  let return_type = return_type.name
-  let return_contr = return_variant.name
+//   let func_name = "from_" <> from <> "_to_" <> to
+//   let param_type = param_type.name
+//   let return_type = return_type.name
+//   let return_contr = return_variant.name
 
-  FromFunc(
-    func_name:,
-    param_type:,
-    return_type:,
-    return_contr:,
-    fields:,
-  )
-}
+//   FromFunc(
+//     func_name:,
+//     param_type:,
+//     return_type:,
+//     return_contr:,
+//     fields:,
+//   )
+// }
 
 // fn from_func_fields(
 //   param_variant: Variant,
@@ -312,6 +310,10 @@ pub type FromFieldOverrideConv {
 }
 
 pub type FromFieldOverrideConvArgs {
+  Rm
+}
+
+pub type ConvArgs {
   EntireValue
   ValueDotField
 }
@@ -382,6 +384,7 @@ type Conv {
   Conv(
     module: Option(String),
     func: String,
+    args: ConvArgs,
   )
 }
 
@@ -391,16 +394,36 @@ type Override {
   ConvTypeWith(ident: Ident, conv: Conv)
 }
 
+
+
 fn match_specific(
   field f: DerivField,
+  ident ident: String,
   overrides overrides: List(Override),
 ) -> Result(Override, Nil) {
+  let assert Ok(IdentType(module: Some(module), type_:)) = parse_ident(ident)
+  let module_type = #(module, type_)
+
+  let generalize_field_ident = fn(ident: Ident) -> #(String, String) {
+    case ident {
+      IdentType(module:, type_:) -> #(module |> option.unwrap(""), type_)
+      IdentFieldForType(module:, type_:, ..) -> #(module |> option.unwrap(""), type_)
+    }
+  }
+
   overrides
   |> list.filter(fn(override) {
     case override {
-      SpecifyField(ident: IdentFieldForType(type_:, field:, ..), ..) |
-      ConvTypeWith(ident: IdentFieldForType(type_:, field:, ..), ..) -> {
-        f.type_ == type_ && f.field == field
+      // SpecifyField(ident: IdentFieldForType(type_:, field:, ..), ..) |
+      // ConvTypeWith(ident: IdentFieldForType(type_:, field:, ..), ..) -> {
+      SpecifyField(ident:, ..) |
+      ConvTypeWith(ident:, ..) -> {
+        generalize_field_ident(ident) == module_type
+        // echo f.type_ <> " " <> type_
+        // echo f.field <> " " <> field
+        // echo f.type_ == type_ && f.field == field
+        // f.type_ == type_ && f.field == field
+        // True
       }
 
       _ -> {
@@ -426,6 +449,7 @@ fn match_specific(
 
 fn match_general(
   field f: DerivField,
+  ident ident: String,
   overrides overrides: List(Override),
 ) -> Result(Override, Nil) {
   overrides
@@ -465,7 +489,7 @@ fn build_field_override_(
 ) -> Result(Override, Nil) {
   case field_opt.strs {
     ["from", ..rest] -> {
-      case rest {
+      case rest  {
         [ident] -> {
           result.try(parse_ident(ident:), fn(ident) {
             case ident {
@@ -479,12 +503,12 @@ fn build_field_override_(
         }
 
         ["using", conv] -> {
-          Ok(ConvAllWith(conv: conv |> parse_conv_or_panic))
+          Ok(ConvAllWith(conv: { conv |> parse_conv_or_panic }(ValueDotField)))
         }
 
         [ident, "using", conv] -> {
           result.try(parse_ident(ident:), fn(ident) {
-            Ok(ConvTypeWith(ident:, conv: conv |> parse_conv_or_panic))
+            Ok(ConvTypeWith(ident:, conv: { conv |> parse_conv_or_panic }(ValueDotField)))
           })
         }
 
@@ -502,11 +526,11 @@ fn build_field_override_(
 
 fn parse_conv_or_panic(
   str str: String,
-) -> Conv {
+) -> fn(ConvArgs) -> Conv {
   case str |> string.split(".") {
     [""] -> panic as { "`from` must specify a convert function for `using`" }
-    [func] -> Conv(module: None, func:)
-    [module, func] -> Conv(module: Some(module), func:)
+    [func] -> Conv(module: None, func:, args: _)
+    [module, func] -> Conv(module: Some(module), func:, args: _)
     _ -> panic as {
       "`from` field convert function specified by `using` is invalid. Valid syntax is `func_name` or `module.func_name`, but got: " <> str
     }
@@ -540,8 +564,9 @@ pub fn build_field_override(
       let conv =
         case conv |> string.split(".") {
           [""] -> None
-          [func] -> Some(FromFieldOverrideConv(module: None, func:, args:))
-          [module, func] -> Some(FromFieldOverrideConv(module: Some(module), func:, args:))
+          _ -> todo
+          // [func] -> Some(FromFieldOverrideConv(module: None, func:, args:))
+          // [module, func] -> Some(FromFieldOverrideConv(module: Some(module), func:, args:))
           _ -> panic as {
             "`from` field conv func specification invalid. Valid syntax is `func_name` or `module.func_name`, but got: " <> string.inspect(field_opt.strs |> string.join(" "))
           }
@@ -627,6 +652,7 @@ fn build_ident(
 
 fn from_func_field(
   field field: DerivField,
+  ident ident: String,
   opts opts: DerivFieldOpts,
 ) -> Field {
   let overrides =
@@ -637,11 +663,13 @@ fn from_func_field(
     |> result.values
 
   let override =
-    match_specific(field:, overrides:)
+    match_specific(field:, ident:, overrides:)
     |> result.lazy_or(fn() {
-      match_general(field:, overrides:)
+      match_general(field:, ident:, overrides:)
     })
+    |> echo
 
+  // here
   let #(param_field, conv) =
     case override {
       Error(Nil) ->
@@ -662,7 +690,7 @@ fn from_func_field(
     return_field: field.field,
     conv:,
   )
-  |> echo
+  // |> echo
 }
 
 // fn from_func_fields(
@@ -839,26 +867,27 @@ fn from_func(
     fields:,
   ) = uf
 
-  Definition([], Function(common.dummy_location(), func_name, Public,
-    [FunctionParameter(None, Named("value"), Some(NamedType(common.dummy_location(), param_type, None, [])))],
-    Some(NamedType(common.dummy_location(), return_type, None, [])),
-    [Expression(Call(common.dummy_location(), Variable(common.dummy_location(), return_contr), list.map(fields, fn(field) {
+  Definition([], Function(x, func_name, Public,
+    [FunctionParameter(None, Named("value"), Some(NamedType(x, param_type, None, [])))],
+    Some(NamedType(x, return_type, None, [])),
+    [Expression(Call(x, Variable(x, return_contr), list.map(fields, fn(field) {
       case field.conv {
         None ->
-          LabelledField(field.return_field, FieldAccess(common.dummy_location(), Variable(common.dummy_location(), "value"), field.param_field))
+          LabelledField(field.return_field, FieldAccess(x, Variable(x, "value"), field.param_field))
 
         Some(conv) -> {
-          let value = Variable(common.dummy_location(), "value")
+          let value = Variable(x, "value")
 
           let value =
-            case conv.args {
-              EntireValue -> value
-              ValueDotField -> FieldAccess(common.dummy_location(), value, field.param_field)
-            }
+            // case conv.args {
+            //   EntireValue -> value
+            //   ValueDotField -> FieldAccess(x, value, field.param_field)
+            // }
+              FieldAccess(x, value, field.param_field)
 
           LabelledField(
             label: field.return_field,
-            item: glance.BinaryOperator(common.dummy_location(),
+            item: glance.BinaryOperator(x,
               name: glance.Pipe,
               left: value,
               right: conv_func(conv),
@@ -871,16 +900,16 @@ fn from_func(
 }
 
 fn conv_func(
-  conv conv: FromFieldOverrideConv,
+  conv conv: Conv,
 ) {
   case conv {
-    FromFieldOverrideConv(module: Some(module), func:, ..) ->
-      FieldAccess(common.dummy_location(),
-        Variable(common.dummy_location(), module),
+    Conv(module: Some(module), func:, ..) ->
+      FieldAccess(x,
+        Variable(x, module),
         func,
       )
 
-    FromFieldOverrideConv(module: None, func:, ..) ->
-      Variable(common.dummy_location(), func)
+    Conv(module: None, func:, ..) ->
+      Variable(x, func)
   }
 }
