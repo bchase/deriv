@@ -7,6 +7,10 @@
 - change `derive into` gen'd funcs to format `into_X_from_Y`
 - refactor `derive json`
 - refactor test to use `before.gleam` & `after.gleam` files in `test/examples/TEST_NAME/`
+## FROM
+- refactor implementation of `from`
+- allow various means of specifying module/type/field for overrides
+- add `using` override to specify a function to convert from the field (or entire value)
 
 ## v2.0.0 - 2024-04-08
 

@@ -38,13 +38,12 @@ pub type HasAge {
 
 pub type A {
   A(
-    created_at__type_unspecified: Int,
-    created_at__type_qualified__field__implicit: Int,
-    created_at__type_unqualified__field__implicit: Int,
-    created_at__type_qualified__field__explicit: Int,
-    created_at__type_unqualified__field__explicit: Int,
-    created_at__type_qualified__type: Int,
-    created_at__type_unqualified__type: Int,
+    all: Int,
+    mt: Int,
+    t: Int,
+    mtf: Int,
+    tf: Int,
+    f: Int,
   )
 }
 
@@ -55,23 +54,32 @@ fn to_time(value: A) -> Time {
 pub type Overrides {
   //$ derive from examples/from/before.A
   Overrides(
-    created_at__type_unspecified: Time,
+    all: Time,
     //$ from using birl.from_unix
 
-    created_at__type_qualified__field__implicit: Time,
-    //$ from examples/from/before.A.created_at__type_qualified__field__implicit using birl.from_unix
-    created_at__type_unqualified__field__implicit: Time,
-    //$ from A.created_at__type_qualified__field__implicit using birl.from_unix
+    mt: Time,
+    //$ from examples/from/before.A using birl.from_unix
+    t: Time,
+    //$ from A using birl.from_unix
 
-    created_at__type_qualified__field__explicit: Time,
-    //$ from examples/from/before.A.created_at__type_qualified__field__explicit using birl.from_unix
-    created_at__type_unqualified__field__explicit: Time,
-    //$ from A.created_at__type_qualified__field__explicit using birl.from_unix
+    mtf: Time,
+    //$ from examples/from/before.A.mtf using birl.from_unix
+    tf: Time,
+    //$ from A.tf using birl.from_unix
 
-    created_at__type_qualified__type: Time,
-    //$ from examples/from/before.A using to_time
-    created_at__type_unqualified__type: Time,
-    //$ from A using to_time
+    f: Time,
+    //$ from *.f using birl.from_unix
+  )
+}
+
+pub type OverrideUsingTypeNotField {
+  //$ derive from examples/from/before.A
+  OverrideUsingTypeNotField(
+    mt: Time,
+    //$ from A* using to_time
+
+    t: Time,
+    //$ from examples/from/before.A* using to_time
   )
 }
 
@@ -109,17 +117,17 @@ pub fn from_pet_to_has_age(value: Pet) -> HasAge {
 
 pub fn from_a_to_overrides(value: A) -> Overrides {
   Overrides(
-    created_at__type_unspecified: value.created_at__type_unspecified
-      |> birl.from_unix,
-    created_at__type_qualified__field__implicit: value.created_at__type_qualified__field__implicit
-      |> birl.from_unix,
-    created_at__type_unqualified__field__implicit: value.created_at__type_unqualified__field__implicit
-      |> birl.from_unix,
-    created_at__type_qualified__field__explicit: value.created_at__type_qualified__field__explicit
-      |> birl.from_unix,
-    created_at__type_unqualified__field__explicit: value.created_at__type_unqualified__field__explicit
-      |> birl.from_unix,
-    created_at__type_qualified__type: value |> to_time,
-    created_at__type_unqualified__type: value |> to_time,
+    all: value.all |> birl.from_unix,
+    mt: value.mt |> birl.from_unix,
+    t: value.t |> birl.from_unix,
+    mtf: value.mtf |> birl.from_unix,
+    tf: value.tf |> birl.from_unix,
+    f: value.f |> birl.from_unix,
   )
+}
+
+pub fn from_a_to_override_using_type_not_field(
+  value: A,
+) -> OverrideUsingTypeNotField {
+  OverrideUsingTypeNotField(mt: value |> to_time, t: value |> to_time)
 }
