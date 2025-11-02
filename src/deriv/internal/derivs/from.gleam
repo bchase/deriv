@@ -173,29 +173,6 @@ type Field {
   )
 }
 
-pub type FromFieldOverride {
-  FromFieldOverride(
-    ident: String,
-    field: String,
-    override: String,
-    module_name: String,
-    // type_: CustomType,
-    using: Option(FromFieldOverrideConv),
-  )
-}
-
-pub type FromFieldOverrideConv {
-  FromFieldOverrideConv(
-    module: Option(String),
-    func: String,
-    args: FromFieldOverrideConvArgs,
-  )
-}
-
-pub type FromFieldOverrideConvArgs {
-  Rm
-}
-
 pub type ConvArgs {
   EntireValue
   ValueDotField
@@ -330,8 +307,15 @@ fn match_general(
 ) -> Result(Override, Nil) {
   let overrides_by_unqualified_type =
     overrides
-    |> list.filter(fn(override) {
+    |> list.filter(fn(override)  {
       case override {
+        ConvTypeWith(ident: IdentFieldForType(type_: "", module: None, ..), ..) |
+        ConvTypeWith(ident: IdentFieldForType(type_: "*", module: None, ..), ..) |
+        SpecifyField(ident: IdentFieldForType(type_: "", module: None, ..), ..) |
+        SpecifyField(ident: IdentFieldForType(type_: "*", module: None, ..), ..) -> {
+          True
+        }
+
         ConvTypeWith(ident: IdentFieldForType(type_:, module: None, ..), ..) |
         SpecifyField(ident: IdentFieldForType(type_:, module: None, ..), ..) |
         ConvTypeWith(ident: IdentType(type_:, module: None), ..) -> {
@@ -433,9 +417,10 @@ fn build_field_override(
             let build_conv = conv |> parse_conv_or_panic
             // TODO clean up `*` handling
             let args =
-              case ident.type_ |> string.contains("*") {
-                True -> EntireValue
-                False -> ValueDotField
+              case ident.type_ == "*", ident.type_ |> string.contains("*") {
+                True, _ -> ValueDotField
+                False, True -> EntireValue
+                False, False -> ValueDotField
                }
             let conv = build_conv(args)
             let type_ = ident.type_ |> string.replace("*", "")

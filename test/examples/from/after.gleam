@@ -43,6 +43,7 @@ pub type A {
     t: Int,
     mtf: Int,
     tf: Int,
+    f: Int,
   )
 }
 
@@ -65,6 +66,9 @@ pub type Overrides {
     //$ from examples/from/before.A.mtf using birl.from_unix
     tf: Time,
     //$ from A.tf using birl.from_unix
+
+    f: Time,
+    //$ from *.f using birl.from_unix
   )
 }
 
@@ -118,6 +122,7 @@ pub fn from_a_to_overrides(value: A) -> Overrides {
     t: value.t |> birl.from_unix,
     mtf: value.mtf |> birl.from_unix,
     tf: value.tf |> birl.from_unix,
+    f: value.f |> birl.from_unix,
   )
 }
 
