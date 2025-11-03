@@ -143,10 +143,9 @@ fn from_variant_(
     return_variant
     |> fields(type_: return_type, variant: _)
     |> list.map(fn(t) {
-      let #(field, _type) = t
-      field
+      let #(field, type_) = t
+      from_func_field(field:, type_:, ident:, opts:)
     })
-    |> list.map(from_func_field(field: _, ident:, opts:))
 
   let from = common.snake_case(param_type.name)
   let to = common.snake_case(return_type.name)
@@ -169,7 +168,7 @@ type Field {
   Field(
     param_field: String,
     return_field: String,
-    conv: Option(Conv),
+    conv: Option(#(Conv, Option(Inner))),
   )
 }
 
@@ -245,13 +244,19 @@ type Conv {
     module: Option(String),
     func: String,
     args: ConvArgs,
+    inner: Option(Inner),
   )
+}
+
+type Inner {
+  Option
+  List
 }
 
 type Override {
   SpecifyField(ident: Ident, field: String)
-  ConvAllWith(conv: Conv)
-  ConvTypeWith(ident: Ident, conv: Conv)
+  ConvAllWith(conv: Conv, inner: Option(Inner))
+  ConvTypeWith(ident: Ident, conv: Conv, inner: Option(Inner))
 }
 
 
@@ -377,7 +382,9 @@ fn match_general(
 }
 
 fn build_field_override(
-  field_opt: DerivFieldOpt,
+  opt opt: DerivFieldOpt,
+  field field: DerivField,
+  type_ type_: g.Type,
 ) -> Result(Override, Nil) {
   // let module_name =
   //   case common.fetch_custom_type(ident, module_reader) {
@@ -393,10 +400,12 @@ fn build_field_override(
   //     Ok(#(m, td)) -> #(m, td.definition)
   //   }
 
-  case field_opt.strs {
+  let not_inner = ""
+
+  case opt.strs {
     ["from", ..rest] -> {
-      case rest  {
-        [ident] -> {
+      case rest, not_inner {
+        [ident], _ -> {
           result.try(parse_ident(ident:), fn(ident) {
             case ident {
               IdentType(..) ->
@@ -408,12 +417,19 @@ fn build_field_override(
           })
         }
 
-        ["*", "using", conv] |
-        ["using", conv] -> {
-          Ok(ConvAllWith(conv: { conv |> parse_conv_or_panic }(ValueDotField)))
+        ["*", "using", conv], inner_str |
+        ["*", "using", "inner" as inner_str, conv], _ |
+        ["using", conv], inner_str |
+        ["using", conv, "inner" as inner_str], _ -> {
+          let inner = inner_str |> to_inner(relative_to: type_, on: field)
+
+          Ok(ConvAllWith(conv: { conv |> parse_conv_or_panic }(ValueDotField), inner:))
         }
 
-        [ident, "using", conv] -> {
+        [ident, "using", "inner" as inner_str, conv], _ |
+        [ident, "using", conv], inner_str -> {
+          let inner = inner_str |> to_inner(relative_to: type_, on: field)
+
           result.try(parse_ident(ident:), fn(ident) {
             let build_conv = conv |> parse_conv_or_panic
             // TODO clean up `*` handling
@@ -430,12 +446,12 @@ fn build_field_override(
                 IdentFieldForType(..) -> IdentFieldForType(..ident, type_:)
                 IdentType(..) -> IdentType(..ident, type_:)
               }
-            Ok(ConvTypeWith(ident:, conv:))
+            Ok(ConvTypeWith(ident:, conv:, inner:))
           })
         }
 
-        _ -> {
-          panic as { "`from` invalid field option: " <> field_opt.strs |> string.join(" ") }
+        _, _ -> {
+          panic as { "`from` invalid field option: " <> opt.strs |> string.join(" ") }
         }
       }
     }
@@ -446,13 +462,29 @@ fn build_field_override(
   }
 }
 
+fn to_inner(
+  inner_str inner_str: String,
+  relative_to type_: g.Type,
+  on field: DerivField,
+) -> Option(Inner) {
+  case inner_str == "inner", type_ {
+    False, _ -> None
+    True, g.NamedType(name: "Option", parameters: [_], ..) -> Some(Option)
+    True, g.NamedType(name: "List", parameters: [_], ..) -> Some(List)
+    True, _ -> panic as { "`from`: the `inner` option only makes sense in the context of a `List` or `Option` but got: \n" <>
+      string.inspect(field) <> "\n" <>
+      string.inspect(type_) <> "\n"
+    }
+  }
+}
+
 fn parse_conv_or_panic(
   str str: String,
 ) -> fn(ConvArgs) -> Conv {
   case str |> string.split(".") {
     [""] -> panic as { "`from` must specify a convert function for `using`" }
-    [func] -> Conv(module: None, func:, args: _)
-    [module, func] -> Conv(module: Some(module), func:, args: _)
+    [func] -> fn(args) { Conv(module: None, func:, args:, inner: None) }
+    [module, func] -> fn(args) { Conv(module: Some(module), func:, args:, inner: None) }
     _ -> panic as {
       "`from` field convert function specified by `using` is invalid. Valid syntax is `func_name` or `module.func_name`, but got: " <> str
     }
@@ -462,14 +494,15 @@ fn parse_conv_or_panic(
 
 fn from_func_field(
   field field: DerivField,
+  type_ type_: g.Type,
   ident ident: Ident,
   opts opts: DerivFieldOpts,
 ) -> Field {
   let overrides =
     opts
     |> dict.get(field)
-    |> result.unwrap([])
-    |> list.map(build_field_override)
+    |> result.unwrap([] )
+    |> list.map(build_field_override(opt: _, field:, type_:))
     |> result.values
 
   let override =
@@ -478,25 +511,27 @@ fn from_func_field(
       match_general(field:, ident:, overrides:)
     })
 
-  let #(param_field, conv) =
+  let #(param_field, conv, inner) =
     case override {
       Error(Nil) ->
-        #(field.field, None)
+        #(field.field, None, None)
 
       Ok(SpecifyField(field:, ..)) ->
-        #(field, None)
+        #(field, None, None)
 
-      Ok(ConvAllWith(conv:)) ->
-        #(field.field, Some(conv))
+      Ok(ConvAllWith(conv:, inner:)) ->
+        #(field.field, Some(conv), inner)
 
-      Ok(ConvTypeWith(ident:, conv:)) ->
+      Ok(ConvTypeWith(ident:, conv:, inner:)) ->
         case ident {
           IdentFieldForType(field:, ..) ->
-            #(field, Some(conv))
+            #(field, Some(conv), inner)
           IdentType(..) ->
-            #(field.field, Some(conv))
+            #(field.field, Some(conv), inner)
         }
     }
+
+  let conv = conv |> option.map(fn(conv) { #(conv, inner) })
 
   Field(
     param_field:,
@@ -543,7 +578,7 @@ fn from_func(
         None ->
           LabelledField(field.return_field, FieldAccess(x, Variable(x, "value"), field.param_field))
 
-        Some(conv) -> {
+        Some(#(conv, inner)) -> {
           let value = Variable(x, "value")
 
           let value =
@@ -562,6 +597,23 @@ fn from_func(
 
               Conv(module: None, func:, ..) ->
                 Variable(x, func)
+            }
+
+          let conv_func =
+            case inner {
+              None ->
+                conv_func
+
+              Some(inner) -> {
+                let mod =
+                  case inner {
+                    Option -> "option"
+                    List -> "list"
+                  }
+
+                FieldAccess(x, Variable(x, mod), "map")
+                |> Call(x, _, [ conv_func |> g.UnlabelledField ])
+              }
             }
 
           LabelledField(

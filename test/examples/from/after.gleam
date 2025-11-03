@@ -3,6 +3,7 @@ import examples/from/authe/a.{type AutheA}
 import examples/from/authe/b.{type AutheB}
 import examples/from/friend/person.{type Person}
 import examples/from/friend/pet.{type Pet}
+import gleam/option.{type Option}
 import youid/uuid.{type Uuid}
 
 pub type AutheTokens {
@@ -45,6 +46,7 @@ pub type A {
     mtf: Int,
     tf: Int,
     f: Int,
+    o: Option(Int),
   )
 }
 
@@ -72,6 +74,9 @@ pub type Overrides {
 
     f: Time,
     //$ from *.f using birl.from_unix
+
+    o: Option(Time),
+    //$ from *.o using inner birl.from_unix
   )
 }
 
@@ -127,6 +132,7 @@ pub fn from_a_to_overrides(value: A) -> Overrides {
     mtf: value.mtf |> birl.from_unix,
     tf: value.tf |> birl.from_unix,
     f: value.f |> birl.from_unix,
+    o: value.o |> option.map(birl.from_unix),
   )
 }
 
