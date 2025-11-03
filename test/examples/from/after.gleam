@@ -39,6 +39,7 @@ pub type HasAge {
 pub type A {
   A(
     all: Int,
+    all_star: Int,
     mt: Int,
     t: Int,
     mtf: Int,
@@ -56,6 +57,8 @@ pub type Overrides {
   Overrides(
     all: Time,
     //$ from using birl.from_unix
+    all_star: Time,
+    //$ from * using birl.from_unix
 
     mt: Time,
     //$ from examples/from/before.A using birl.from_unix
@@ -118,6 +121,7 @@ pub fn from_pet_to_has_age(value: Pet) -> HasAge {
 pub fn from_a_to_overrides(value: A) -> Overrides {
   Overrides(
     all: value.all |> birl.from_unix,
+    all_star: value.all_star |> birl.from_unix,
     mt: value.mt |> birl.from_unix,
     t: value.t |> birl.from_unix,
     mtf: value.mtf |> birl.from_unix,

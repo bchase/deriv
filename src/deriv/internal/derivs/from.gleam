@@ -408,6 +408,7 @@ fn build_field_override(
           })
         }
 
+        ["*", "using", conv] |
         ["using", conv] -> {
           Ok(ConvAllWith(conv: { conv |> parse_conv_or_panic }(ValueDotField)))
         }

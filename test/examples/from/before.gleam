@@ -39,6 +39,7 @@ pub type HasAge {
 pub type A {
   A(
     all: Int,
+    all_star: Int,
     mt: Int,
     t: Int,
     mtf: Int,
@@ -56,6 +57,8 @@ pub type Overrides {
   Overrides(
     all: Time,
     //$ from using birl.from_unix
+    all_star: Time,
+    //$ from * using birl.from_unix
 
     mt: Time,
     //$ from examples/from/before.A using birl.from_unix
