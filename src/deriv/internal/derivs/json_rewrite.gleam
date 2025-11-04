@@ -572,6 +572,13 @@ fn decoder_call(
   })
   |> result.lazy_unwrap(fn() {
     case type_.name, type_.params {
+      // "Option", [T(name: "List", params:[T(params: [], ..) as inner_type])] ->
+      //   // "decode" |> dot("optional") |> call([decoder_call(field:, opts:, type_: inner_type)])
+      //   "decode" |> dot("optional_field")
+      //   |> call([
+      //     decoder_call(field:, opts:, type_: inner_type),
+      //   ])
+
       "Option", [T(params:[], ..) as inner_type] ->
         "decode" |> dot("optional") |> call([decoder_call(field:, opts:, type_: inner_type)])
 
@@ -611,6 +618,15 @@ fn decode_field_call(
       panic as "UNIMPLEMENTED (`decode.subfield` for `List(t)`)"
     }
 
+    [prop], "Option", [T(name: "List", params: [_]) as t] -> {
+      "decode" |> dot("optional_field") |> call([
+        string(prop),
+        "deriv" |> dot("none"),
+        "decode" |> dot("optional") |> call([
+          decoder_call(field:, opts:, type_: t),
+        ]),
+      ])
+    }
     [prop], "Option", [T(params: [], ..) as t] -> {
       "decode" |> dot("optional_field") |> call([
         string(prop),
@@ -786,6 +802,15 @@ fn encode_call_(
   opts opts: DerivFieldOpts,
 ) -> g.Expression {
   case type_.name, type_.params {
+    "Option", [T(name: "List", params:[T(params: [], ..) as inner_type])] ->
+      "json" |> dot("nullable") |> call([
+        "value" |> dot(field.gleam),
+        "json" |> dot("array") |> call([
+          "_" |> term,
+          json_encode_func(field:, opts:, type_: inner_type),
+        ]),
+      ])
+
     "Option", [T(params:[], ..) as inner_type] ->
       "json" |> dot("nullable") |> call([
         "value" |> dot(field.gleam),
