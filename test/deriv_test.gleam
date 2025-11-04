@@ -1,3 +1,4 @@
+import gleam/json
 import deriv
 import deriv/internal/common
 import deriv/internal/parser
@@ -11,6 +12,7 @@ import gleeunit
 import gleeunit/should
 import gleam/io
 import simplifile
+import examples/json_rewrite/after as json_example
 
 pub fn glance_read(file_path: String) -> glance.Module {
   let assert Ok(src) = simplifile.read(file_path)
@@ -132,8 +134,20 @@ pub fn main() {
 }
 
 // TEST DERIV JSON REWRITE
-pub fn json_test() {
+pub fn json_rewrite_test() {
   should_derive(example_dir_name: "json_rewrite")
+
+  let foo = json_example.zero_foo()
+  foo
+  |> json_example.encode_foo
+  |> json.to_string
+  |> json.parse(json_example.decoder_foo())
+  |> should.be_ok
+  |> should.equal(foo)
+}
+
+pub fn json_test() {
+  should_derive(example_dir_name: "json")
 }
 
 pub fn json_properties_test() {

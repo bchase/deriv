@@ -1,10 +1,11 @@
 import deriv/util as deriv
-import examples/json_rewrite/bar.{type Bar, decoder_bar, decoder_custom_string, encode_bar, encode_custom_string}
+import examples/json_rewrite/bar.{type Bar, Bar, decoder_bar, decoder_custom_string, encode_bar, encode_custom_string}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
-import gleam/option.{type Option}
+import gleam/option.{type Option, None}
 
 pub type Foo {
+  //$ derive zero
   //$ derive json decode encode
   Foo(
     int: Int,
@@ -13,6 +14,7 @@ pub type Foo {
     float: Float,
     option_string: Option(String),
     list_int: List(Int),
+    option_list_float: Option(List(Float)),
     bar: Bar,
     //
     named: String,
@@ -24,6 +26,14 @@ pub type Foo {
     encode: String,
     //$ json encode encode_custom_string
   )
+}
+
+fn zero_bar() -> Bar {
+  Bar
+}
+
+pub fn zero_foo() -> Foo {
+  Foo(0, "", False, 0.0, None, [], None, zero_bar(), "", 0.0, "", "")
 }
 
 pub fn decoder_foo() -> Decoder(Foo) {
@@ -41,6 +51,11 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     decode.optional(decode.string),
   )
   use list_int <- decode.optional_field("list_int", [], decode.list(decode.int))
+  use option_list_float <- decode.optional_field(
+    "option_list_float",
+    deriv.none,
+    decode.optional(decode.list(decode.float)),
+  )
   use bar <- decode.field("bar", decoder_bar())
   use named <- decode.field("property", decode.string)
   use nested <- decode.subfield(["some", "nested", "prop"], decode.float)
@@ -53,6 +68,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     float:,
     option_string:,
     list_int:,
+    option_list_float:,
     bar:,
     named:,
     nested:,
@@ -71,6 +87,10 @@ pub fn encode_foo(value: Foo) -> Json {
         #("float", json.float(value.float)),
         #("option_string", json.nullable(value.option_string, json.string)),
         #("list_int", json.array(value.list_int, json.int)),
+        #(
+          "option_list_float",
+          json.nullable(value.option_list_float, json.array(_, json.float)),
+        ),
         #("bar", encode_bar(value.bar)),
         #("property", json.string(value.named)),
         #(

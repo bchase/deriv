@@ -379,7 +379,7 @@ pub fn are_any_fields_options(
     variant.fields
     |> list.any(fn(field) {
       case field.item {
-        glance.NamedType(name:, parameters:[_], ..) if name == "Option" -> True
+        glance.NamedType(name: "Option", parameters:[_], ..) -> True
         _ -> False
       }
     })

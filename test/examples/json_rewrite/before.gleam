@@ -1,7 +1,8 @@
-import examples/json_rewrite/bar.{type Bar, decoder_bar, decoder_custom_string, encode_bar, encode_custom_string}
+import examples/json_rewrite/bar.{type Bar, Bar, decoder_bar, decoder_custom_string, encode_bar, encode_custom_string}
 import gleam/option.{type Option}
 
 pub type Foo {
+  //$ derive zero
   //$ derive json decode encode
   Foo(
     int: Int,
@@ -10,6 +11,7 @@ pub type Foo {
     float: Float,
     option_string: Option(String),
     list_int: List(Int),
+    option_list_float: Option(List(Float)),
     bar: Bar,
     //
     named: String,
@@ -21,4 +23,8 @@ pub type Foo {
     encode: String,
     //$ json encode encode_custom_string
   )
+}
+
+fn zero_bar() -> Bar {
+  Bar
 }
