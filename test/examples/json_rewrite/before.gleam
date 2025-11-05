@@ -27,6 +27,8 @@ pub type Foo {
     //$ json named nested.prop
     nested_option_list: Option(List(String)),
     //$ json named option.list
+    nested_list: List(String),
+    //$ json named list.strings
   )
 }
 

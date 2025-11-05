@@ -64,16 +64,24 @@ fn run_and_expect_equal(
   let assert [write] = gen_and_build_writes(input: input |> string.trim, example_dir_name:)
   let gen = write.src |> string.trim
 
-  io.println("")
-  io.println("")
-  io.println("EXPECTED")
-  io.println(output)
-  io.println("")
-  io.println("")
-  io.println("GENERATED")
-  io.println(gen)
-  io.println("DIFF (<expected >generated)")
-  io.println(common.diff(output, gen))
+  // let assert Ok(_) = simplifile.write(to: "expected.txt", contents: output)
+  // let assert Ok(_) = simplifile.write(to: "generated.txt", contents: gen)
+
+  case gen == output {
+    True -> Nil
+    False -> {
+      io.println("")
+      io.println("")
+      io.println("EXPECTED")
+      io.println(output)
+      io.println("")
+      io.println("")
+      io.println("GENERATED")
+      io.println(gen)
+      io.println("DIFF (<expected >generated)")
+      io.println(common.diff(output, gen))
+    }
+  }
 
   gen
   |> should.equal(output)
@@ -136,11 +144,17 @@ pub fn main() {
 // TEST DERIV JSON REWRITE
 pub fn json_rewrite_test() {
   should_derive(example_dir_name: "json_rewrite")
+}
 
+pub fn json_encoded_value_decodes_to_identical_test() {
   let foo = json_example.zero_foo()
   foo
   |> json_example.encode_foo
   |> json.to_string
+  // |> fn(str) {
+  //   io.println(str)
+  //   str
+  // }
   |> json.parse(json_example.decoder_foo())
   |> should.be_ok
   |> should.equal(foo)
@@ -157,6 +171,7 @@ pub fn json_properties_test() {
 pub fn json_multi_variant_type_test() {
   should_derive(example_dir_name: "json_multi_variant_type")
 }
+
 // // TEST DERIVE ENUM
 
 // pub fn enum_test() {
