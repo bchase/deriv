@@ -198,21 +198,21 @@ pub fn json_test() {
 //  should_derive(example_dir_name: "json_multi_variant_nullary_type")
 //}
 
-//pub fn json_optional_field_test() {
-//  should_derive(example_dir_name: "json_optional_field")
-//}
+pub fn json_optional_field_test() {
+  should_derive(example_dir_name: "json_optional_field")
+}
 
-//pub fn json_nested_type_test() {
-//  should_derive(example_dir_name: "json_nested_type")
-//}
+pub fn json_nested_type_test() {
+  should_derive(example_dir_name: "json_nested_type")
+}
 
 //pub fn birl_json_test() {
 //  should_derive(example_dir_name: "json_birl")
 //}
 
-//pub fn unnested_json_test() {
-//  should_derive(example_dir_name: "json_named_to_deeply_nested")
-//}
+pub fn unnested_json_test() {
+  should_derive(example_dir_name: "json_named_to_deeply_nested")
+}
 
 //pub fn json_dict_string_keys_test() {
 //  should_derive(example_dir_name: "json_dict_string_keys")
@@ -226,17 +226,17 @@ pub fn json_test() {
 //  should_derive(example_dir_name: "json_decoder_local_type_alias")
 //}
 
-//pub fn json_specify_decoder_and_encode_test() {
-//  should_derive(example_dir_name: "json_specify_decoder_and_encode")
-//}
+pub fn json_specify_decoder_and_encode_test() {
+  should_derive(example_dir_name: "json_specify_decoder_and_encode")
+}
 
-//pub fn json_decoder_top_level_override_test() {
-//  should_derive(example_dir_name: "json_specify_top_level_decoder")
-//}
+// pub fn json_decoder_top_level_override_test() { // impl `decoder top`
+//   should_derive(example_dir_name: "json_specify_top_level_decoder")
+// }
 
-//pub fn json_specify_default_empty_and_skip_test() {
-//  should_derive(example_dir_name: "json_specify_default_empty_and_skip")
-//}
+// pub fn json_specify_default_empty_and_skip_test() { // UNNEEDED NOW? (`optional_field(..., [], ...)`)
+//   should_derive(example_dir_name: "json_specify_default_empty_and_skip")
+// }
 
 //pub fn json_decoder_parameterized_type_test() {
 //  should_derive(example_dir_name: "json_decoder_parameterized_type")
