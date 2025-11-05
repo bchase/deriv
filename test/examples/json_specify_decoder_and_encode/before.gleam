@@ -15,6 +15,6 @@ fn some_decoder_name() -> Decoder(Option(String)) {
   todo
 }
 
-fn some_encode_func_name(x: String) -> Json {
+fn some_encode_func_name(x: Option(String)) -> Json {
   todo
 }

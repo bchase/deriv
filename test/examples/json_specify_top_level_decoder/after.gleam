@@ -1,5 +1,6 @@
+import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
-import gleam/option.{type Option, None}
+import gleam/option.{type Option}
 
 pub type Top {
   //$ derive json decode
@@ -24,7 +25,11 @@ pub fn decoder_top() -> Decoder(Top) {
 }
 
 pub fn decoder_top_top() -> Decoder(Top) {
-  use list <- decode.field("list", list_override())
-  use option <- decode.optional_field("option", None, option_override())
+  use list <- decode.optional_field("list", [], list_override())
+  use option <- decode.optional_field(
+    "option",
+    deriv.none,
+    option_override(),
+  )
   decode.success(Top(list:, option:))
 }
