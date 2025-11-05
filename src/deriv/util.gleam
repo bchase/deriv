@@ -103,6 +103,15 @@ pub fn decoder_uuid() -> Decoder(Uuid) {
   }
 }
 
+pub fn decode_optional_subfield(
+  path path: List(segment),
+  default default: a,
+  decoder decoder: Decoder(a),
+  cont cont: fn(a) -> Decoder(b)
+) -> Decoder(b) {
+  decode.then(decode.one_of(decode.at(path, decoder), [decode.success(default)]), cont)
+}
+
 pub fn encode_uuid(uuid: Uuid) -> Json {
   uuid
   |> uuid.to_string

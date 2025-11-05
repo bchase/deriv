@@ -25,6 +25,10 @@ pub type Foo {
     //$ json decoder decoder_custom_string
     encode: String,
     //$ json encode encode_custom_string
+    nested_option: Option(String),
+    //$ json named nested.prop
+    nested_option_list: Option(List(String)),
+    //$ json named option.list
   )
 }
 
@@ -33,7 +37,22 @@ fn zero_bar() -> Bar {
 }
 
 pub fn zero_foo() -> Foo {
-  Foo(0, "", False, 0.0, None, [], None, zero_bar(), "", 0.0, "", "")
+  Foo(
+    0,
+    "",
+    False,
+    0.0,
+    None,
+    [],
+    None,
+    zero_bar(),
+    "",
+    0.0,
+    "",
+    "",
+    None,
+    None,
+  )
 }
 
 pub fn decoder_foo() -> Decoder(Foo) {
@@ -61,6 +80,15 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
   use nested <- decode.subfield(["some", "nested", "prop"], decode.float)
   use decoder <- decode.field("decoder", decoder_custom_string())
   use encode <- decode.field("encode", decode.string)
+  use nested_option <- decode.then(decode.at(
+    ["nested", "prop"],
+    decode.optional(decode.string),
+  ))
+  use nested_option_list <- deriv.decode_optional_subfield(
+    ["option", "list"],
+    deriv.none,
+    decode.optional(decode.list(decode.string)),
+  )
   decode.success(Foo(
     int:,
     string:,
@@ -74,6 +102,8 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     nested:,
     decoder:,
     encode:,
+    nested_option:,
+    nested_option_list:,
   ))
 }
 
@@ -101,6 +131,21 @@ pub fn encode_foo(value: Foo) -> Json {
         ),
         #("decoder", json.string(value.decoder)),
         #("encode", encode_custom_string(value.encode)),
+        #(
+          "nested",
+          json.object([
+            #("prop", json.nullable(value.nested_option, json.string)),
+          ]),
+        ),
+        #(
+          "option",
+          json.object([
+            #(
+              "list",
+              json.nullable(value.nested_option_list, json.array(_, json.string)),
+            ),
+          ]),
+        ),
       ])
   }
 }

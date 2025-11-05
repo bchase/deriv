@@ -22,6 +22,10 @@ pub type Foo {
     //$ json decoder decoder_custom_string
     encode: String,
     //$ json encode encode_custom_string
+    nested_option: Option(String),
+    //$ json named nested.prop
+    nested_option_list: Option(List(String)),
+    //$ json named option.list
   )
 }
 

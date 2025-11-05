@@ -572,12 +572,11 @@ fn decoder_call(
   })
   |> result.lazy_unwrap(fn() {
     case type_.name, type_.params {
-      // "Option", [T(name: "List", params:[T(params: [], ..) as inner_type])] ->
-      //   // "decode" |> dot("optional") |> call([decoder_call(field:, opts:, type_: inner_type)])
-      //   "decode" |> dot("optional_field")
-      //   |> call([
-      //     decoder_call(field:, opts:, type_: inner_type),
-      //   ])
+      "Option", [T(name: "List", params:[_]) as list_type] ->
+        "decode" |> dot("optional")
+        |> call([
+          decoder_call(field:, opts:, type_: list_type),
+        ])
 
       "Option", [T(params:[], ..) as inner_type] ->
         "decode" |> dot("optional") |> call([decoder_call(field:, opts:, type_: inner_type)])
@@ -606,14 +605,14 @@ fn decode_field_call(
       panic as { "`derive decode` needs a JSON property, but found none for: " <> string.inspect(field) }
     }
 
-    [prop], "List", [T(params: [], ..) as t] -> {
+    [prop], "List", [T(params: [], ..)] -> {
       "decode" |> dot("optional_field") |> call([
         string(prop),
         list([]),
         decoder_call(field:, opts:, type_: field.type_),
       ])
     }
-    [_prop1, _prop2, ..] as props, "List", [T(params: [], ..) as t] -> {
+    [_prop1, _prop2, ..] as props, "List", [T(params: [], ..)] -> {
       // TODO
       panic as "UNIMPLEMENTED (`decode.subfield` for `List(t)`)"
     }
@@ -627,16 +626,27 @@ fn decode_field_call(
         ]),
       ])
     }
-    [prop], "Option", [T(params: [], ..) as t] -> {
+    [prop], "Option", [T(params: [], ..)] -> {
       "decode" |> dot("optional_field") |> call([
         string(prop),
         "deriv" |> dot("none"),
         decoder_call(field:, opts:, type_: field.type_),
       ])
     }
-    [_prop1, _prop2, ..] as props, "Option", [T(params: [], ..) as t] -> {
-      // TODO
-      panic as "UNIMPLEMENTED (`decode.subfield` for `Option(t)`)"
+    [_prop1, _prop2, ..] as props, "Option", [T(name: "List", params: [_])] -> {
+      "deriv" |> dot("decode_optional_subfield") |> call([
+        list(props |> list.map(string)),
+        "deriv" |> dot("none"),
+        decoder_call(field:, opts:, type_: field.type_),
+      ])
+    }
+    [_prop1, _prop2, ..] as props, "Option", [T(params: [], ..)] -> {
+      "decode" |> dot("then") |> call([
+        "decode" |> dot("at") |> call([
+          list(props |> list.map(string)),
+          decoder_call(field:, opts:, type_: field.type_),
+        ]),
+      ])
     }
 
     [prop], _, _ -> {
