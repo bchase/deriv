@@ -1,7 +1,8 @@
+import gleam/pair
 import gleam/bool
 import gleam/io
 import gleam/option.{type Option, Some, None}
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/result
 import gleam/list
 import gleam/string
@@ -10,7 +11,6 @@ import deriv/internal/types.{type File, type Derivation, type DerivFieldOpt, typ
 import deriv/internal/common.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
 // TODO conv:
-//   - aggregate nested encodes for shared keys, e.g. `nested.foo` & `nested.bar` in same `#("nested", _)`
 //   - `use nested_option <- decode.then(decode.at(`
 
 const deriv_variant_json_key = "_var"
@@ -451,6 +451,12 @@ fn dot(
   g.FieldAccess(x, term(a), b)
 }
 
+fn tuple(
+  elements: List(g.Expression),
+) -> g.Expression {
+  g.Tuple(x, elements)
+}
+
 // DECODER FUNC GEN
 
 fn type_decoder_func(
@@ -741,6 +747,30 @@ fn type_encode_func(
   )
 }
 
+fn to_json_object_tuples(
+  encodes encodes: List(Encode),
+) -> List(g.Expression) {
+  encodes
+  |> list.sort(fn(a, b) { string.compare(a.prop, b.prop) })
+  |> list.map(fn(encode) {
+    case encode {
+      Encode(prop:, func: encode_func) ->
+        tuple([
+          string(prop),
+          encode_func,
+        ])
+
+      Path(prop:, children:) ->
+        tuple([
+          string(prop),
+          "json" |> dot("object") |> call([list(
+            children |> to_json_object_tuples
+          )])
+        ])
+    }
+  })
+}
+
 fn variant_encode_case_clause(
   type_ type_: Type,
   variant variant: Variant,
@@ -760,41 +790,76 @@ fn variant_encode_case_clause(
     ]],
     guard: None,
     body: {
-      "json" |> dot("object") |> call({
+      "json" |> dot("object") |> call([list(
         variant.fields
-        |> list.map(fn(field) {
-          encode_field(properties: field.json, field:, opts:)
+        |> list.fold([], fn(acc, field) {
+          acc
+          |> add_encode(
+            path: field.json,
+            encode: encode_call(type_: field.type_, field:, opts:),
+          )
         })
-        |> list
-        |> list.wrap
-      })
+        |> to_json_object_tuples
+      )])
     }
   )
 }
 
-fn encode_field(
-  properties path: List(String),
-  field field: Field,
-  opts opts: DerivFieldOpts,
-) -> g.Expression {
-  case path {
-    [prop] ->
-      g.Tuple(x, [
-        string(prop),
-        encode_call(type_: field.type_, field:, opts:),
-      ])
+type Encode {
+  Path(prop: String, children: List(Encode))
+  Encode(prop: String, func: g.Expression)
+}
 
-    [prop, ..properties] ->
-      g.Tuple(x, [
-        string(prop),
-        "json" |> dot("object") |> call([list([
-          encode_field(properties:, field:, opts:),
-        ])])
-      ])
+fn add_encode(
+  siblings siblings: List(Encode),
+  path path: List(String),
+  encode func: g.Expression,
+) -> List(Encode) {
+  case path {
+    [prop, ..path] ->
+      case path, siblings |> get_encode_for(prop:) {
+        [], Error(Nil) ->
+          Encode(prop:, func:)
+          |> list.wrap
+          |> list.append(siblings, _)
+
+        path, Error(Nil) ->
+          [
+            Path(prop:, children: [] |> add_encode(path:, encode: func)),
+            ..siblings
+          ]
+
+        path, Ok(#(Path(children:, ..) as p, siblings)) ->
+          [
+            Path(..p, children: children |> add_encode(path:, encode: func)),
+            ..siblings
+          ]
+
+        [], Ok(#(Encode(..), _)) |
+        _path, Ok(#(Encode(..), _)) ->
+          panic as "`add_encode` property collision" // TODO context
+      }
 
     [] ->
-      panic
+      panic as "`add_encode` empty `path`"
   }
+}
+
+fn get_encode_for(
+  encodes es: List(Encode),
+  prop prop: String,
+) -> Result(#(Encode, List(Encode)), Nil) {
+  es
+  |> list.find(fn(e) {
+    e.prop == prop
+  })
+  |> result.map(fn(encode) {
+    es
+    |> list.filter(fn(e) {
+      encode != e
+    })
+    |> pair.new(encode, _)
+  })
 }
 
 fn encode_call(
