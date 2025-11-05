@@ -12,6 +12,7 @@ pub type Foo {
     option_string: Option(String),
     list_int: List(Int),
     option_list_float: Option(List(Float)),
+    list_option_bool: List(Option(Bool)),
     bar: Bar,
     //
     named: String,

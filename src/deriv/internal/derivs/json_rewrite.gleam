@@ -572,6 +572,12 @@ fn decoder_call(
   })
   |> result.lazy_unwrap(fn() {
     case type_.name, type_.params {
+      "List", [T(name: "Option", params:[_]) as option_type] ->
+        "decode" |> dot("list")
+        |> call([
+          decoder_call(field:, opts:, type_: option_type),
+        ])
+
       "Option", [T(name: "List", params:[_]) as list_type] ->
         "decode" |> dot("optional")
         |> call([
@@ -605,6 +611,16 @@ fn decode_field_call(
       panic as { "`derive decode` needs a JSON property, but found none for: " <> string.inspect(field) }
     }
 
+    // use list_option_bool <- decode.field(
+    //   "list_option_bool",
+    //   decode.list(decode.optional(decode.bool)),
+    // )
+    [prop], "List", [T(name: "Option", params: [_])] -> {
+      "decode" |> dot("field") |> call([
+        string(prop),
+        decoder_call(field:, opts:, type_: field.type_),
+      ])
+    }
     [prop], "List", [T(params: [], ..)] -> {
       "decode" |> dot("optional_field") |> call([
         string(prop),
@@ -816,6 +832,15 @@ fn encode_call_(
       "json" |> dot("nullable") |> call([
         "value" |> dot(field.gleam),
         "json" |> dot("array") |> call([
+          "_" |> term,
+          json_encode_func(field:, opts:, type_: inner_type),
+        ]),
+      ])
+
+    "List", [T(name: "Option", params:[T(params: [], ..) as inner_type])] ->
+      "json" |> dot("array") |> call([
+        "value" |> dot(field.gleam),
+        "json" |> dot("nullable") |> call([
           "_" |> term,
           json_encode_func(field:, opts:, type_: inner_type),
         ]),
