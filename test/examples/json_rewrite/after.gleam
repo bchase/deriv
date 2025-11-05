@@ -161,7 +161,10 @@ pub fn encode_foo(value: Foo) -> Json {
           json.object([
             #(
               "list",
-              json.nullable(value.nested_option_list, json.array(_, json.string)),
+              json.nullable(
+                value.nested_option_list,
+                json.array(_, json.string),
+              ),
             ),
           ]),
         ),

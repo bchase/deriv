@@ -820,7 +820,7 @@ fn encode_call(
     ])
   })
   |> result.lazy_unwrap(fn() {
-    encode_call_(type_:, field:, opts:)
+    encode_call_(type_:, field:, opts:, value_arg: True)
   })
 }
 
@@ -828,36 +828,25 @@ fn encode_call_(
   type_ type_: T,
   field field: Field,
   opts opts: DerivFieldOpts,
+  value_arg value_arg: Bool,
 ) -> g.Expression {
+  let value =
+    case value_arg {
+      True -> "value" |> dot(field.gleam)
+      False -> "_" |> term
+    }
+
   case type_.name, type_.params {
-    "Option", [T(name: "List", params:[T(params: [], ..) as inner_type])] ->
+    "Option", [inner_type] ->
       "json" |> dot("nullable") |> call([
-        "value" |> dot(field.gleam),
-        "json" |> dot("array") |> call([
-          "_" |> term,
-          json_encode_func(field:, opts:, type_: inner_type),
-        ]),
+        value,
+        encode_call_(type_: inner_type, field:, opts:, value_arg: False),
       ])
 
-    "List", [T(name: "Option", params:[T(params: [], ..) as inner_type])] ->
+    "List", [inner_type] ->
       "json" |> dot("array") |> call([
-        "value" |> dot(field.gleam),
-        "json" |> dot("nullable") |> call([
-          "_" |> term,
-          json_encode_func(field:, opts:, type_: inner_type),
-        ]),
-      ])
-
-    "Option", [T(params:[], ..) as inner_type] ->
-      "json" |> dot("nullable") |> call([
-        "value" |> dot(field.gleam),
-        json_encode_func(field:, opts:, type_: inner_type),
-      ])
-
-    "List", [T(params:[], ..) as inner_type] ->
-      "json" |> dot("array") |> call([
-        "value" |> dot(field.gleam),
-        json_encode_func(field:, opts:, type_: inner_type),
+        value,
+        encode_call_(type_: inner_type, field:, opts:, value_arg: False),
       ])
 
     "String", [] |
@@ -865,12 +854,12 @@ fn encode_call_(
     "Float", [] |
     "Bool", [] ->
       json_encode_func(type_:, field:, opts:) |> call([
-        "value" |> dot(field.gleam),
+        value,
       ])
 
     _, _ ->
       { "encode_" <> type_.name |> common.snake_case } |> term |> call([
-        "value" |> dot(field.gleam),
+        value,
       ])
   }
 }
