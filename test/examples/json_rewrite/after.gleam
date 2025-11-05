@@ -15,6 +15,7 @@ pub type Foo {
     option_string: Option(String),
     list_int: List(Int),
     option_list_float: Option(List(Float)),
+    list_option_bool: List(Option(Bool)),
     bar: Bar,
     //
     named: String,
@@ -45,6 +46,7 @@ pub fn zero_foo() -> Foo {
     None,
     [],
     None,
+    [],
     zero_bar(),
     "",
     0.0,
@@ -75,6 +77,10 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     deriv.none,
     decode.optional(decode.list(decode.float)),
   )
+  use list_option_bool <- decode.field(
+    "list_option_bool",
+    decode.list(decode.optional(decode.bool)),
+  )
   use bar <- decode.field("bar", decoder_bar())
   use named <- decode.field("property", decode.string)
   use nested <- decode.subfield(["some", "nested", "prop"], decode.float)
@@ -97,6 +103,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     option_string:,
     list_int:,
     option_list_float:,
+    list_option_bool:,
     bar:,
     named:,
     nested:,
@@ -120,6 +127,10 @@ pub fn encode_foo(value: Foo) -> Json {
         #(
           "option_list_float",
           json.nullable(value.option_list_float, json.array(_, json.float)),
+        ),
+        #(
+          "list_option_bool",
+          json.array(value.list_option_bool, json.nullable(_, json.bool)),
         ),
         #("bar", encode_bar(value.bar)),
         #("property", json.string(value.named)),
