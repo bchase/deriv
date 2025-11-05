@@ -9,6 +9,10 @@ import glance as g
 import deriv/internal/types.{type File, type Derivation, type DerivFieldOpt, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt} as deriv
 import deriv/internal/common.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
 
+// TODO conv:
+//   - aggregate nested encodes for shared keys, e.g. `nested.foo` & `nested.bar` in same `#("nested", _)`
+//   - `use nested_option <- decode.then(decode.at(`
+
 const deriv_variant_json_key = "_var"
 
 type Context {
@@ -611,10 +615,6 @@ fn decode_field_call(
       panic as { "`derive decode` needs a JSON property, but found none for: " <> string.inspect(field) }
     }
 
-    // use list_option_bool <- decode.field(
-    //   "list_option_bool",
-    //   decode.list(decode.optional(decode.bool)),
-    // )
     [prop], "List", [T(name: "Option", params: [_])] -> {
       "decode" |> dot("field") |> call([
         string(prop),
@@ -629,8 +629,10 @@ fn decode_field_call(
       ])
     }
     [_prop1, _prop2, ..] as props, "List", [T(params: [], ..)] -> {
-      // TODO
-      panic as "UNIMPLEMENTED (`decode.subfield` for `List(t)`)"
+      "decode" |> dot("subfield") |> call([
+        list(props |> list.map(string)),
+        decoder_call(field:, opts:, type_: field.type_),
+      ])
     }
 
     [prop], "Option", [T(name: "List", params: [_]) as t] -> {

@@ -30,6 +30,8 @@ pub type Foo {
     //$ json named nested.prop
     nested_option_list: Option(List(String)),
     //$ json named option.list
+    nested_list: List(String),
+    //$ json named list.strings
   )
 }
 
@@ -54,6 +56,7 @@ pub fn zero_foo() -> Foo {
     "",
     None,
     None,
+    [],
   )
 }
 
@@ -95,6 +98,10 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     deriv.none,
     decode.optional(decode.list(decode.string)),
   )
+  use nested_list <- decode.subfield(
+    ["list", "strings"],
+    decode.list(decode.string),
+  )
   decode.success(Foo(
     int:,
     string:,
@@ -111,6 +118,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     encode:,
     nested_option:,
     nested_option_list:,
+    nested_list:,
   ))
 }
 
@@ -156,6 +164,10 @@ pub fn encode_foo(value: Foo) -> Json {
               json.nullable(value.nested_option_list, json.array(_, json.string)),
             ),
           ]),
+        ),
+        #(
+          "list",
+          json.object([#("strings", json.array(value.nested_list, json.string))]),
         ),
       ])
   }
