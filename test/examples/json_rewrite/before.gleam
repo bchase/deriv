@@ -24,11 +24,11 @@ pub type Foo {
     encode: String,
     //$ json encode encode_custom_string
     nested_option: Option(String),
-    //$ json named nested.prop
+    //$ json named nested.option
     nested_option_list: Option(List(String)),
     //$ json named option.list
     nested_list: List(String),
-    //$ json named list.strings
+    //$ json named nested.list
   )
 }
 

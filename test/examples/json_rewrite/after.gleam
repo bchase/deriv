@@ -27,11 +27,11 @@ pub type Foo {
     encode: String,
     //$ json encode encode_custom_string
     nested_option: Option(String),
-    //$ json named nested.prop
+    //$ json named nested.option
     nested_option_list: Option(List(String)),
     //$ json named option.list
     nested_list: List(String),
-    //$ json named list.strings
+    //$ json named nested.list
   )
 }
 
@@ -90,7 +90,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
   use decoder <- decode.field("decoder", decoder_custom_string())
   use encode <- decode.field("encode", decode.string)
   use nested_option <- decode.then(decode.at(
-    ["nested", "prop"],
+    ["nested", "option"],
     decode.optional(decode.string),
   ))
   use nested_option_list <- deriv.decode_optional_subfield(
@@ -99,7 +99,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     decode.optional(decode.list(decode.string)),
   )
   use nested_list <- decode.subfield(
-    ["list", "strings"],
+    ["nested", "list"],
     decode.list(decode.string),
   )
   decode.success(Foo(
@@ -126,34 +126,22 @@ pub fn encode_foo(value: Foo) -> Json {
   case value {
     Foo(..) as value ->
       json.object([
-        #("int", json.int(value.int)),
-        #("string", json.string(value.string)),
+        #("bar", encode_bar(value.bar)),
         #("bool", json.bool(value.bool)),
+        #("decoder", json.string(value.decoder)),
+        #("encode", encode_custom_string(value.encode)),
         #("float", json.float(value.float)),
-        #("option_string", json.nullable(value.option_string, json.string)),
+        #("int", json.int(value.int)),
         #("list_int", json.array(value.list_int, json.int)),
-        #(
-          "option_list_float",
-          json.nullable(value.option_list_float, json.array(_, json.float)),
-        ),
         #(
           "list_option_bool",
           json.array(value.list_option_bool, json.nullable(_, json.bool)),
         ),
-        #("bar", encode_bar(value.bar)),
-        #("property", json.string(value.named)),
-        #(
-          "some",
-          json.object([
-            #("nested", json.object([#("prop", json.float(value.nested))])),
-          ]),
-        ),
-        #("decoder", json.string(value.decoder)),
-        #("encode", encode_custom_string(value.encode)),
         #(
           "nested",
           json.object([
-            #("prop", json.nullable(value.nested_option, json.string)),
+            #("list", json.array(value.nested_list, json.string)),
+            #("option", json.nullable(value.nested_option, json.string)),
           ]),
         ),
         #(
@@ -169,9 +157,18 @@ pub fn encode_foo(value: Foo) -> Json {
           ]),
         ),
         #(
-          "list",
-          json.object([#("strings", json.array(value.nested_list, json.string))]),
+          "option_list_float",
+          json.nullable(value.option_list_float, json.array(_, json.float)),
         ),
+        #("option_string", json.nullable(value.option_string, json.string)),
+        #("property", json.string(value.named)),
+        #(
+          "some",
+          json.object([
+            #("nested", json.object([#("prop", json.float(value.nested))])),
+          ]),
+        ),
+        #("string", json.string(value.string)),
       ])
   }
 }
