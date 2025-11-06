@@ -72,13 +72,15 @@ fn gen_json_decoders(
       panic as "not implemented"
 
     deriv.Type(type_:) -> {
+      let is_multi_variant = type_ |> common.is_multi_variant
+
       let type_ = to_decode_type(type_:, opts:)
 
       [
         type_decoder_func(type_:),
         ..{
           type_.variants
-          |> list.map(variant_decoder_func(type_:, variant: _, opts:))
+          |> list.map(variant_decoder_func(type_:, variant: _, opts:, is_multi_variant:))
         }
       ]
       |> list.map(g.Definition([], _))
@@ -95,10 +97,12 @@ fn gen_json_encoders(
       panic as "not implemented"
 
     deriv.Type(type_:) -> {
+      let is_multi_variant = type_ |> common.is_multi_variant
+
       let type_ = to_decode_type(type_:, opts: ctx.all_field_opts)
 
       [
-        type_encode_func(type_:, opts: ctx.all_field_opts),
+        type_encode_func(type_:, opts: ctx.all_field_opts, is_multi_variant:),
       ]
       |> list.map(g.Definition([], _))
     }
@@ -176,7 +180,7 @@ fn encode_imports(
   opts opts: List(String),
   type_ type_: g.CustomType,
 ) -> List(g.Import) {
-  use <- bool.guard(!{opts |> list.contains("decode")}, return: [])
+  use <- bool.guard(!{opts |> list.contains("encode")}, return: [])
 
   let standard = [
     common.import__(
@@ -187,21 +191,28 @@ fn encode_imports(
     )
   ]
 
-  // let util_import = {
-  //   use <- bool.guard(!{type_ |> common.are_any_fields_options}, return: [])
+  let needs_util_import =
+    [
+      type_ |> common.are_any_fields_options,
+      type_ |> common.is_multi_variant,
+    ]
+    |> list.any(fn(bool) { bool })
 
-  //   [
-  //     common.import__(
-  //       module: "deriv/util",
-  //       as_: Some("deriv"),
-  //       values: [],
-  //       types: [],
-  //     )
-  //   ]
-  // }
+  let util_import = {
+    use <- bool.guard(!needs_util_import, return: [])
+
+    [
+      common.import__(
+        module: "deriv/util",
+        as_: Some("deriv"),
+        values: [],
+        types: [],
+      )
+    ]
+  }
 
   standard
-  // |> list.append(util_import)
+  |> list.append(util_import)
 }
 
 //
@@ -521,10 +532,31 @@ fn variant_decoder_func(
   type_ type_: Type,
   variant variant: Variant,
   opts opts: DerivFieldOpts,
+  is_multi_variant is_multi_variant: Bool,
 ) -> g.Function {
   let use_lines =
     variant.fields
     |> list.map(use_decode_field_line(field: _, opts:))
+
+  let use_lines =
+    // pass from above
+    case is_multi_variant {
+      False -> use_lines
+      True -> [
+        g.Use(x,
+          patterns: [g.PatternDiscard(x, name: "deriv_var_constr") |> g.UsePattern(pattern: _, annotation: None)],
+          function: {
+            "decode" |> dot("field") |> call([
+              string("_var"),
+              "deriv" |> dot("is") |> call([
+                string(variant.pascal_case),
+              ]),
+            ])
+          },
+        ),
+        ..use_lines
+      ]
+    }
 
   g.Function(x,
     name: variant_decoder_name(type_:, variant:),
@@ -724,6 +756,7 @@ fn variant_decoder_constructor(
 fn type_encode_func(
   type_ type_: Type,
   opts opts: DerivFieldOpts,
+  is_multi_variant is_multi_variant: Bool,
 ) -> g.Function {
   g.Function(x,
     name: "encode_" <> type_.snake_case,
@@ -739,7 +772,7 @@ fn type_encode_func(
     body: {
       g.Case(x, subjects: ["value" |> term], clauses: {
         type_.variants
-        |> list.map(variant_encode_case_clause(variant: _, type_:, opts:))
+        |> list.map(variant_encode_case_clause(variant: _, type_:, opts:, is_multi_variant:))
       })
       |> g.Expression
       |> list.wrap
@@ -775,7 +808,31 @@ fn variant_encode_case_clause(
   type_ type_: Type,
   variant variant: Variant,
   opts opts: DerivFieldOpts,
+  is_multi_variant is_multi_variant: Bool,
 ) -> g.Clause {
+  let field_tuples =
+    variant.fields
+    |> list.fold([], fn(acc, field) {
+      acc
+      |> add_encode(
+        path: field.json,
+        encode: encode_call(type_: field.type_, field:, opts:),
+      )
+    })
+    |> to_json_object_tuples
+
+  let field_tuples =
+    case is_multi_variant {
+      False -> field_tuples
+      True -> [
+        tuple([
+          string("_var"),
+          "json" |> dot("string") |> call([string(variant.pascal_case)])
+        ]),
+        .. field_tuples
+      ]
+    }
+
   g.Clause(
     patterns: [[
       g.PatternAssignment(x,
@@ -791,15 +848,7 @@ fn variant_encode_case_clause(
     guard: None,
     body: {
       "json" |> dot("object") |> call([list(
-        variant.fields
-        |> list.fold([], fn(acc, field) {
-          acc
-          |> add_encode(
-            path: field.json,
-            encode: encode_call(type_: field.type_, field:, opts:),
-          )
-        })
-        |> to_json_object_tuples
+        field_tuples,
       )])
     }
   )
