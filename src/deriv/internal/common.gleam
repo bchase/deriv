@@ -514,3 +514,9 @@ pub fn custom_type_or_panic(
     }
   }
 }
+
+pub fn is_multi_variant(
+  type_ type_: CustomType,
+) -> Bool {
+  { type_.variants |> list.length } >= 2
+}
