@@ -747,8 +747,10 @@ fn variant_decoder_constructor(
       g.ShorthandField(field.gleam)
     })
 
-  constr
-  |> call_(arguments:)
+  case variant.fields {
+    [] -> constr
+    _ -> constr |> call_(arguments:)
+  }
 }
 
 // ENCODE FUNC GEN
