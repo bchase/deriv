@@ -527,34 +527,46 @@ fn type_encode_expr(
         encode_with_params_or_override(field_access(variable("json"), "array"))
 
       "Dict", _ -> {
-        let _str_keys_only =
-          case type_.parameters {
-            [JType(name: "String", parameters: [], ..), _] -> Nil
-            [JType(name: "Int", parameters: [], ..), _] -> Nil
-            [JType(name: "Float", parameters: [], ..), _] -> Nil
-            [JType(name: "Bool", parameters: [], ..), _] -> Nil
-            [JType(name: "Uuid", parameters: [], ..), _] -> Nil
-            _ ->  panic as {
-              "`json.dict` only supports `String`, `Int`, `Float`, `Bool`, and `Uuid` keys, but got: " <> string.inspect(type_)
-            }
+        case type_.parameters {
+          [JType(name: "String", parameters: [], ..) as t, _] |
+          [JType(name: "Int", parameters: [], ..) as t, _] |
+          [JType(name: "Float", parameters: [], ..) as t, _] |
+          [JType(name: "Bool", parameters: [], ..) as t, _] |
+          [JType(name: "Uuid", parameters: [], ..) as t, _] -> {
+            let conv_func =
+              case t.name {
+                "String" ->
+                  identity_func(param: "str")
+
+                type_name -> {
+                  let type_name = type_name |> common.snake_case
+                  // call(field_access(variable(type_name), "to_string"), params)
+                  field_access(variable(type_name), "to_string")
+                }
+              }
+
+            let params =
+              [
+                encode_arg,
+                UnlabelledField(conv_func),
+              ]
+              |> list.append({
+                type_.parameters
+                |> list.map(type_encode_expr(_, None, encode_func_name_override, birl_time_kind, type_aliases, wrap: None, encode_arg: {
+                  UnlabelledField(variable("_"))
+                }))
+                |> list.map(UnlabelledField)
+                |> list.rest
+                |> result.unwrap([])
+              })
+
+            call(field_access(variable("json"), "dict"), params)
           }
 
-        let params =
-          [
-            encode_arg,
-            UnlabelledField(identity_func(param: "str")),
-          ]
-          |> list.append({
-            type_.parameters
-            |> list.map(type_encode_expr(_, None, encode_func_name_override, birl_time_kind, type_aliases, wrap: None, encode_arg: {
-              UnlabelledField(variable("_"))
-            }))
-            |> list.map(UnlabelledField)
-            |> list.rest
-            |> result.unwrap([])
-          })
-
-        call(field_access(variable("json"), "dict"), params)
+          _ ->  panic as {
+            "`json.dict` only supports `String`, `Int`, `Float`, `Bool`, and `Uuid` keys, but got: " <> string.inspect(type_)
+          }
+        }
       }
 
       _, _ -> {
