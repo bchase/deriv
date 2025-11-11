@@ -468,6 +468,27 @@ fn tuple(
   g.Tuple(x, elements)
 }
 
+//
+
+fn identity_func(
+  param_name param_name: String,
+) -> g.Expression {
+  g.Fn(x,
+    arguments: [
+      g.FnParameter(
+        name: g.Named(param_name),
+        type_: None,
+      )
+    ],
+    body: [
+      g.Expression(
+        param_name |> term,
+      ),
+    ],
+    return_annotation: None,
+  )
+}
+
 // DECODER FUNC GEN
 
 fn type_decoder_func(
@@ -652,6 +673,22 @@ fn decode_field_call(
     [], _, _ -> {
       panic as { "`derive decode` needs a JSON property, but found none for: " <> string.inspect(field) }
     }
+
+    [prop], "Dict", [_key, val] -> {
+      "decode" |> dot("field") |> call([
+        string(prop),
+        "decode" |> dot("dict") |> call([
+          "decode" |> dot("string"),
+          decoder_call(field:, opts:, type_: val),
+        ])
+      ])
+    }
+    // [_prop1, _prop2, ..] as props, "List", [T(params: [], ..)] -> {
+    //   "decode" |> dot("subfield") |> call([
+    //     list(props |> list.map(string)),
+    //     decoder_call(field:, opts:, type_: field.type_),
+    //   ])
+    // }
 
     [prop], "List", [T(name: "Option", params: [_])] -> {
       "decode" |> dot("field") |> call([
@@ -953,6 +990,13 @@ fn encode_call_(
     }
 
   case type_.name, type_.params {
+    "Dict", [key, val] ->
+      "json" |> dot("dict") |> call([
+        value,
+        identity_func("str"),
+        encode_call_(type_: val, field:, opts:, value_arg: False),
+      ])
+
     "Option", [inner_type] ->
       "json" |> dot("nullable") |> call([
         value,
