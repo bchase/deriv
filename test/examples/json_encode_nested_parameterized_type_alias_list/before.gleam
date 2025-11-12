@@ -8,8 +8,8 @@ pub type Field1(t) {
   Field1(
     id: String,
     validations: List(Validation(t)),
-    //$ json decoder decoder_fake_validation
-    //$ json encode encode_fake_validation
+    //$ json decoder decoder_list_fake_validation
+    //$ json encode encode_list_fake_validation
     touched: Bool,
     value: t,
     errs: List(String),
@@ -22,6 +22,16 @@ pub fn encode_fake_validation(
   json.null()
 }
 
+pub fn encode_list_fake_validation(
+  _value: List(Validation(t)),
+) -> Json {
+  json.array([], encode_fake_validation)
+}
+
 pub fn decoder_fake_validation() -> Decoder(Validation(t)) {
   decode.success(fn(_) { Error([]) })
+}
+
+pub fn decoder_list_fake_validation() -> Decoder(List(Validation(t))) {
+  decode.list(decode.success(fn(_) { Error([]) }))
 }
