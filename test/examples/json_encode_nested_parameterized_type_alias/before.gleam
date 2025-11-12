@@ -21,6 +21,9 @@ pub type Form {
     override: Fields(String),
     //$ json decoder decoder_override
     //$ json encode encode_override
+    override_inner: Fields(String),
+    //$ json decoder inner decoder_override_inner
+    //$ json encode inner encode_override_inner
   )
 }
 
@@ -40,3 +43,10 @@ fn encode_override(x: Fields(String)) -> Json {
   todo
 }
 
+fn decoder_override_inner() -> Decoder(String) {
+  todo
+}
+
+fn encode_override_inner(x: String) -> Json {
+  todo
+}
