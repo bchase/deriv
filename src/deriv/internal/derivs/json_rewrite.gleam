@@ -1269,7 +1269,7 @@ fn encode_call_(
     "List", [inner_type] ->
       "json" |> dot("array") |> call([
         value,
-        encode_call_(type_: inner_type, field:, opts:, value_arg: False),
+        encode_call_(type_: inner_type , field:, opts:, value_arg: False),
       ])
 
     "String", [] |
@@ -1291,7 +1291,10 @@ fn encode_call_(
         ..{
           params
           |> list.map(fn(param) {
-            json_encode_func(param)
+            case param.params {
+              [] -> json_encode_func(param)
+              _ -> encode_call_(type_: param, field:, opts:, value_arg: False)
+            }
           })
         }
       ])

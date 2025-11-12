@@ -19,8 +19,8 @@ pub type Form {
     text_fields: Fields(String),
     list_fields: Fields(List(String)),
     override: Fields(String),
-    //$ json decoder some_specific_decoder
-    //$ json encode some_specific_encode
+    //$ json decoder decoder_override
+    //$ json encode encode_override
   )
 }
 
@@ -28,14 +28,15 @@ fn decoder_fields(inner: Decoder(t)) -> Decoder(Fields(t)) {
   todo
 }
 
-fn some_specific_decoder() -> Decoder(Fields(String)) {
-  todo
-}
-
 fn encode_fields(x: Fields(t), inner: fn(t) -> Json) -> Json {
   todo
 }
 
-fn some_specific_encode(x: String) -> Json {
+fn decoder_override() -> Decoder(Fields(String)) {
   todo
 }
+
+fn encode_override(x: Fields(String)) -> Json {
+  todo
+}
+
