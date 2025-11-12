@@ -91,9 +91,25 @@ fn gen_json_decoders(
       g.Function(x,
         name:,
         publicity: t.publicity,
-        parameters: [],
+        parameters: {
+          type_alias.parameters
+          |> list.map(fn(param) {
+            g.FunctionParameter(
+              label: None,
+              name: { "decoder_" <> param } |> g.Named,
+              type_: Some(g.NamedType(x, module: None, name: "Decoder", parameters: [
+                g.VariableType(x, name: param)
+              ])),
+            )
+          })
+        },
         return: Some(g.NamedType(x, module: None, name: "Decoder", parameters: [
-          g.NamedType(x, module: None, name: type_alias.name, parameters: []),
+          g.NamedType(x, module: None, name: type_alias.name, parameters: {
+            type_alias.parameters
+            |> list.map(fn(param) {
+              g.VariableType(x, name: param)
+            })
+          }),
         ])),
         body: [
           decoder_call(type_: to_t(t.type_), field: None, opts:, inner: dict.new(), top_level: True) |> g.Expression,
@@ -140,7 +156,18 @@ fn gen_json_encoders(
         name:,
         publicity: t.publicity,
         parameters: [
-          g.FunctionParameter(name: g.Named("value"), label: None, type_: Some(t.type_)),
+          g.FunctionParameter(name: g.Named("value"), label: None, type_: Some(type_alias.aliased)),
+          ..{
+            type_alias.parameters
+            |> list.map(fn(param) {
+              g.FunctionParameter(name: g.Named("encode_" <> param), label: None, type_: Some(
+                g.FunctionType(x,
+                  parameters: [g.VariableType(x, name: param)],
+                  return: g.NamedType(x, module: None, name: "Json", parameters: []),
+                )
+              ))
+            })
+          }
         ],
         return: Some(g.NamedType(x, module: None, name: "Json", parameters: [])),
         body: [
