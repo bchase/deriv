@@ -386,6 +386,18 @@ pub fn are_any_fields_options(
   })
 }
 
+pub fn are_any_fields_non_string_basic_type_dict_keys(
+  type_: CustomType,
+) -> Bool {
+  type_.variants
+  |> list.any(fn(variant) {
+    variant.fields
+    |> list.any(fn(field) {
+      has_non_string_basic_type_dict_keys(field.item)
+    })
+  })
+}
+
 pub fn import_(
   module module: String,
 ) -> glance.Import {
@@ -519,4 +531,30 @@ pub fn is_multi_variant(
   type_ type_: CustomType,
 ) -> Bool {
   { type_.variants |> list.length } >= 2
+}
+
+pub fn has_non_string_basic_type_dict_keys(
+  type_ type_: glance.Type,
+) -> Bool {
+  case type_ {
+    glance.NamedType(
+      name: "Dict",
+      parameters: [
+        glance.NamedType(name: "String", parameters: [], ..),
+        _,
+      ],
+    ..) -> False
+
+    glance.NamedType(name: "Dict", parameters: [key, _val,], ..) ->
+      case key {
+        glance.NamedType(name:, parameters: params, ..) ->
+          case name, params {
+            "Int", [] | "Float", [] | "Bool", [] -> True
+            _, _ -> False
+          }
+        _ -> False
+      }
+
+    _ -> False
+  }
 }

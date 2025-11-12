@@ -33,13 +33,7 @@ pub fn gen(
   module_reader: ModuleReader,
 ) -> Gen {
   let imports =
-    case type_ {
-      deriv.Type(type_:) ->
-        gen_imports(deriv.opts, type_)
-
-      deriv.TypeAlias(..) ->
-        []
-    }
+    gen_imports(deriv.opts, type_)
 
   let gen_funcs_for_opts =
     [
@@ -62,19 +56,63 @@ pub fn gen(
   Gen(file:, deriv:, imports:, funcs:, types: [], src:, meta: dict.new())
 }
 
+fn alias_to_type(
+  type_alias ta: g.TypeAlias,
+) -> Type {
+  case ta.parameters {
+    [] -> {
+      case ta.aliased {
+        g.NamedType(..) ->
+          Type(
+            publicity: ta.publicity,
+            type_: ta.aliased,
+            pascal_case: ta.name,
+            snake_case: ta.name |> common.snake_case,
+            variants: [],
+          )
+
+        _ ->
+          panic as "not implemented"
+      }
+    }
+
+    _ -> panic as "not implemented"
+  }
+}
+
 fn gen_json_decoders(
   type_: deriv.Type,
   opts: DerivFieldOpts,
-  file: File,
+  _file: File,
 ) -> List(g.Definition(g.Function)) {
   case type_ {
-    deriv.TypeAlias(..) ->
-      panic as "not implemented"
+    deriv.TypeAlias(type_alias:) -> {
+      let t = type_alias |> alias_to_type
+
+      let name =
+        type_alias.name
+        |> common.snake_case
+        |> string.append(to: "decoder_", suffix: _)
+
+      g.Function(x,
+        name:,
+        publicity: t.publicity,
+        parameters: [],
+        return: Some(g.NamedType(x, module: None, name: "Decoder", parameters: [
+          g.NamedType(x, module: None, name: type_alias.name, parameters: []),
+        ])),
+        body: [
+          decoder_call(type_: to_t(t.type_), field: None, opts:) |> g.Expression,
+        ],
+      )
+      |> list.wrap
+      |> list.map(g.Definition([], _))
+    }
 
     deriv.Type(type_:) -> {
       let is_multi_variant = type_ |> common.is_multi_variant
 
-      let type_ = to_decode_type(type_:, opts:)
+      let type_ = to_type(type_:, opts:)
 
       [
         type_decoder_func(type_:),
@@ -93,13 +131,35 @@ fn gen_json_encoders(
   ctx: Context,
 ) -> List(g.Definition(g.Function)) {
   case type_ {
-    deriv.TypeAlias(..) ->
-      panic as "not implemented"
+    deriv.TypeAlias(type_alias:) -> {
+      let t = type_alias |> alias_to_type
+
+      let type_ = t.type_ |> to_t
+
+      let name =
+        type_alias.name
+        |> common.snake_case
+        |> string.append(to: "encode_", suffix: _)
+
+      g.Function(x,
+        name:,
+        publicity: t.publicity,
+        parameters: [
+          g.FunctionParameter(name: g.Named("value"), label: None, type_: Some(t.type_)),
+        ],
+        return: Some(g.NamedType(x, module: None, name: "Json", parameters: [])),
+        body: [
+          encode_call(type_:, field: None, opts: ctx.all_field_opts) |> g.Expression,
+        ],
+      )
+      |> list.wrap
+      |> list.map(g.Definition([], _))
+    }
 
     deriv.Type(type_:) -> {
       let is_multi_variant = type_ |> common.is_multi_variant
 
-      let type_ = to_decode_type(type_:, opts: ctx.all_field_opts)
+      let type_ = to_type(type_:, opts: ctx.all_field_opts)
 
       [
         type_encode_func(type_:, opts: ctx.all_field_opts, is_multi_variant:),
@@ -135,7 +195,7 @@ fn type_aliases_in(
 
 fn gen_imports(
   opts: List(String),
-  type_: g.CustomType,
+  type_: deriv.Type,
 ) -> List(g.Import) {
   [
     decode_imports(opts:, type_:),
@@ -146,7 +206,7 @@ fn gen_imports(
 
 fn decode_imports(
   opts opts: List(String),
-  type_ type_: g.CustomType,
+  type_ type_: deriv.Type,
 ) -> List(g.Import) {
   use <- bool.guard(!{opts |> list.contains("decode")}, return: [])
 
@@ -159,8 +219,19 @@ fn decode_imports(
     )
   ]
 
+  let needs_util =
+    case type_ {
+      deriv.Type(type_:) -> [
+        type_ |> common.are_any_fields_options,
+      ]
+
+      deriv.TypeAlias(type_alias:) -> [
+      ]
+    }
+    |> list.any(fn(b) {b})
+
   let util_import = {
-    use <- bool.guard(!{type_ |> common.are_any_fields_options}, return: [])
+    use <- bool.guard(!needs_util, return: [])
 
     [
       common.import__(
@@ -178,7 +249,7 @@ fn decode_imports(
 
 fn encode_imports(
   opts opts: List(String),
-  type_ type_: g.CustomType,
+  type_ type_: deriv.Type,
 ) -> List(g.Import) {
   use <- bool.guard(!{opts |> list.contains("encode")}, return: [])
 
@@ -192,10 +263,17 @@ fn encode_imports(
   ]
 
   let needs_util_import =
-    [
-      type_ |> common.are_any_fields_options,
-      type_ |> common.is_multi_variant,
-    ]
+    case type_ {
+      deriv.Type(type_:) -> [
+        type_ |> common.is_multi_variant,
+        type_ |> common.are_any_fields_options,
+        type_ |> common.are_any_fields_non_string_basic_type_dict_keys,
+      ]
+
+      deriv.TypeAlias(type_alias:) -> [
+        type_alias.aliased |> common.has_non_string_basic_type_dict_keys,
+      ]
+    }
     |> list.any(fn(bool) { bool })
 
   let util_import = {
@@ -252,6 +330,17 @@ type T {
   )
 }
 
+fn t_to_str(
+  t t: T,
+) -> String {
+  let params =
+    t.params
+    |> list.map(t_to_str)
+    |> string.join(", ")
+
+  t.name <> "(" <> params <> ")"
+}
+
 fn to_glance_type(
   type_ type_: g.CustomType,
 ) -> g.Type {
@@ -275,7 +364,7 @@ fn to_glance_type(
   }
 }
 
-fn to_decode_type(
+fn to_type(
   type_ type_: g.CustomType,
   opts opts: DerivFieldOpts,
 ) -> Type {
@@ -339,7 +428,7 @@ fn to_decode_field(
         Field(
           gleam: label,
           json: [label],
-          type_: type_ |> to_t(custom_type:),
+          type_: type_ |> to_t_for_custom(custom_type:),
           type_pascal_case: custom_type.name,
           variant_pascal_case: variant.name,
         )
@@ -361,7 +450,7 @@ fn to_decode_field(
     }
   }
 }
-fn to_t(
+fn to_t_for_custom(
   type_ type_: g.Type,
   custom_type custom_type: g.CustomType,
 ) -> T {
@@ -388,7 +477,36 @@ fn to_t(
         name:,
         params: {
           parameters
-          |> list.map(to_t(type_: _, custom_type:))
+          |> list.map(to_t_for_custom(type_: _, custom_type:))
+        },
+      )
+  }
+}
+
+fn to_t(
+  type_ type_: g.Type,
+) -> T {
+  case type_ {
+    g.TupleType(..) |
+    g.FunctionType(..) |
+    g.VariableType(..) |
+    g.HoleType(..) -> {
+      io.println("")
+      io.println("`derive json` ISSUE WITH THIS TYPE:")
+      io.println(string.inspect(type_))
+      io.println("")
+
+      panic as {
+        "`derive json` only understands `glance.NamedType`s, but encountered the type printed above"
+      }
+    }
+
+    g.NamedType(name:, parameters:, ..) ->
+      T(
+        name:,
+        params: {
+          parameters
+          |> list.map(to_t(type_: _))
         },
       )
   }
@@ -612,22 +730,28 @@ fn use_decode_field_line(
 
 fn decoder_call(
   type_ type_: T,
-  field field: Field,
+  field field: Option(Field),
   opts opts: DerivFieldOpts,
 ) -> g.Expression {
   let type_name =
     type_.name |> common.snake_case
 
   let decoder_override =
-    get_field_opt(field:, opts:, desc: "json decoder", matching: fn(opt) {
-      case opt {
-        ["json", "decoder", decoder] ->
-          Ok(decoder)
+    case field {
+      None ->
+        Error(Nil)
 
-        _ ->
-          Error(Nil)
-      }
-    })
+      Some(field) ->
+        get_field_opt(field:, opts:, desc: "json decoder", matching: fn(opt) {
+          case opt {
+            ["json", "decoder", decoder] ->
+              Ok(decoder)
+
+            _ ->
+              Error(Nil)
+          }
+        })
+    }
 
   decoder_override
   |> result.map(fn(decoder_name) {
@@ -635,6 +759,40 @@ fn decoder_call(
   })
   |> result.lazy_unwrap(fn() {
     case type_.name, type_.params {
+      "Dict", [key, val] -> {
+        let key_decoder =
+          case key.name, key.params {
+            "String", [] ->
+              "decode" |> dot("string")
+
+            "Int" as type_name, [] |
+            "Float" as type_name, [] |
+            "Bool" as type_name, [] -> {
+              let func_name =
+                type_name
+                |> common.snake_case
+                |> string.append(to: "decoder_", suffix: _)
+                |> string.append(to: _, suffix: "_string")
+
+              "deriv" |> dot(func_name) |> call([])
+            }
+
+            type_name , [] ->
+              { "decoder_" <> type_name } |> term |> call([])
+
+            _ , _ ->
+              panic as {
+                "`json` doesn't know how to handle parameterized `Dict` keys, got: " <> t_to_str(key)
+              }
+          }
+
+        "decode" |> dot("dict")
+        |> call([
+          key_decoder,
+          decoder_call(field:, opts:, type_: val),
+        ])
+      }
+
       "List", [T(name: "Option", params:[_]) as option_type] ->
         "decode" |> dot("list")
         |> call([
@@ -666,10 +824,12 @@ fn decoder_call(
 }
 
 fn decode_field_call(
-  field field: Field,
+  field f: Field,
   opts opts: DerivFieldOpts,
 ) -> g.Expression {
-  case field.json, field.type_.name, field.type_.params {
+  let field = Some(f)
+
+  case f.json, f.type_.name, f.type_.params {
     [], _, _ -> {
       panic as { "`derive decode` needs a JSON property, but found none for: " <> string.inspect(field) }
     }
@@ -693,20 +853,20 @@ fn decode_field_call(
     [prop], "List", [T(name: "Option", params: [_])] -> {
       "decode" |> dot("field") |> call([
         string(prop),
-        decoder_call(field:, opts:, type_: field.type_),
+        decoder_call(field:, opts:, type_: f.type_),
       ])
     }
     [prop], "List", [T(params: [], ..)] -> {
       "decode" |> dot("optional_field") |> call([
         string(prop),
         list([]),
-        decoder_call(field:, opts:, type_: field.type_),
+        decoder_call(field:, opts:, type_: f.type_),
       ])
     }
     [_prop1, _prop2, ..] as props, "List", [T(params: [], ..)] -> {
       "decode" |> dot("subfield") |> call([
         list(props |> list.map(string)),
-        decoder_call(field:, opts:, type_: field.type_),
+        decoder_call(field:, opts:, type_: f.type_),
       ])
     }
 
@@ -723,21 +883,21 @@ fn decode_field_call(
       "decode" |> dot("optional_field") |> call([
         string(prop),
         "deriv" |> dot("none"),
-        decoder_call(field:, opts:, type_: field.type_),
+        decoder_call(field:, opts:, type_: f.type_),
       ])
     }
     [_prop1, _prop2, ..] as props, "Option", [T(name: "List", params: [_])] -> {
       "deriv" |> dot("decode_optional_subfield") |> call([
         list(props |> list.map(string)),
         "deriv" |> dot("none"),
-        decoder_call(field:, opts:, type_: field.type_),
+        decoder_call(field:, opts:, type_: f.type_),
       ])
     }
     [_prop1, _prop2, ..] as props, "Option", [T(params: [], ..)] -> {
       "decode" |> dot("then") |> call([
         "decode" |> dot("at") |> call([
           list(props |> list.map(string)),
-          decoder_call(field:, opts:, type_: field.type_),
+          decoder_call(field:, opts:, type_: f.type_),
         ]),
       ])
     }
@@ -745,14 +905,14 @@ fn decode_field_call(
     [prop], _, _ -> {
       "decode" |> dot("field") |> call([
         string(prop),
-        decoder_call(field:, opts:, type_: field.type_),
+        decoder_call(field:, opts:, type_: f.type_),
       ])
     }
 
     [_prop1, _prop2, ..] as props, _, _ -> {
       "decode" |> dot("subfield") |> call([
         list(props |> list.map(string)),
-        decoder_call(field:, opts:, type_: field.type_),
+        decoder_call(field:, opts:, type_: f.type_),
       ])
     }
   }
@@ -855,7 +1015,7 @@ fn variant_encode_case_clause(
       acc
       |> add_encode(
         path: field.json,
-        encode: encode_call(type_: field.type_, field:, opts:),
+        encode: encode_call(type_: field.type_, field: Some(field), opts:),
       )
     })
     |> to_json_object_tuples
@@ -952,25 +1112,38 @@ fn get_encode_for(
 
 fn encode_call(
   type_ type_: T,
-  field field: Field,
+  field field: Option(Field),
   opts opts: DerivFieldOpts,
 ) -> g.Expression {
   let encode_override =
-    get_field_opt(field:, opts:, desc: "json encode", matching: fn(opt) {
-      case opt {
-        ["json", "encode", encode] ->
-          Ok(encode)
+    case field {
+      None ->
+        Error(Nil)
 
-        _ ->
-          Error(Nil)
-      }
-    })
+      Some(field) ->
+        get_field_opt(field:, opts:, desc: "json encode", matching: fn(opt) {
+          case opt {
+            ["json", "encode", encode] ->
+              Ok(encode)
+
+            _ ->
+              Error(Nil)
+          }
+        })
+    }
+
+  let value =
+    case field {
+      Some(field) ->
+        "value" |> dot(field.gleam)
+
+      None ->
+        "value" |> term
+    }
 
   encode_override
   |> result.map(fn(encode_name) {
-    encode_name |> term |> call([
-      "value" |> dot(field.gleam)
-    ])
+    encode_name |> term |> call([value])
   })
   |> result.lazy_unwrap(fn() {
     encode_call_(type_:, field:, opts:, value_arg: True)
@@ -979,23 +1152,48 @@ fn encode_call(
 
 fn encode_call_(
   type_ type_: T,
-  field field: Field,
+  field field: Option(Field),
   opts opts: DerivFieldOpts,
   value_arg value_arg: Bool,
 ) -> g.Expression {
   let value =
-    case value_arg {
-      True -> "value" |> dot(field.gleam)
-      False -> "_" |> term
+    case value_arg, field {
+      True, Some(field) -> "value" |> dot(field.gleam)
+      True, None -> "value" |> term
+      False, _ -> "_" |> term
     }
 
   case type_.name, type_.params {
-    "Dict", [key, val] ->
+    "Dict", [key, val] -> {
+      let encode_key =
+        case key.name, key.params {
+          "String", [] ->
+            identity_func("str")
+
+          "Int", [] | "Float", [] | "Bool", [] -> {
+            let func_name =
+              key.name
+              |> common.snake_case
+              |> string.append(to: _, suffix: "_to_string")
+
+            "deriv" |> dot(func_name)
+          }
+
+          _, [] ->
+            { "encode_" <> { key.name |> common.snake_case } } |> term
+
+          _, _ ->
+            panic as {
+              "`json` doesn't know how to handle parameterized `Dict` keys, got: " <> t_to_str(key)
+            }
+        }
+
       "json" |> dot("dict") |> call([
         value,
-        identity_func("str"),
+        encode_key,
         encode_call_(type_: val, field:, opts:, value_arg: False),
       ])
+    }
 
     "Option", [inner_type] ->
       "json" |> dot("nullable") |> call([
@@ -1013,7 +1211,7 @@ fn encode_call_(
     "Int", [] |
     "Float", [] |
     "Bool", [] ->
-      json_encode_func(type_:, field:, opts:) |> call([
+      json_encode_func(type_:,) |> call([
         value,
       ])
 
@@ -1026,20 +1224,8 @@ fn encode_call_(
 
 fn json_encode_func(
   type_ type_: T,
-  field field: Field,
-  opts opts: DerivFieldOpts,
 ) -> g.Expression {
   case type_.name, type_.params {
-    // "Option", [T(params:[], ..) as inner_type] ->
-    //   "json" |> dot("nullable") |> call([
-    //     encode_call_(field:, opts:, type_: inner_type),
-    //   ])
-
-    // "List", [T(params:[], ..) as inner_type] ->
-    //   "json" |> dot("array") |> call([
-    //     encode_call_(field:, opts:, type_: inner_type),
-    //   ])
-
     "String", [] |
     "Int", [] |
     "Float", [] |
