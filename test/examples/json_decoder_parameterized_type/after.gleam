@@ -1,5 +1,6 @@
+import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
-import gleam/option.{type Option, None}
+import gleam/option.{type Option}
 
 pub type Field(key, val) {
   //$ derive json decode
@@ -44,18 +45,19 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     "scalar",
     decoder_field(decode.string, decode.string),
   )
-  use list <- decode.field(
+  use list <- decode.optional_field(
     "list",
+    [],
     decode.list(decoder_field(decode.string, decode.string)),
   )
   use option <- decode.optional_field(
     "option",
-    None,
+    deriv.none,
     decode.optional(decoder_field(decode.string, decode.string)),
   )
   use option_list <- decode.optional_field(
     "option_list",
-    None,
+    deriv.none,
     decode.optional(decode.list(decoder_field(decode.string, decode.string))),
   )
   decode.success(Foo(scalar:, list:, option:, option_list:))
