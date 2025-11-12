@@ -385,6 +385,10 @@ pub fn util_import() -> glance.Import {
   import_(module: "deriv/util")
 }
 
+pub fn dict_import_with_class() -> glance.Import {
+  import__(module: "gleam/dict", as_: None, types: ["Dict"], values: [])
+}
+
 pub fn none_constr_import() -> glance.Import {
   glance.Import(
     location: dummy_location(),

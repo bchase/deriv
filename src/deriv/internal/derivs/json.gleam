@@ -1,3 +1,4 @@
+import gleam/io
 import gleam/option.{type Option, Some, None}
 import gleam/dict
 import gleam/result
@@ -46,6 +47,7 @@ pub fn gen(
     [
       #("decode", gen_json_decoders),
       #("encode", gen_json_encoders |> to_gen_func(deriv, module_reader)),
+      #("properties", gen_json_properties |> to_gen_func(deriv, module_reader)),
     ]
     |> dict.from_list
 
@@ -119,6 +121,12 @@ fn gen_imports(opts: List(String), type_: CustomType) -> List(Import) {
       case needs_util_import(type_) {
         False -> []
         True -> [ common.util_import() ]
+      }
+    )
+    |> list.append(
+      case opts |> list.contains("properties") {
+        False -> []
+        True -> [ common.dict_import_with_class() ]
       }
     )
   }
@@ -245,6 +253,102 @@ fn type_aliases_in(
 
   type_aliases
   |> list.map(fn(ta) { ta.definition })
+}
+
+fn gen_json_properties(
+  type_: deriv.Type,
+  ctx: Context,
+) -> List(Definition(Function)) {
+  let type_aliases = type_aliases_in(file: ctx.file)
+
+  case type_ {
+    deriv.TypeAlias(..)  ->
+      panic as "`json properties` not implemented for type aliases"
+
+    deriv.Type(type_:)  ->
+      json_properties_func(type_, ctx)
+      |> list.wrap
+  }
+}
+
+fn json_properties_func(
+  type_: CustomType,
+  ctx: Context,
+) -> Definition(Function) {
+  let name = "json_properties_for_" <> common.snake_case(type_.name)
+
+  let return = Some(named_type("Dict", None, [
+    named_type("String", None, []),
+    named_type("List", None, [named_type("String", None, [])]),
+  ]))
+
+  let variant_tuples =
+    type_.variants
+    |> list.map(fn(variant) {
+      let property_strings_list =
+        variant.fields
+        |> list.map(fn(field) {
+          case field {
+            glance.UnlabelledVariantField(..) ->
+              panic as "`json properties` doesn't implement `UnlabelledVariantField`s"
+
+            glance.LabelledVariantField(label: field, ..) -> {
+              // TODO use new `common.get_field_opt` after json rewrite merge
+              let override =
+                ctx.all_field_opts
+                |> common.get_field_opts(type_, variant, field)
+                |> list.filter_map(fn(opt) {
+                  case opt.strs {
+                    ["json", "named", property] -> Ok(property)
+                    _ -> Error(Nil)
+                  }
+                })
+                |> fn(opts) {
+                  case opts {
+                    [] -> None
+                    [x] -> Some(x)
+                    _ -> {
+                      io.println_error(type_ |> string.inspect)
+                      io.println_error(variant |> string.inspect)
+                      io.println_error(field |> string.inspect)
+                      panic as { "`json properties` collided for `json named` on: " <> field }
+                    }
+                  }
+                }
+
+              case override {
+                Some(property) -> property
+                None -> field
+              }
+            }
+          }
+          |> glance.String(x, _)
+        })
+
+      glance.Tuple(x, [
+        glance.String(x, variant.name),
+        glance.List(x, property_strings_list, None),
+      ])
+    })
+
+  let body =
+    glance.List(x, variant_tuples, None)
+    |> glance.BinaryOperator(x, name: glance.Pipe, left: _, right: {
+      glance.FieldAccess(x, glance.Variable(x, "dict"), "from_list")
+    })
+    |> Expression
+    |> fn(expr) { [ expr ] }
+
+  Definition([],
+    Function(
+      location: dummy_location(),
+      publicity: Public,
+      name:,
+      parameters: [],
+      return:,
+      body:,
+    )
+  )
 }
 
 fn gen_json_decoders(
@@ -896,9 +1000,9 @@ fn encode_type_alias_func(
   )
 }
 
-fn dummy_location() -> Span {
-  Span(-1, -1)
-}
+const x = glance.Span(-1, -1)
+
+fn dummy_location() -> Span { x }
 
 type TypeParams {
   TypeParams(
