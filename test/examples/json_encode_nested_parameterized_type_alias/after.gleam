@@ -21,6 +21,9 @@ pub type Form {
     override: Fields(String),
     //$ json decoder decoder_override
     //$ json encode encode_override
+    override_inner: Fields(String),
+    //$ json decoder inner decoder_override_inner
+    //$ json encode inner encode_override_inner
   )
 }
 
@@ -40,6 +43,14 @@ fn encode_override(x: Fields(String)) -> Json {
   todo
 }
 
+fn decoder_override_inner() -> Decoder(String) {
+  todo
+}
+
+fn encode_override_inner(x: String) -> Json {
+  todo
+}
+
 pub fn encode_form(value: Form) -> Json {
   case value {
     Form(..) as value ->
@@ -49,6 +60,10 @@ pub fn encode_form(value: Form) -> Json {
           encode_fields(value.list_fields, json.array(_, json.string)),
         ),
         #("override", encode_override(value.override)),
+        #(
+          "override_inner",
+          encode_fields(value.override_inner, encode_override_inner),
+        ),
         #("text_fields", encode_fields(value.text_fields, json.string)),
       ])
   }
@@ -65,5 +80,9 @@ pub fn decoder_form_form() -> Decoder(Form) {
     decoder_fields(decode.list(decode.string)),
   )
   use override <- decode.field("override", decoder_override())
-  decode.success(Form(text_fields:, list_fields:, override:))
+  use override_inner <- decode.field(
+    "override_inner",
+    decoder_fields(decoder_override_inner()),
+  )
+  decode.success(Form(text_fields:, list_fields:, override:, override_inner:))
 }
