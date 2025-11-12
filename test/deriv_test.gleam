@@ -241,13 +241,6 @@ pub fn json_specify_decoder_and_encode_test() {
   should_derive(example_dir_name: "json_specify_decoder_and_encode")
 }
 
-// pub fn json_decoder_top_level_override_test() { // impl `decoder top`
-//   should_derive(example_dir_name: "json_specify_top_level_decoder")
-// }
-// pub fn json_specify_default_empty_and_skip_test() { // UNNEEDED NOW? (`optional_field(..., [], ...)`)
-//   should_derive(example_dir_name: "json_specify_default_empty_and_skip")
-// }
-
 pub fn json_decoder_parameterized_type_test() {
   should_derive(example_dir_name: "json_decoder_parameterized_type")
 }
