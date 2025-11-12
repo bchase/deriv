@@ -10,6 +10,9 @@ pub type Field1(t) {
     validations: List(Validation(t)),
     //$ json decoder decoder_list_fake_validation
     //$ json encode encode_list_fake_validation
+    validations_inner: List(Validation(t)),
+    //$ json decoder inner decoder_fake_validation
+    //$ json encode inner encode_fake_validation
     touched: Bool,
     value: t,
     errs: List(String),
@@ -44,6 +47,11 @@ pub fn encode_field1(value: Field1(t), encode_t: fn(t) -> Json) -> Json {
         #("id", json.string(value.id)),
         #("touched", json.bool(value.touched)),
         #("validations", encode_list_fake_validation(value.validations)),
+        #(
+          "validations_inner",
+          // json.array(value.validations_inner, encode_fake_validation(encode_t)),
+          todo as "think e.g. `encode_fake_validation` needs to take a `fn(t) -> Json`",
+        ),
         #("value", encode_t(value.value)),
       ])
   }
@@ -60,8 +68,20 @@ pub fn decoder_field1_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
     [],
     decoder_list_fake_validation(),
   )
+  use validations_inner <- decode.optional_field(
+    "validations_inner",
+    [],
+    decode.list(decoder_fake_validation()),
+  )
   use touched <- decode.field("touched", decode.bool)
   use value <- decode.field("value", decoder_t)
   use errs <- decode.optional_field("errs", [], decode.list(decode.string))
-  decode.success(Field1(id:, validations:, touched:, value:, errs:))
+  decode.success(Field1(
+    id:,
+    validations:,
+    validations_inner:,
+    touched:,
+    value:,
+    errs:,
+  ))
 }

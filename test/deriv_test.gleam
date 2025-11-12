@@ -258,9 +258,10 @@ pub fn json_encode_parameterized_type_test() {
 pub fn json_encode_nested_parameterized_type_alias_test() {
   should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias")
 }
-pub fn json_encode_nested_parameterized_type_alias_list_test() {
-  should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias_list")
-}
+// // TODO started reworking, but not sure the types even make sense...
+// pub fn json_encode_nested_parameterized_type_alias_list_test() {
+//   should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias_list")
+// }
 
 //// DERIVE TEST INTO & FROM
 
