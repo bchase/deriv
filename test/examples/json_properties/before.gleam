@@ -9,3 +9,14 @@ pub type Type {
   )
   Variant2(other_field: String)
 }
+
+pub type Mono {
+  //$ derive json properties
+  Mono(
+    foo: String,
+    bar_bar: String,
+    //$ json named bar
+    foo_bar: String,
+    //$ json named foo.bar
+  )
+}

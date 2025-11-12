@@ -277,11 +277,6 @@ fn json_properties_func(
 ) -> Definition(Function) {
   let name = "json_properties_for_" <> common.snake_case(type_.name)
 
-  let return = Some(named_type("Dict", None, [
-    named_type("String", None, []),
-    named_type("List", None, [named_type("String", None, [])]),
-  ]))
-
   let variant_tuples =
     type_.variants
     |> list.map(fn(variant) {
@@ -324,20 +319,52 @@ fn json_properties_func(
           }
           |> glance.String(x, _)
         })
-
-      glance.Tuple(x, [
-        glance.String(x, variant.name),
+      #(
+        variant.name,
         glance.List(x, property_strings_list, None),
-      ])
+      )
     })
 
-  let body =
-    glance.List(x, variant_tuples, None)
-    |> glance.BinaryOperator(x, name: glance.Pipe, left: _, right: {
-      glance.FieldAccess(x, glance.Variable(x, "dict"), "from_list")
-    })
-    |> Expression
-    |> fn(expr) { [ expr ] }
+
+  let #(body, return) =
+    case variant_tuples {
+      [#(_variant, list_expr)] ->
+        #(
+          {
+            list_expr
+            |> Expression
+            |> fn(expr) { [ expr ] }
+          },
+          Some(named_type("List", None, [named_type("String", None, [])])),
+        )
+
+      _ -> {
+        let variant_tuples =
+          variant_tuples
+          |> list.map(fn(t) {
+            let #(variant, list_expr) = t
+
+            glance.Tuple(x, [
+              glance.String(x, variant),
+              list_expr,
+            ])
+          })
+        #(
+          {
+            glance.List(x, variant_tuples, None)
+            |> glance.BinaryOperator(x, name: glance.Pipe, left: _, right: {
+              glance.FieldAccess(x, glance.Variable(x, "dict"), "from_list")
+            })
+            |> Expression
+            |> fn(expr) { [ expr ] }
+          },
+          Some(named_type("Dict", None, [
+            named_type("String", None, []),
+            named_type("List", None, [named_type("String", None, [])]),
+          ])),
+        )
+      }
+    }
 
   Definition([],
     Function(
