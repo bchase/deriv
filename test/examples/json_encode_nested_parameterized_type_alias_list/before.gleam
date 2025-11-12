@@ -10,6 +10,9 @@ pub type Field1(t) {
     validations: List(Validation(t)),
     //$ json decoder decoder_list_fake_validation
     //$ json encode encode_list_fake_validation
+    validations_inner: List(Validation(t)),
+    //$ json decoder inner decoder_fake_validation
+    //$ json encode inner encode_fake_validation
     touched: Bool,
     value: t,
     errs: List(String),
