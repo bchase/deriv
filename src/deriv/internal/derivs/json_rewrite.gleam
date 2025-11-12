@@ -96,7 +96,7 @@ fn gen_json_decoders(
           g.NamedType(x, module: None, name: type_alias.name, parameters: []),
         ])),
         body: [
-          decoder_call(type_: to_t(t.type_), field: None, opts:, inner: dict.new()) |> g.Expression,
+          decoder_call(type_: to_t(t.type_), field: None, opts:, inner: dict.new(), top_level: True) |> g.Expression,
         ],
       )
       |> list.wrap
@@ -776,9 +776,25 @@ fn decoder_call(
   field field: Option(Field),
   opts opts: DerivFieldOpts,
   inner inner: Dict(Int, String),
+  top_level top_level: Bool,
 ) -> g.Expression {
   let type_name =
     type_.name |> common.snake_case
+
+  let is_list_or_option =
+    case top_level, field {
+      True, Some(Field(type_:, ..)) ->
+        case type_.name, type_.params {
+          "List", [_] |
+          "Option", [_] -> True
+
+          _, _ -> False
+        }
+
+      _, _ ->
+        False
+
+    }
 
   let decoder_override =
     case field {
@@ -787,18 +803,21 @@ fn decoder_call(
 
       Some(field) ->
         get_field_opt(field:, opts:, desc: "json decoder", matching: fn(opt) {
-          case opt {
-            ["json", "decoder", decoder] ->
+          case is_list_or_option, opt {
+            True, ["json", "decoder", "inner", decoder] ->
               Ok(decoder)
 
-            _ ->
+            _, ["json", "decoder", decoder] ->
+              Ok(decoder)
+
+            _, _ ->
               Error(Nil)
           }
         })
     }
 
   let decoder_call = fn(type_) {
-    decoder_call(field:, opts:, type_:, inner:)
+    decoder_call(field:, opts:, type_:, inner:, top_level: False)
   }
 
   decoder_override
@@ -935,7 +954,7 @@ fn decode_field_call(
     get_inner(field: f, opts:, kind: Dec)
 
   let decoder_call = fn(type_) {
-    decoder_call(type_:, field: Some(f), opts:, inner:)
+    decoder_call(type_:, field: Some(f), opts:, inner:, top_level: True)
   }
 
   case f.json, f.type_.name, f.type_.params {

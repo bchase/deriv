@@ -30,11 +30,11 @@ pub fn encode_field1(value: Field1(t), encode_t: fn(t) -> Json) -> Json {
   case value {
     Field1(..) as value ->
       json.object([
-        #("id", json.string(value.id)),
-        #("validations", json.array(value.validations, encode_fake_validation)),
-        #("touched", json.bool(value.touched)),
-        #("value", encode_t(value.value)),
         #("errs", json.array(value.errs, json.string)),
+        #("id", json.string(value.id)),
+        #("touched", json.bool(value.touched)),
+        #("validations", json.array(value.validations, encode_fake_validation)),
+        #("value", encode_t(value.value)),
       ])
   }
 }
@@ -45,8 +45,9 @@ pub fn decoder_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
 
 pub fn decoder_field1_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
   use id <- decode.field("id", decode.string)
-  use validations <- decode.field(
+  use validations <- decode.optional_field(
     "validations",
+    [],
     decode.list(decoder_fake_validation()),
   )
   use touched <- decode.field("touched", decode.bool)
