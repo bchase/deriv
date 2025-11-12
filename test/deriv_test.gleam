@@ -222,9 +222,9 @@ pub fn json_dict_non_string_keys_test() {
   should_derive(example_dir_name: "json_dict_non_string_keys")
 }
 
-//pub fn json_decoder_local_type_alias_test() {
-//  should_derive(example_dir_name: "json_decoder_local_type_alias")
-//}
+pub fn json_decoder_local_type_alias_test() {
+  should_derive(example_dir_name: "json_decoder_local_type_alias")
+}
 
 pub fn json_specify_decoder_and_encode_test() {
   should_derive(example_dir_name: "json_specify_decoder_and_encode")
