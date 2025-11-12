@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/pair
 import gleam/list
 import formal/form
@@ -325,3 +326,7 @@ pub fn field_to_dom_id(
 ) -> String {
   string.inspect(field)
 }
+
+pub const int_to_string = int.to_string
+pub const float_to_string = float.to_string
+pub const bool_to_string = bool.to_string
