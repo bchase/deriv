@@ -240,9 +240,9 @@ pub fn json_specify_decoder_and_encode_test() {
 pub fn json_decoder_parameterized_type_test() {
   should_derive(example_dir_name: "json_decoder_parameterized_type")
 }
-//pub fn json_encode_parameterized_type_test() {
-//  should_derive(example_dir_name: "json_encode_parameterized_type")
-//}
+pub fn json_encode_parameterized_type_test() {
+  should_derive(example_dir_name: "json_encode_parameterized_type")
+}
 
 //// TODO `encode` does inner, `decoder` does outer ... make consistent, allow specify
 //pub fn json_encode_nested_parameterized_type_alias_test() {

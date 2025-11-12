@@ -37,7 +37,6 @@ pub fn encode_foo(value: Foo) -> Json {
   case value {
     Foo(..) as value ->
       json.object([
-        #("scalar", encode_field(value.scalar, json.string, json.string)),
         #(
           "list",
           json.array(value.list, encode_field(_, json.string, json.string)),
@@ -53,6 +52,7 @@ pub fn encode_foo(value: Foo) -> Json {
             json.array(_, encode_field(_, json.string, json.string)),
           ),
         ),
+        #("scalar", encode_field(value.scalar, json.string, json.string)),
       ])
   }
 }
