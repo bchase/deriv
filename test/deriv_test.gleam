@@ -247,9 +247,9 @@ pub fn json_encode_parameterized_type_test() {
 pub fn json_encode_nested_parameterized_type_alias_test() {
   should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias")
 }
-// pub fn json_encode_nested_parameterized_type_alias_list_test() {
-//   should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias_list")
-// }
+pub fn json_encode_nested_parameterized_type_alias_list_test() {
+  should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias_list")
+}
 
 //// DERIVE TEST INTO & FROM
 

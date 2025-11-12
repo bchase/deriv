@@ -8,8 +8,8 @@ pub type Field1(t) {
   Field1(
     id: String,
     validations: List(Validation(t)),
-    //$ json decoder decoder_fake_validation
-    //$ json encode encode_fake_validation
+    //$ json decoder decoder_list_fake_validation
+    //$ json encode encode_list_fake_validation
     touched: Bool,
     value: t,
     errs: List(String),
@@ -22,8 +22,18 @@ pub fn encode_fake_validation(
   json.null()
 }
 
+pub fn encode_list_fake_validation(
+  _value: List(Validation(t)),
+) -> Json {
+  json.array([], encode_fake_validation)
+}
+
 pub fn decoder_fake_validation() -> Decoder(Validation(t)) {
   decode.success(fn(_) { Error([]) })
+}
+
+pub fn decoder_list_fake_validation() -> Decoder(List(Validation(t))) {
+  decode.list(decode.success(fn(_) { Error([]) }))
 }
 
 pub fn encode_field1(value: Field1(t), encode_t: fn(t) -> Json) -> Json {
@@ -33,7 +43,7 @@ pub fn encode_field1(value: Field1(t), encode_t: fn(t) -> Json) -> Json {
         #("errs", json.array(value.errs, json.string)),
         #("id", json.string(value.id)),
         #("touched", json.bool(value.touched)),
-        #("validations", json.array(value.validations, encode_fake_validation)),
+        #("validations", encode_list_fake_validation(value.validations)),
         #("value", encode_t(value.value)),
       ])
   }
@@ -48,10 +58,10 @@ pub fn decoder_field1_field1(decoder_t: Decoder(t)) -> Decoder(Field1(t)) {
   use validations <- decode.optional_field(
     "validations",
     [],
-    decode.list(decoder_fake_validation()),
+    decoder_list_fake_validation(),
   )
   use touched <- decode.field("touched", decode.bool)
   use value <- decode.field("value", decoder_t)
-  use errs <- decode.field("errs", decode.list(decode.string))
+  use errs <- decode.optional_field("errs", [], decode.list(decode.string))
   decode.success(Field1(id:, validations:, touched:, value:, errs:))
 }
