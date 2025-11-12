@@ -756,7 +756,7 @@ fn variant_decoder_func(
           patterns: [g.PatternDiscard(x, name: "deriv_var_constr") |> g.UsePattern(pattern: _, annotation: None)],
           function: {
             "decode" |> dot("field") |> call([
-              string("_var"),
+              string(deriv_variant_json_key),
               "deriv" |> dot("is") |> call([
                 string(variant.pascal_case),
               ]),
@@ -1204,7 +1204,7 @@ fn variant_encode_case_clause(
       False -> field_tuples
       True -> [
         tuple([
-          string("_var"),
+          string(deriv_variant_json_key),
           "json" |> dot("string") |> call([string(variant.pascal_case)])
         ]),
         .. field_tuples
