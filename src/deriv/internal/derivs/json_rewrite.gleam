@@ -32,8 +32,7 @@ pub fn gen(
   file: File,
   module_reader: ModuleReader,
 ) -> Gen {
-  let imports =
-    gen_imports(deriv.opts, type_)
+  let imports = gen_imports(deriv.opts, type_)
 
   let gen_funcs_for_opts =
     [
@@ -130,6 +129,7 @@ fn gen_json_encoders(
       let t = type_alias |> alias_to_type
 
       let type_ = t.type_ |> to_t
+      // let type__ = t.type_ |> to_type_(publicity: t.publicity)
 
       let name =
         type_alias.name
@@ -144,7 +144,7 @@ fn gen_json_encoders(
         ],
         return: Some(g.NamedType(x, module: None, name: "Json", parameters: [])),
         body: [
-          encode_call(type_:, field: None, opts: ctx.all_field_opts) |> g.Expression,
+          encode_call(type_:, field: None, opts: ctx.all_field_opts, discard_value: False) |> g.Expression,
         ],
       )
       |> list.wrap
@@ -261,7 +261,7 @@ fn encode_imports(
     case type_ {
       deriv.Type(type_:) -> [
         type_ |> common.is_multi_variant,
-        type_ |> common.are_any_fields_options,
+        // type_ |> common.are_any_fields_options,
         type_ |> common.are_any_fields_non_string_basic_type_dict_keys,
       ]
 
@@ -373,6 +373,44 @@ fn to_type(
     },
   )
 }
+
+fn to_type_(
+  type_ type_: g.Type,
+  publicity publicity: g.Publicity,
+) -> Type {
+  case type_ {
+    // g.VariableType(..) as type_ -> {
+    //   todo
+    // }
+
+    g.NamedType(..) as type_ -> {
+      let params =
+        type_.parameters
+        |> list.filter_map(fn(param) {
+          case param {
+            g.VariableType(name:, ..) ->
+              Ok(name)
+
+            _ ->
+              Error(Nil)
+          }
+        })
+
+      Type(
+        publicity:,
+        type_:,
+        params:,
+        pascal_case: type_.name,
+        snake_case: type_.name |> common.snake_case,
+        variants: [],
+      )
+    }
+
+    _ ->
+      panic as "not implemented"
+  }
+}
+
 fn to_decode_variant(
   type_ type_: g.CustomType,
   variant variant: g.Variant,
@@ -418,7 +456,7 @@ fn to_decode_field(
         Field(
           gleam: label,
           json: [label],
-          type_: type_ |> to_t_for_custom(custom_type:),
+          type_: type_ |> to_t,
           type_pascal_case: custom_type.name,
           variant_pascal_case: variant.name,
         )
@@ -440,9 +478,9 @@ fn to_decode_field(
     }
   }
 }
-fn to_t_for_custom(
+
+fn to_t(
   type_ type_: g.Type,
-  custom_type custom_type: g.CustomType,
 ) -> T {
   case type_ {
     // g.VariableType(..) |
@@ -451,9 +489,6 @@ fn to_t_for_custom(
     g.HoleType(..) -> {
       io.println("")
       io.println("`derive json` ISSUE WITH THIS TYPE:")
-      io.println(string.inspect(custom_type))
-      io.println("")
-      io.println("`derive json` ON THIS FIELD:")
       io.println(string.inspect(type_))
       io.println("")
 
@@ -464,35 +499,6 @@ fn to_t_for_custom(
 
     g.VariableType(name:, ..) ->
       T(name:, params: [])
-
-    g.NamedType(name:, parameters:, ..) ->
-      T(
-        name:,
-        params: {
-          parameters
-          |> list.map(to_t_for_custom(type_: _, custom_type:))
-        },
-      )
-  }
-}
-
-fn to_t(
-  type_ type_: g.Type,
-) -> T {
-  case type_ {
-    g.TupleType(..) |
-    g.FunctionType(..) |
-    g.VariableType(..) |
-    g.HoleType(..) -> {
-      io.println("")
-      io.println("`derive json` ISSUE WITH THIS TYPE:")
-      io.println(string.inspect(type_))
-      io.println("")
-
-      panic as {
-        "`derive json` only understands `glance.NamedType`s, but encountered the type printed above"
-      }
-    }
 
     g.NamedType(name:, parameters:, ..) ->
       T(
@@ -991,6 +997,26 @@ fn type_encode_func(
   opts opts: DerivFieldOpts,
   is_multi_variant is_multi_variant: Bool,
 ) -> g.Function {
+  let encode_func_params =
+    type_.params
+    |> list.filter(fn(param) {
+      string.lowercase(param) == param
+    })
+    |> list.map(fn(param) {
+      g.FunctionParameter(
+        label: None,
+        name: { "encode_" <> param } |> g.Named,
+        type_: Some(
+          g.FunctionType(x,
+            parameters: [
+              g.VariableType(x, name: param),
+            ],
+            return: g.NamedType(x, module: None, name: "Json", parameters: []),
+          )
+        ),
+      )
+    })
+
   g.Function(x,
     name: "encode_" <> type_.snake_case,
     publicity: type_.publicity,
@@ -999,7 +1025,8 @@ fn type_encode_func(
         label: None,
         name: g.Named("value"),
         type_: Some(type_.type_),
-      )
+      ),
+      ..encode_func_params,
     ],
     return: Some(g.NamedType(x, name: "Json", module: None, parameters: [])),
     body: {
@@ -1049,7 +1076,7 @@ fn variant_encode_case_clause(
       acc
       |> add_encode(
         path: field.json,
-        encode: encode_call(type_: field.type_, field: Some(field), opts:),
+        encode: encode_call(type_: field.type_, field: Some(field), opts:, discard_value: False),
       )
     })
     |> to_json_object_tuples
@@ -1146,6 +1173,7 @@ fn get_encode_for(
 
 fn encode_call(
   type_ type_: T,
+  discard_value discard_value: Bool,
   field field: Option(Field),
   opts opts: DerivFieldOpts,
 ) -> g.Expression {
@@ -1167,11 +1195,14 @@ fn encode_call(
     }
 
   let value =
-    case field {
-      Some(field) ->
+    case discard_value, field {
+      True , _ ->
+        "_" |> term
+
+      _, Some(field) ->
         "value" |> dot(field.gleam)
 
-      None ->
+      _, None ->
         "value" |> term
     }
 
@@ -1249,9 +1280,20 @@ fn encode_call_(
         value,
       ])
 
-    _, _ ->
+    _, [] ->
       { "encode_" <> type_.name |> common.snake_case } |> term |> call([
         value,
+      ])
+
+    _, params ->
+      { "encode_" <> type_.name |> common.snake_case } |> term |> call([
+        value,
+        ..{
+          params
+          |> list.map(fn(param) {
+            json_encode_func(param)
+          })
+        }
       ])
   }
 }
