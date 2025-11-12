@@ -237,9 +237,9 @@ pub fn json_specify_decoder_and_encode_test() {
 //   should_derive(example_dir_name: "json_specify_default_empty_and_skip")
 // }
 
-//pub fn json_decoder_parameterized_type_test() {
-//  should_derive(example_dir_name: "json_decoder_parameterized_type")
-//}
+pub fn json_decoder_parameterized_type_test() {
+  should_derive(example_dir_name: "json_decoder_parameterized_type")
+}
 //pub fn json_encode_parameterized_type_test() {
 //  should_derive(example_dir_name: "json_encode_parameterized_type")
 //}

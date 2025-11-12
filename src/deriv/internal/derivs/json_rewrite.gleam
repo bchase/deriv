@@ -59,24 +59,19 @@ pub fn gen(
 fn alias_to_type(
   type_alias ta: g.TypeAlias,
 ) -> Type {
-  case ta.parameters {
-    [] -> {
-      case ta.aliased {
-        g.NamedType(..) ->
-          Type(
-            publicity: ta.publicity,
-            type_: ta.aliased,
-            pascal_case: ta.name,
-            snake_case: ta.name |> common.snake_case,
-            variants: [],
-          )
+  case ta.aliased {
+    g.NamedType(..) ->
+      Type(
+        publicity: ta.publicity,
+        type_: ta.aliased,
+        params: ta.parameters,
+        pascal_case: ta.name,
+        snake_case: ta.name |> common.snake_case,
+        variants: [],
+      )
 
-        _ ->
-          panic as "not implemented"
-      }
-    }
-
-    _ -> panic as "not implemented"
+    _ ->
+      panic as "not implemented"
   }
 }
 
@@ -299,6 +294,7 @@ type Type {
   Type(
     publicity: g.Publicity,
     type_: g.Type,
+    params: List(String),
     pascal_case: String,
     snake_case: String,
     variants: List(Variant),
@@ -344,24 +340,17 @@ fn t_to_str(
 fn to_glance_type(
   type_ type_: g.CustomType,
 ) -> g.Type {
-  case type_.parameters {
-    [_, ..] -> {
-      io.println("")
-      io.println("`derive json` ISSUE WITH THIS TYPE:")
-      io.println(string.inspect(type_))
+  let parameters =
+    type_.parameters
+    |> list.map(fn(param) {
+      g.VariableType(x, name: param)
+    })
 
-      panic as {
-        "`derive json` only understands unparameterized custom types, but encountered the type printed above"
-      }
-    }
-
-    [] ->
-      g.NamedType(x,
-        name: type_.name,
-        module: None,
-        parameters: [],
-      )
-  }
+  g.NamedType(x,
+    name: type_.name,
+    module: None,
+    parameters:,
+  )
 }
 
 fn to_type(
@@ -371,6 +360,7 @@ fn to_type(
   Type(
     publicity: type_.publicity,
     type_: type_ |> to_glance_type,
+    params: type_.parameters,
     pascal_case: type_.name,
     snake_case: type_.name |> common.snake_case,
     variants: {
@@ -455,9 +445,9 @@ fn to_t_for_custom(
   custom_type custom_type: g.CustomType,
 ) -> T {
   case type_ {
+    // g.VariableType(..) |
     g.TupleType(..) |
     g.FunctionType(..) |
-    g.VariableType(..) |
     g.HoleType(..) -> {
       io.println("")
       io.println("`derive json` ISSUE WITH THIS TYPE:")
@@ -471,6 +461,9 @@ fn to_t_for_custom(
         "`derive json` only understands `glance.NamedType`s, but encountered the type printed above"
       }
     }
+
+    g.VariableType(name:, ..) ->
+      T(name:, params: [])
 
     g.NamedType(name:, parameters:, ..) ->
       T(
@@ -621,6 +614,29 @@ fn type_decoder_func(
   }
 }
 
+fn decoder_func_params_for_var_types(
+  params params: List(String),
+) -> List(g.FunctionParameter) {
+  params
+  |> list.filter(fn(param) {
+    param
+    |> string.first
+    |> result.map(fn(str) {
+      string.lowercase(str) == str
+    })
+    |> result.unwrap(False)
+  })
+  |> list.map(fn(var_param) {
+    g.FunctionParameter(
+      name: { "decoder_" <> var_param } |> g.Named,
+      label: None,
+      type_: Some(g.NamedType(x, module: None, name: "Decoder", parameters: [
+        g.NamedType(x, module: None, name: var_param, parameters: []),
+      ])),
+    )
+  })
+}
+
 fn type_decoder_func_(
   type_ type_: Type,
   variant variant: Variant,
@@ -630,13 +646,18 @@ fn type_decoder_func_(
     variant
     |> variant_decoder_name(type_:, variant: _)
     |> term
-    |> call([])
+    |> call(
+      type_.params
+      |> list.map(fn(param) {
+        term("decoder_" <> param)
+      })
+    )
   }
 
   g.Function(x,
     name: "decoder_" <> type_.snake_case,
     publicity: type_.publicity,
-    parameters: [],
+    parameters: decoder_func_params_for_var_types(type_.params),
     return: Some(decoder_return_type(type_:)),
     body: {
       "decode"
@@ -700,7 +721,7 @@ fn variant_decoder_func(
   g.Function(x,
     name: variant_decoder_name(type_:, variant:),
     publicity: type_.publicity,
-    parameters: [],
+    parameters: decoder_func_params_for_var_types(type_.params),
     return: Some(decoder_return_type(type_:)),
     body: {
       use_lines
@@ -805,10 +826,10 @@ fn decoder_call(
           decoder_call(field:, opts:, type_: list_type),
         ])
 
-      "Option", [T(params:[], ..) as inner_type] ->
+      "Option", [inner_type] ->
         "decode" |> dot("optional") |> call([decoder_call(field:, opts:, type_: inner_type)])
 
-      "List", [T(params:[], ..) as inner_type] ->
+      "List", [inner_type] ->
         "decode" |> dot("list") |> call([decoder_call(field:, opts:, type_: inner_type)])
 
       "String", [] |
@@ -817,8 +838,21 @@ fn decoder_call(
       "Bool", [] ->
         "decode" |> dot(type_name |> common.snake_case)
 
-      type_name, _ ->
-        { "decoder_" <> type_name |> common.snake_case } |> term |> call([])
+      type_name, params -> {
+        let decoder = { "decoder_" <> type_name |> common.snake_case } |> term
+        let is_variable_type = string.lowercase(type_name) == type_name
+
+        case is_variable_type {
+          True ->
+            decoder
+
+          False ->
+            decoder |> call(
+              params
+              |> list.map(decoder_call(field:, opts:, type_: _))
+            )
+        }
+      }
     }
   })
 }
@@ -856,7 +890,7 @@ fn decode_field_call(
         decoder_call(field:, opts:, type_: f.type_),
       ])
     }
-    [prop], "List", [T(params: [], ..)] -> {
+    [prop], "List", [_] -> {
       "decode" |> dot("optional_field") |> call([
         string(prop),
         list([]),
@@ -879,7 +913,7 @@ fn decode_field_call(
         ]),
       ])
     }
-    [prop], "Option", [T(params: [], ..)] -> {
+    [prop], "Option", [_] -> {
       "decode" |> dot("optional_field") |> call([
         string(prop),
         "deriv" |> dot("none"),
@@ -893,7 +927,7 @@ fn decode_field_call(
         decoder_call(field:, opts:, type_: f.type_),
       ])
     }
-    [_prop1, _prop2, ..] as props, "Option", [T(params: [], ..)] -> {
+    [_prop1, _prop2, ..] as props, "Option", [_] -> {
       "decode" |> dot("then") |> call([
         "decode" |> dot("at") |> call([
           list(props |> list.map(string)),
