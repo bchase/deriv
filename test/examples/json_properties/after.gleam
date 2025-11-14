@@ -1,5 +1,6 @@
 import deriv/util
 import gleam/dict.{type Dict}
+import gleam/option.{type Option}
 
 pub type Type {
   //$ derive json properties
@@ -27,6 +28,8 @@ pub type Mono {
 pub type Nesting {
   //$ derive json properties
   Nesting(
+    option: Option(String),
+    list: List(String),
     nested: Nested,
     nested_list: List(NestedItem),
   )
@@ -57,5 +60,5 @@ pub fn json_properties_for_mono() -> List(String) {
 }
 
 pub fn json_properties_for_nesting() -> List(String) {
-  ["nested.scalar", "nested_list.list"]
+  ["option", "list", "nested.scalar", "nested_list.list"]
 }

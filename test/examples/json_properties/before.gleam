@@ -1,3 +1,5 @@
+import gleam/option.{type Option}
+
 pub type Type {
   //$ derive json properties
   Variant1(
@@ -24,6 +26,8 @@ pub type Mono {
 pub type Nesting {
   //$ derive json properties
   Nesting(
+    option: Option(String),
+    list: List(String),
     nested: Nested,
     nested_list: List(NestedItem),
   )

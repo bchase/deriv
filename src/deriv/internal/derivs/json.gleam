@@ -396,27 +396,41 @@ fn variant_props(
               "Bool", [] ->
                 acc |> list.append([field])
 
-              "Option", [glance.NamedType(name: type_name, ..)] |
-              "List", [glance.NamedType(name: type_name, ..)] |
-              type_name, _ -> {
-                let ident = ctx.file.module <> "." <>  type_name
-                case common.fetch_custom_type(ident, ctx.module_reader) {
-                  Error(err) -> {
-                    io.println_error(err |> string.inspect)
-                    panic as {
-                      "`json properties` couldn't resolve `" <> type_name <> "`" <>
-                      "as `" <> ident <> "`.\n" <> " `json properties` doesn't yet support " <>
-                      "type aliases or types in other modules."
+              "Option", [glance.NamedType(name: type_name, parameters:, ..)] |
+              "List", [glance.NamedType(name: type_name, parameters:, ..)] |
+              type_name, _ as parameters -> {
+                case t.name, type_name, parameters {
+                  "Option", "String", [] |
+                  "Option", "Int", [] |
+                  "Option", "Float", [] |
+                  "Option", "Bool", [] |
+                  "List", "String", [] |
+                  "List", "Int", [] |
+                  "List", "Float", [] |
+                  "List", "Bool", [] ->
+                    acc |> list.append([field])
+
+                  _, _, _ -> {
+                    let ident = ctx.file.module <> "." <>  type_name
+                    case common.fetch_custom_type(ident, ctx.module_reader) {
+                      Error(err) -> {
+                        io.println_error(err |> string.inspect)
+                        panic as {
+                          "`json properties` couldn't resolve `" <> type_name <> "` " <>
+                          "as `" <> ident <> "`.\n" <> " `json properties` doesn't yet support " <>
+                          "type aliases or types in other modules."
+                        }
+                      }
+
+                      Ok(#(_, glance.Definition(_, glance.CustomType(variants: [variant], ..) as t))) -> {
+                        variant_props(type_: t, variant:, ctx:, acc: acc |> list.append([field]))
+                        |> list.flatten
+                      }
+
+                      Ok(#(_, glance.Definition(_, _))) -> {
+                        panic as ""
+                      }
                     }
-                  }
-
-                  Ok(#(_, glance.Definition(_, glance.CustomType(variants: [variant], ..) as t))) -> {
-                    variant_props(type_: t, variant:, ctx:, acc: acc |> list.append([field]))
-                    |> list.flatten
-                  }
-
-                  Ok(#(_, glance.Definition(_, _))) -> {
-                    panic as ""
                   }
                 }
               }
