@@ -91,6 +91,14 @@ pub type OverrideUsingTypeNotField {
   )
 }
 
+pub type PetPlus {
+  //$ derive from examples/from/friend/pet.Pet
+  PetPlus(
+    name: String,
+    missing: Float,
+  )
+}
+
 pub fn from_authe_a_to_authe_tokens(value: AutheA) -> AutheTokens {
   Authe(
     id: value.authe_id,
@@ -140,4 +148,8 @@ pub fn from_a_to_override_using_type_not_field(
   value: A,
 ) -> OverrideUsingTypeNotField {
   OverrideUsingTypeNotField(mt: value |> to_time, t: value |> to_time)
+}
+
+pub fn from_pet_to_pet_plus(value: Pet, missing missing: Float) -> PetPlus {
+  PetPlus(name: value.name, missing:)
 }
