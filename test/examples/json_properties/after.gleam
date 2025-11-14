@@ -46,9 +46,11 @@ pub type Ignored {
 pub type Nested {
   Nested(
     scalar: String,
+    nested: NestedDouble,
     rename: String,
     //$ json named alias
-    nested: NestedDouble,
+    ignore: String,
+    //$ json properties ignore
   )
 }
 
@@ -85,7 +87,7 @@ pub fn json_properties_for_mono() -> List(String) {
 
 pub fn json_properties_for_nesting() -> List(String) {
   [
-    "option", "list", "nested.scalar", "nested.alias", "nested.nested.double",
-    "nested.nested.nested.triple", "nested_list.list",
+    "option", "list", "nested.scalar", "nested.nested.double",
+    "nested.nested.nested.triple", "nested.alias", "nested_list.list",
   ]
 }

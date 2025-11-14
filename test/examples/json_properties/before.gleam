@@ -44,9 +44,11 @@ pub type Ignored {
 pub type Nested {
   Nested(
     scalar: String,
+    nested: NestedDouble,
     rename: String,
     //$ json named alias
-    nested: NestedDouble,
+    ignore: String,
+    //$ json properties ignore
   )
 }
 
