@@ -34,16 +34,22 @@ pub type Nesting {
     nested_list: List(NestedItem),
   )
 }
-
 pub type Nested {
   Nested(
-    scalar: String
+    scalar: String,
+    nested: NestedDouble,
+  )
+}
+
+pub type NestedDouble {
+  NestedDouble(
+    double: String,
   )
 }
 
 pub type NestedItem {
   NestedItem(
-    list: String
+    list: String,
   )
 }
 
