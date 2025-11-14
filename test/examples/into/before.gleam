@@ -17,3 +17,29 @@ pub type Missing {
     bonus: Bool,
   )
 }
+
+// pub type UserForm {
+//   UserForm(
+//     first_name: String,
+//     last_name: String,
+//     email_address: String,
+//   )
+// }
+
+// pub fn insert_user(
+//   first_name first_name: String,
+//   last_name last_name: String,
+//   email email: String,
+// ) -> Nil {
+//   todo
+// }
+
+// pub fn insert_user_from_user_form(
+//   user_form user_form: UserForm,
+// ) -> Nil {
+//   insert_user(
+//     first_name: user_form.first_name,
+//     last_name: user_form.last_name,
+//     email: user_form.email_address,
+//   )
+// }
