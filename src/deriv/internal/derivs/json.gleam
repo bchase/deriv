@@ -1,3 +1,4 @@
+import deriv/internal/parser
 import gleam/pair
 import gleam/io
 import gleam/option.{type Option, Some, None}
@@ -415,7 +416,9 @@ fn variant_props(
             []
 
           _, Some(property), _ ->
-            [[property]]
+            acc
+            |> list.append([property])
+            |> list.wrap
 
           _, None, glance.NamedType(..) as t ->
             case t.name, t.parameters {
@@ -462,8 +465,18 @@ fn variant_props(
                       }
 
                       Ok(#(_, glance.Definition(_, glance.CustomType(variants: [variant], ..) as t))) -> {
-                        variant_props(type_: t, variant:, ctx:, acc: acc |> list.append([field]))
-                        |> list.flatten
+                        case parser.parse_type_with_derivations(t, ctx.file.src) {
+                          Error(Nil) -> panic as {
+                            "`json properties` failed to parse type: " <> string.inspect(t)
+                          }
+
+                          Ok(#(t, _derivs, opts)) -> {
+                            let ctx = Context(..ctx, all_field_opts: opts)
+
+                            variant_props(type_: t, variant:, ctx:, acc: acc |> list.append([field]))
+                            |> list.flatten
+                          }
+                        }
                       }
 
                       Ok(#(_, glance.Definition(_, _))) -> {
