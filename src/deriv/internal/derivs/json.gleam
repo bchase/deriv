@@ -413,13 +413,14 @@ fn variant_props(
                   _, _, _ -> {
                     let ident = ctx.file.module <> "." <>  type_name
                     case common.fetch_custom_type(ident, ctx.module_reader) {
-                      Error(err) -> {
-                        io.println_error(err |> string.inspect)
-                        panic as {
-                          "`json properties` couldn't resolve `" <> type_name <> "` " <>
-                          "as `" <> ident <> "`.\n" <> " `json properties` doesn't yet support " <>
-                          "type aliases or types in other modules."
-                        }
+                      Error(_err) -> {
+                        // io.println_error(err |> string.inspect)
+                        // panic as {
+                        //   "`json properties` couldn't resolve `" <> type_name <> "` " <>
+                        //   "as `" <> ident <> "`.\n" <> " `json properties` doesn't yet support " <>
+                        //   "type aliases or types in other modules."
+                        // }
+                        acc |> list.append([field])
                       }
 
                       Ok(#(_, glance.Definition(_, glance.CustomType(variants: [variant], ..) as t))) -> {
