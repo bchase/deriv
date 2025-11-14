@@ -43,6 +43,13 @@ pub type Nested {
 pub type NestedDouble {
   NestedDouble(
     double: String,
+    nested: NestedTriple,
+  )
+}
+
+pub type NestedTriple {
+  NestedTriple(
+    triple: String,
   )
 }
 

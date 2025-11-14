@@ -283,7 +283,12 @@ fn json_properties_func(
     |> list.map(fn(variant) {
       let property_strings_list =
         variant_props(type_:, variant:, ctx:, acc: [])
-        |> list.map(string.join(_, "."))
+        |> list.map(fn(var) {
+          list.map(var, fn(props) {
+            string.join(props, ".")
+          })
+        })
+        |> list.flatten
         |> list.map(glance.String(x, _))
         |> glance.List(x, _, None)
 
@@ -350,7 +355,7 @@ fn variant_props(
   variant variant: Variant,
   ctx ctx: Context,
   acc acc: List(String),
-) -> List(List(String)) {
+) -> List(List(List(String))) {
   variant.fields
   |> list.map(fn(field) {
     case field, field.item {
@@ -383,7 +388,7 @@ fn variant_props(
 
         case override, t {
           Some(property), _ ->
-            [property]
+            [[property]]
 
           None, glance.NamedType(..) as t ->
             case t.name, t.parameters {
@@ -394,7 +399,9 @@ fn variant_props(
               "Int", [] |
               "Float", [] |
               "Bool", [] ->
-                acc |> list.append([field])
+                acc
+                |> list.append([field])
+                |> list.wrap
 
               "Option", [glance.NamedType(name: type_name, parameters:, ..)] |
               "List", [glance.NamedType(name: type_name, parameters:, ..)] |
@@ -408,7 +415,9 @@ fn variant_props(
                   "List", "Int", [] |
                   "List", "Float", [] |
                   "List", "Bool", [] ->
-                    acc |> list.append([field])
+                    acc
+                    |> list.append([field])
+                    |> list.wrap
 
                   _, _, _ -> {
                     let ident = ctx.file.module <> "." <>  type_name
@@ -420,7 +429,9 @@ fn variant_props(
                         //   "as `" <> ident <> "`.\n" <> " `json properties` doesn't yet support " <>
                         //   "type aliases or types in other modules."
                         // }
-                        acc |> list.append([field])
+                        acc
+                        |> list.append([field])
+                        |> list.wrap
                       }
 
                       Ok(#(_, glance.Definition(_, glance.CustomType(variants: [variant], ..) as t))) -> {
@@ -429,7 +440,10 @@ fn variant_props(
                       }
 
                       Ok(#(_, glance.Definition(_, _))) -> {
-                        panic as ""
+                        panic as {
+                          "`json properties` not yet implemented for nested multi-variant types -- " <>
+                          variant.name
+                        }
                       }
                     }
                   }

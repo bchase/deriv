@@ -34,6 +34,7 @@ pub type Nesting {
     nested_list: List(NestedItem),
   )
 }
+
 pub type Nested {
   Nested(
     scalar: String,
@@ -44,6 +45,13 @@ pub type Nested {
 pub type NestedDouble {
   NestedDouble(
     double: String,
+    nested: NestedTriple,
+  )
+}
+
+pub type NestedTriple {
+  NestedTriple(
+    triple: String,
   )
 }
 
@@ -66,5 +74,8 @@ pub fn json_properties_for_mono() -> List(String) {
 }
 
 pub fn json_properties_for_nesting() -> List(String) {
-  ["option", "list", "nested.scalar", "nested_list.list"]
+  [
+    "option", "list", "nested.scalar", "nested.nested.double",
+    "nested.nested.nested.triple", "nested_list.list",
+  ]
 }
