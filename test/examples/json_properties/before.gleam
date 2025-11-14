@@ -20,3 +20,23 @@ pub type Mono {
     //$ json named foo.bar
   )
 }
+
+pub type Nesting {
+  //$ derive json properties
+  Nesting(
+    nested: Nested,
+    nested_list: List(NestedItem),
+  )
+}
+
+pub type Nested {
+  Nested(
+    scalar: String
+  )
+}
+
+pub type NestedItem {
+  NestedItem(
+    list: String
+  )
+}

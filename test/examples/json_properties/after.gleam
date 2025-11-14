@@ -24,6 +24,26 @@ pub type Mono {
   )
 }
 
+pub type Nesting {
+  //$ derive json properties
+  Nesting(
+    nested: Nested,
+    nested_list: List(NestedItem),
+  )
+}
+
+pub type Nested {
+  Nested(
+    scalar: String
+  )
+}
+
+pub type NestedItem {
+  NestedItem(
+    list: String
+  )
+}
+
 pub fn json_properties_for_type() -> Dict(String, List(String)) {
   [
     #("Variant1", ["field1", "override", "nested.override"]),
@@ -34,4 +54,8 @@ pub fn json_properties_for_type() -> Dict(String, List(String)) {
 
 pub fn json_properties_for_mono() -> List(String) {
   ["foo", "bar", "foo.bar"]
+}
+
+pub fn json_properties_for_nesting() -> List(String) {
+  ["nested.scalar", "nested_list.list"]
 }

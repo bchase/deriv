@@ -1,3 +1,4 @@
+import gleam/pair
 import gleam/io
 import gleam/option.{type Option, Some, None}
 import gleam/dict
@@ -281,50 +282,16 @@ fn json_properties_func(
     type_.variants
     |> list.map(fn(variant) {
       let property_strings_list =
-        variant.fields
-        |> list.map(fn(field) {
-          case field {
-            glance.UnlabelledVariantField(..) ->
-              panic as "`json properties` doesn't implement `UnlabelledVariantField`s"
+        variant_props(type_:, variant:, ctx:, acc: [])
+        |> list.map(string.join(_, "."))
+        |> list.map(glance.String(x, _))
+        |> glance.List(x, _, None)
 
-            glance.LabelledVariantField(label: field, ..) -> {
-              // TODO use new `common.get_field_opt` after json rewrite merge
-              let override =
-                ctx.all_field_opts
-                |> common.get_field_opts(type_, variant, field)
-                |> list.filter_map(fn(opt) {
-                  case opt.strs {
-                    ["json", "named", property] -> Ok(property)
-                    _ -> Error(Nil)
-                  }
-                })
-                |> fn(opts) {
-                  case opts {
-                    [] -> None
-                    [x] -> Some(x)
-                    _ -> {
-                      io.println_error(type_ |> string.inspect)
-                      io.println_error(variant |> string.inspect)
-                      io.println_error(field |> string.inspect)
-                      panic as { "`json properties` collided for `json named` on: " <> field }
-                    }
-                  }
-                }
-
-              case override {
-                Some(property) -> property
-                None -> field
-              }
-            }
-          }
-          |> glance.String(x, _)
-        })
       #(
         variant.name,
-        glance.List(x, property_strings_list, None),
+        property_strings_list
       )
-    })
-
+   })
 
   let #(body, return) =
     case variant_tuples {
@@ -376,6 +343,95 @@ fn json_properties_func(
       body:,
     )
   )
+}
+
+fn variant_props(
+  type_ type_: CustomType,
+  variant variant: Variant,
+  ctx ctx: Context,
+  acc acc: List(String),
+) -> List(List(String)) {
+  variant.fields
+  |> list.map(fn(field) {
+    case field, field.item {
+      glance.UnlabelledVariantField(..), _ ->
+        panic as "`json properties` doesn't implement `UnlabelledVariantField`s"
+
+      glance.LabelledVariantField(label: field, ..), t -> {
+        // TODO use new `common.get_field_opt` after json rewrite merge
+        let override =
+          ctx.all_field_opts
+          |> common.get_field_opts(type_, variant, field)
+          |> list.filter_map(fn(opt) {
+            case opt.strs {
+              ["json", "named", property] -> Ok(property)
+              _ -> Error(Nil)
+            }
+          })
+          |> fn(opts) {
+            case opts {
+              [] -> None
+              [x] -> Some(x)
+              _ -> {
+                io.println_error(type_ |> string.inspect)
+                io.println_error(variant |> string.inspect)
+                io.println_error(field |> string.inspect)
+                panic as { "`json properties` collided for `json named` on: " <> field }
+              }
+            }
+          }
+
+        case override, t {
+          Some(property), _ ->
+            [property]
+
+          None, glance.NamedType(..) as t ->
+            case t.name, t.parameters {
+              "Dict", [_, _] ->
+                panic as "`json properties` not yet implemented for `Dict`"
+
+              "String", [] |
+              "Int", [] |
+              "Float", [] |
+              "Bool", [] ->
+                acc |> list.append([field])
+
+              "Option", [glance.NamedType(name: type_name, ..)] |
+              "List", [glance.NamedType(name: type_name, ..)] |
+              type_name, _ -> {
+                let ident = ctx.file.module <> "." <>  type_name
+                case common.fetch_custom_type(ident, ctx.module_reader) {
+                  Error(err) -> {
+                    io.println_error(err |> string.inspect)
+                    panic as {
+                      "`json properties` couldn't resolve `" <> type_name <> "`" <>
+                      "as `" <> ident <> "`.\n" <> " `json properties` doesn't yet support " <>
+                      "type aliases or types in other modules."
+                    }
+                  }
+
+                  Ok(#(_, glance.Definition(_, glance.CustomType(variants: [variant], ..) as t))) -> {
+                    variant_props(type_: t, variant:, ctx:, acc: acc |> list.append([field]))
+                    |> list.flatten
+                  }
+
+                  Ok(#(_, glance.Definition(_, _))) -> {
+                    panic as ""
+                  }
+                }
+              }
+            }
+
+          None, _ -> {
+            panic as {
+              "`json properties` expected a `glance.NamedType` but got: " <>
+              field <> " " <> string.inspect(t)
+            }
+          }
+        }
+      }
+    }
+  })
 }
 
 fn gen_json_decoders(
