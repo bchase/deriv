@@ -350,6 +350,11 @@ fn json_properties_func(
   )
 }
 
+type PropertiesOpt {
+  PropertyNamed(name: String)
+  PropertyIgnored
+}
+
 fn variant_props(
   type_ type_: CustomType,
   variant variant: Variant,
@@ -363,13 +368,32 @@ fn variant_props(
         panic as "`json properties` doesn't implement `UnlabelledVariantField`s"
 
       glance.LabelledVariantField(label: field, ..), t -> {
-        // TODO use new `common.get_field_opt` after json rewrite merge
-        let override =
+        let opts =
           ctx.all_field_opts
           |> common.get_field_opts(type_, variant, field)
           |> list.filter_map(fn(opt) {
             case opt.strs {
-              ["json", "named", property] -> Ok(property)
+              ["json", "named", name] -> Ok(PropertyNamed(name:))
+              ["json", "properties", "ignore"] -> Ok(PropertyIgnored)
+              _ -> Error(Nil)
+            }
+          })
+
+        let is_ignored =
+          opts
+          |> list.any(fn(opt) {
+            case opt {
+              PropertyIgnored -> True
+              _ -> False
+            }
+          })
+
+        // TODO use new `common.get_field_opt` after json rewrite merge
+        let override =
+          opts
+          |> list.filter_map(fn(opt) {
+            case opt {
+              PropertyNamed(name:) -> Ok(name)
               _ -> Error(Nil)
             }
           })
@@ -386,11 +410,14 @@ fn variant_props(
             }
           }
 
-        case override, t {
-          Some(property), _ ->
+        case is_ignored, override, t {
+          True, _, _ ->
+            []
+
+          _, Some(property), _ ->
             [[property]]
 
-          None, glance.NamedType(..) as t ->
+          _, None, glance.NamedType(..) as t ->
             case t.name, t.parameters {
               "Dict", [_, _] ->
                 panic as "`json properties` not yet implemented for `Dict`"
@@ -451,7 +478,7 @@ fn variant_props(
               }
             }
 
-          None, _ -> {
+          _, None, _ -> {
             panic as {
               "`json properties` expected a `glance.NamedType` but got: " <>
               field <> " " <> string.inspect(t)

@@ -26,10 +26,18 @@ pub type Mono {
 pub type Nesting {
   //$ derive json properties
   Nesting(
+    ignore: Ignored,
+    //$ json properties ignore
     option: Option(String),
     list: List(String),
     nested: Nested,
     nested_list: List(NestedItem),
+  )
+}
+
+pub type Ignored {
+  Ignored(
+    should_see_this: String,
   )
 }
 
