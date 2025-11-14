@@ -1,3 +1,5 @@
+import gleam/pair
+import gleam/bool
 import gleam/dict
 import gleam/io
 import gleam/option.{type Option, Some, None}
@@ -31,6 +33,7 @@ pub fn gen(
           type_,
           deriv.opts,
           overrides,
+          file.module,
           module_reader,
         )
         |> list.map(into_func)
@@ -66,6 +69,7 @@ type IntoFunc {
     return_constr: String,
     return_alias: Option(String),
     fields: List(Field),
+    missing: List(Missing),
   )
 }
 // func_name: String, // "authe_type_a"
@@ -79,11 +83,27 @@ type IntoFunc {
 // //   #("encrypted_refresh_token", "encrypted_refresh_token"),
 // // ]
 
+fn starts_with_uppercase(
+  str str: String,
+) {
+  str
+  |> string.first
+  |> result.map(fn(ch) {
+    string.uppercase(ch) == ch
+  })
+  |> result.unwrap(False)
+}
+
 fn get_return_types_and_variants(
   idents: List(String),
+  module: String,
   module_reader: ModuleReader,
 ) -> List(#(Definition(CustomType), Variant, String)) {
   idents
+  |> list.map(fn(ident) {
+    use <- bool.guard(!{ ident |> starts_with_uppercase }, ident)
+    module <> "." <> ident
+  })
   |> list.map(fn(ident) {
     common.fetch_custom_type(ident, module_reader)
   })
@@ -216,6 +236,13 @@ type Field {
     // param_field_override: Option(String),
     param_field: String,
     return_field: String,
+  )
+}
+
+type Missing {
+  Missing(
+    field: String,
+    type_: glance.Type,
   )
 }
 
@@ -396,11 +423,21 @@ fn build_ident(
 // }
 
 fn fields(variant: Variant) -> List(#(String, String)) {
+  variant
+  |> fields_with_type
+  |> list.map(fn(t) {
+    let #(field_name, type_name, _type) = t
+
+    #(field_name, type_name)
+  })
+}
+
+fn fields_with_type(variant: Variant) -> List(#(String, String, glance.Type)) {
   variant.fields
   |> list.map(fn(field) {
     case field {
-      LabelledVariantField(item: NamedType(name:, ..), label:) ->
-        #(label, name)
+      LabelledVariantField(item: NamedType(name:, ..) as type_, label:) ->
+        #(label, name, type_)
 
       _ -> {
         common.debug(variant)
@@ -422,9 +459,8 @@ fn into_func(
     return_constr:,
     return_alias:,
     fields:,
+    missing:,
   ) = uf
-
-  let dummy_span = Span(-1, -1)
 
   let return_constr =
     case return_alias {
@@ -432,12 +468,36 @@ fn into_func(
       Some(module) -> FieldAccess(common.dummy_location(), Variable(common.dummy_location(), module), return_constr)
     }
 
-  Definition([], Function(common.dummy_location(), func_name, Public,
-    [FunctionParameter(None, Named("value"), Some(NamedType(common.dummy_location(), param_type, param_alias, [])))],
-    Some(NamedType(common.dummy_location(), return_type, return_alias, [])),
-    [Expression(Call(common.dummy_location(), return_constr, list.map(fields, fn(field) {
+  let #(missing_params, missing_fields) =
+    missing
+    |> list.map(fn(missing) {
+      let param =
+        FunctionParameter(
+          label: Some(missing.field),
+          name: glance.Named(missing.field),
+          type_: Some(missing.type_),
+        )
+
+      let field =
+        glance.ShorthandField(label: missing.field)
+
+      #(param, field)
+    })
+    |> list.unzip
+
+  let fields =
+    list.map(fields, fn(field) {
       LabelledField(field.return_field, FieldAccess(common.dummy_location(), Variable(common.dummy_location(), "value"), field.param_field))
-    })))])
+    })
+
+  let fields =
+    fields
+    |> list.append(missing_fields)
+
+  Definition([], Function(common.dummy_location(), func_name, Public,
+    [FunctionParameter(None, Named("value"), Some(NamedType(common.dummy_location(), param_type, param_alias, []))), ..missing_params],
+    Some(NamedType(common.dummy_location(), return_type, return_alias, [])),
+    [Expression(Call(common.dummy_location(), return_constr, fields))])
   )
 }
 
@@ -504,7 +564,7 @@ fn into_variant_(
 
   let func_name = "into_" <> into <> "_from_" <> from
 
-  let fields = build_fields(m)
+  let #(fields, missing) = build_fields(m)
 
   case m.direction {
     LocalToRemote -> {
@@ -516,6 +576,7 @@ fn into_variant_(
         return_constr: m.remote_variant.name,
         return_alias: m.remote_alias,
         fields:,
+        missing:,
       )
     }
 
@@ -615,9 +676,17 @@ fn fields_(
   }
 }
 
+type F {
+  F(field: Field)
+  NoF(
+    field: String,
+    type_: glance.Type,
+  )
+}
+
 fn build_fields(
   m: Mapping,
-) -> List(Field) {
+) -> #(List(Field), List(Missing)) {
   let Mapping(
     local_type:,
     local_variant:,
@@ -648,150 +717,162 @@ fn build_fields(
         )
 
       let param_fields = fields(param_variant)
-      let return_fields = fields(return_variant)
+      let return_fields = fields_with_type(return_variant)
 
       return_fields
       |> list.map(fn(r_field) {
-        let #(return_field, result_field_type) = r_field
+        let #(return_field, result_field_type, return_type) = r_field
 
-        let #(param_field, param_field_type) =
-          overrides
-          |> list.find_map(fn(x) {
-            let #(df, os) = x
+        overrides
+        |> list.find_map(fn(x) {
+          let #(df, os) = x
 
-            os
-            |> list.reverse // prefer override defined later // TODO panic dupe
-            |> list.find_map(fn(o) {
-              case o.field == return_field && o.type_ == remote_type && o.module_name == remote_type_module {
-                True -> Ok(#(df.field, df.type_))
-                False -> Error(Nil)
-              }
-            })
-          })
-          |> fn(r) {
-            case r {
-              Ok(field) -> field
-              Error(Nil) -> {
-                let field =
-                  param_fields
-                  |> list.find(fn(field) {
-                    let #(name, _type) = field
-
-                    name == return_field
-                  })
-
-                case field {
-                  Ok(field) -> field
-                  Error(Nil) ->
-                    panic as { "unable to find `param_field` for: " <> return_field }
-                }
-              }
-            }
-          }
-
-        Field(
-          param_field:,
-          return_field:,
-        )
-      })
-    }
-
-    RemoteToLocal -> {
-      let param_type_module = remote_type_module
-
-      let #(
-        param_type,
-        param_variant,
-        param_module,
-        return_type,
-        return_variant,
-        return_module,
-      ) =
-        #(
-          remote_type, // param_type
-          remote_variant, // param_variant
-          Some(remote_type_module), // param_module
-          local_type, // return_type
-          local_variant, // return_variant
-          None, // return_module
-        )
-
-      let param_fields = fields(param_variant)
-      let return_fields = fields(return_variant)
-
-      return_fields
-      |> list.map(fn(r_field) {
-        let #(return_field, result_field_type) = r_field
-
-        let overrides =
-          overrides
-          |> list.filter_map(fn(x) {
-            let #(df, os) = x
-
-            case df.type_ == return_type.name && df.field == return_field {
+          os
+          |> list.reverse // prefer override defined later // TODO panic dupe
+          |> list.find_map(fn(o) {
+            case o.field == return_field && o.type_ == remote_type && o.module_name == remote_type_module {
+              True -> Ok(#(df.field, df.type_))
               False -> Error(Nil)
-              True -> Ok(#(df.field, os))
             }
           })
+        })
+        |> fn(r) {
+          case r {
+            Ok(#(param_field, _return_field)) -> F(field: Field(param_field:, return_field:))
+            Error(Nil) -> {
+              let field =
+                param_fields
+                |> list.find(fn(field) {
+                  let #(name, _) = field
 
-        let override =
-          overrides
-          |> list.find_map(fn(x) {
-            let #(param_field, os) = x
+                  name == return_field
+                })
 
-            list.find_map(os, fn(o) {
-              let ident = build_ident(param_type_module, param_type)
-              case o.ident == ident && o.field == return_field {
-                False -> Error(Nil)
-                True -> Ok(#(param_field, o.override))
+              case field {
+                Ok(#(param_field, _)) -> F(field: Field(param_field:, return_field:))
+                Error(Nil) -> NoF(field: return_field, type_: return_type)
               }
-            })
-          })
-
-        let #(param_field, _p_type) =
-          case override {
-            Error(_) ->  #(return_field, Nil)
-            Ok(#(_param_field, override)) -> #(override, Nil)
-          }
-
-        let param_field_type =
-          list.find_map(param_fields, fn(x) {
-            let #(name, type_) = x
-            case param_field == name {
-              False -> Error(Nil)
-              True -> Ok(type_)
             }
-          })
-
-        case param_field_type {
-          Error(_) -> {
-            common.debug(param_type)
-            common.debug(param_variant)
-            common.debug(param_field)
-            panic as "`into` `RemoteToLocal` -- param field doesn't exist"
-          }
-
-          Ok(param_field_type) if param_field_type == result_field_type ->
-            Nil
-
-          _ -> {
-            io.println("PARAM TYPE")
-            common.debug(param_type)
-            common.debug(param_variant)
-            common.debug(param_field)
-            io.println("RETURN TYPE")
-            common.debug(return_type)
-            common.debug(return_variant)
-            common.debug(return_field)
-            panic as "`into` `RemoteToLocal` -- param & return field types don't match"
           }
         }
-
-        Field(
-          param_field:,
-          return_field:,
-        )
       })
+    }
+    |> list.partition(fn(f) {
+      case f {
+        F(..) -> True
+        NoF(..) -> False
+      }
+    })
+    |> pair.map_first(list.filter_map(_, fn(field) {
+      case field {
+        F(field:) -> Ok(field)
+        NoF(..) -> Error(Nil)
+      }
+    }))
+    |> pair.map_second(list.filter_map(_, fn(field) {
+      case field {
+        NoF(field:, type_:) -> Ok(Missing(field:, type_:))
+        F(..) -> Error(Nil)
+      }
+    }))
+
+    RemoteToLocal -> {
+      todo as "rework to match `LocalToRemote`"
+      // let param_type_module = remote_type_module
+
+      // let #(
+      //   param_type,
+      //   param_variant,
+      //   param_module,
+      //   return_type,
+      //   return_variant,
+      //   return_module,
+      // ) =
+      //   #(
+      //     remote_type, // param_type
+      //     remote_variant, // param_variant
+      //     Some(remote_type_module), // param_module
+      //     local_type, // return_type
+      //     local_variant, // return_variant
+      //     None, // return_module
+      //   )
+
+      // let param_fields = fields(param_variant)
+      // let return_fields = fields(return_variant)
+
+      // return_fields
+      // |> list.map(fn(r_field) {
+      //   let #(return_field, result_field_type) = r_field
+
+      //   let overrides =
+      //     overrides
+      //     |> list.filter_map(fn(x) {
+      //       let #(df, os) = x
+
+      //       case df.type_ == return_type.name && df.field == return_field {
+      //         False -> Error(Nil)
+      //         True -> Ok(#(df.field, os))
+      //       }
+      //     })
+
+      //   let override =
+      //     overrides
+      //     |> list.find_map(fn(x) {
+      //       let #(param_field, os) = x
+
+      //       list.find_map(os, fn(o) {
+      //         let ident = build_ident(param_type_module, param_type)
+      //         case o.ident == ident && o.field == return_field {
+      //           False -> Error(Nil)
+      //           True -> Ok(#(param_field, o.override))
+      //         }
+      //       })
+      //     })
+
+      //   let #(param_field, _p_type) =
+      //     case override {
+      //       Error(_) ->  #(return_field, Nil)
+      //       Ok(#(_param_field, override)) -> #(override, Nil)
+      //     }
+
+      //   let param_field_type =
+      //     list.find_map(param_fields, fn(x) {
+      //       let #(name, type_) = x
+      //       case param_field == name {
+      //         False -> Error(Nil)
+      //         True -> Ok(type_)
+      //       }
+      //     })
+
+      //   case param_field_type {
+      //     Error(_) -> {
+      //       common.debug(param_type)
+      //       common.debug(param_variant)
+      //       common.debug(param_field)
+      //       panic as "`into` `RemoteToLocal` -- param field doesn't exist"
+      //     }
+
+      //     Ok(param_field_type) if param_field_type == result_field_type ->
+      //       Nil
+
+      //     _ -> {
+      //       io.println("PARAM TYPE")
+      //       common.debug(param_type)
+      //       common.debug(param_variant)
+      //       common.debug(param_field)
+      //       io.println("RETURN TYPE")
+      //       common.debug(return_type)
+      //       common.debug(return_variant)
+      //       common.debug(return_field)
+      //       panic as "`into` `RemoteToLocal` -- param & return field types don't match"
+      //     }
+      //   }
+
+      //   Field(
+      //     param_field:,
+      //     return_field:,
+      //   )
+      // })
     }
   }
 }
@@ -800,6 +881,7 @@ fn into_(
   local_type: CustomType,
   opts: List(String),
   overrides: IntoFieldOverrides,
+  module: String,
   module_reader: ModuleReader,
 ) -> List(IntoFunc) {
   case local_type.variants {
@@ -819,7 +901,7 @@ fn into_(
         }
 
       [ident]
-      |> get_return_types_and_variants(module_reader)
+      |> get_return_types_and_variants(module, module_reader)
       |> list.map(fn(x) {
         let #(remote_type_def, remote_variant, remote_type_module) = x
         let remote_type = remote_type_def.definition
