@@ -70,7 +70,7 @@ pub fn gen(
 type FromFunc {
   FromFunc(
     func_name: String,
-    param_type: ParamType,
+    param_type: ImportedType,
     return_type: String,
     return_contr: String,
     fields: List(Field),
@@ -135,34 +135,34 @@ fn from(
   }
 }
 
-type ParamType {
+type ImportedType {
   InScope(name: String)
   Qualified(name: String, module: String)
 }
 
-fn build_param_type(
-  param_type_module: String,
-  param_type: CustomType,
-  ctx: Context,
-) {
+fn build_imported_type(
+  module_name module_name: String,
+  type_ type_: CustomType,
+  ctx ctx: Context,
+) -> ImportedType {
   let assert Ok(module) = g.module(ctx.file.src)
 
-  let is_curr_module = param_type_module == ctx.file.module
-  use <- bool.guard(is_curr_module, InScope(name: param_type.name))
+  let is_curr_module = module_name == ctx.file.module
+  use <- bool.guard(is_curr_module, InScope(name: type_.name))
 
-  case common.find_import(module_name: param_type_module, module:) {
+  case common.find_import(module_name:, module:) {
     Error(_) -> panic as {
       // TODO auto import
       ctx.file.module <> "\n" <>
-      "missing import for: " <> param_type_module <> "." <> param_type.name
+      "missing import for: " <> module_name <> "." <> type_.name
     }
 
     Ok(g.Definition(_, import_)) -> {
       let is_in_scope =
         import_.unqualified_types
-        |> list.any(fn(t) { t.name == param_type.name })
+        |> list.any(fn(t) { t.name == type_.name })
 
-      use <- bool.guard(is_in_scope, InScope(name: param_type.name))
+      use <- bool.guard(is_in_scope, InScope(name: type_.name))
 
       let assert Ok(module) =
         import_.module
@@ -173,13 +173,13 @@ fn build_param_type(
         case import_.alias {
           Some(g.Discarded(..)) -> panic as {
             ctx.file.module <> "\n" <>
-            "neither exposing type nor providing module for: " <> param_type_module <> "." <> param_type.name
+            "neither exposing type nor providing module for: " <> module_name <> "." <> type_.name
           }
           None -> module
           Some(g.Named(module)) -> module
         }
 
-      Qualified(module:, name: param_type.name)
+      Qualified(module:, name: type_.name)
     }
   }
 }
@@ -213,7 +213,7 @@ fn from_variant_(
   let to = common.snake_case(return_type.name)
 
   let func_name = "from_" <> from <> "_to_" <> to
-  let param_type = build_param_type(param_type_module, param_type, ctx)
+  let param_type = build_imported_type(param_type_module, param_type, ctx)
   let return_type = return_type.name
   let return_contr = return_variant.name
 

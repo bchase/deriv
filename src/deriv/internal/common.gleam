@@ -326,13 +326,8 @@ pub fn find_import(
   module_name module_name: String,
   module module: glance.Module,
 ) -> Result(glance.Definition(glance.Import), ModuleReaderErr) {
-  echo {"searching for " <> module_name}
   module.imports
-  |> echo
-  |> list.find(fn(i) {
-    echo i.definition.module
-    i.definition.module == module_name
-  })
+  |> list.find(fn(i) { i.definition.module == module_name })
   |> result.replace_error(types.NotFoundErr(module_name))
 }
 
