@@ -1,4 +1,3 @@
-import deriv/util
 import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 
