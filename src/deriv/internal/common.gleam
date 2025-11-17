@@ -281,9 +281,28 @@ pub fn birl_time_kind(
 
 pub fn fetch_module(path: String) -> Result(Module, ModuleReaderErr) {
   fetch_module_(path_prefix: "src/", path:)
+  |> result.lazy_or(fn() {
+    fetch_module_in_dependencies(path:)
+  })
+}
+
+fn fetch_module_in_dependencies(
+  path path: String,
+) -> Result(Module, ModuleReaderErr) {
+  let assert Ok(package) = path |> string.split("/") |> list.first
+  let path_prefix = "build/packages/" <> package <> "/src"
+
+  fetch_module_(path_prefix:, path:)
 }
 
 pub fn fetch_module_(
+  path path: String,
+  path_prefix path_prefix: String,
+) -> Result(Module, ModuleReaderErr) {
+  fetch_module_in_project(path:, path_prefix:)
+}
+
+fn fetch_module_in_project(
   path path: String,
   path_prefix prefix: String,
 ) -> Result(Module, ModuleReaderErr) {
@@ -295,6 +314,27 @@ pub fn fetch_module_(
 }
 
 pub fn fetch_custom_type(
+  ident ident: String,
+  read_module read_module: ModuleReader,
+) -> Result(#(String, glance.Definition(glance.CustomType)), ModuleReaderErr) {
+  fetch_custom_type_in_project(ident:, read_module:)
+  |> result.lazy_or(fn() {
+    fetch_custom_type_in_dependencies(ident:, read_module:)
+  })
+}
+
+fn fetch_custom_type_in_project(
+  ident ident: String,
+  read_module read_module: ModuleReader,
+) -> Result(#(String, glance.Definition(glance.CustomType)), ModuleReaderErr) {
+  use #(module_name, ref) <- result.try(parse_ident(ident))
+  use module <- result.try(read_module(module_name))
+  use type_ <- result.try(find_custom_type(ref, module))
+
+  Ok(#(module_name, type_))
+}
+
+fn fetch_custom_type_in_dependencies(
   ident ident: String,
   read_module read_module: ModuleReader,
 ) -> Result(#(String, glance.Definition(glance.CustomType)), ModuleReaderErr) {
