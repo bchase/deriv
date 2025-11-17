@@ -117,8 +117,17 @@ fn zero_call(
     NamedType(name: "List", ..) -> Ok(zero_list())
     NamedType(name: "Time", ..) -> Ok(zero_time())
     NamedType(name: "Uuid", ..) -> Ok(zero_uuid())
+    NamedType(name: type_name, ..) -> Ok(zero_custom(type_name:))
+    // _ -> Error(Nil)
     _ -> Error(Nil)
   }
+}
+
+fn zero_custom(
+  type_name type_name: String,
+) -> Expression {
+  let type_name = type_name |> common.snake_case
+  Call(common.dummy_location(), Variable(common.dummy_location(), "zero_" <> type_name), [])
 }
 
 fn zero_uuid() -> Expression {

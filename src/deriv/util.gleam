@@ -1,4 +1,5 @@
 import gleam/dict
+import gleam/bool
 import gleam/pair
 import gleam/list
 import formal/form
@@ -101,6 +102,15 @@ pub fn decoder_uuid() -> Decoder(Uuid) {
       decode.failure(zero_uuid(), "Failed to parse UUID")
     }
   }
+}
+
+pub fn decode_optional_subfield(
+  path path: List(segment),
+  default default: a,
+  decoder decoder: Decoder(a),
+  cont cont: fn(a) -> Decoder(b)
+) -> Decoder(b) {
+  decode.then(decode.one_of(decode.at(path, decoder), [decode.success(default)]), cont)
 }
 
 pub fn encode_uuid(uuid: Uuid) -> Json {
@@ -317,3 +327,7 @@ pub fn field_to_dom_id(
 ) -> String {
   string.inspect(field)
 }
+
+pub const int_to_string = int.to_string
+pub const float_to_string = float.to_string
+pub const bool_to_string = bool.to_string

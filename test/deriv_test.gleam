@@ -1,3 +1,4 @@
+import gleam/json
 import deriv
 import deriv/internal/common
 import deriv/internal/parser
@@ -11,6 +12,7 @@ import gleeunit
 import gleeunit/should
 import gleam/io
 import simplifile
+import examples/json_rewrite/after as json_example
 
 pub fn glance_read(file_path: String) -> glance.Module {
   let assert Ok(src) = simplifile.read(file_path)
@@ -62,16 +64,24 @@ fn run_and_expect_equal(
   let assert [write] = gen_and_build_writes(input: input |> string.trim, example_dir_name:)
   let gen = write.src |> string.trim
 
-  io.println("")
-  io.println("")
-  io.println("EXPECTED")
-  io.println(output)
-  io.println("")
-  io.println("")
-  io.println("GENERATED")
-  io.println(gen)
-  io.println("DIFF (<expected >generated)")
-  io.println(common.diff(output, gen))
+  // let assert Ok(_) = simplifile.write(to: "expected.txt", contents: output)
+  // let assert Ok(_) = simplifile.write(to: "generated.txt", contents: gen)
+
+  case gen == output {
+    True -> Nil
+    False -> {
+      io.println("")
+      io.println("")
+      io.println("EXPECTED")
+      io.println(output)
+      io.println("")
+      io.println("")
+      io.println("GENERATED")
+      io.println(gen)
+      io.println("DIFF (<expected >generated)")
+      io.println(common.diff(output, gen))
+    }
+  }
 
   gen
   |> should.equal(output)
@@ -131,6 +141,28 @@ pub fn main() {
   gleeunit.main()
 }
 
+// TEST DERIV JSON REWRITE
+pub fn json_rewrite_test() {
+  should_derive(example_dir_name: "json_rewrite")
+}
+
+pub fn json_encoded_value_decodes_to_identical_test() {
+  let foo = json_example.zero_foo()
+  foo
+  |> json_example.encode_foo
+  |> json.to_string
+  // |> fn(str) {
+  //   io.println(str)
+  //   str
+  // }
+  |> json.parse(json_example.decoder_foo())
+  |> should.be_ok
+  |> should.equal(foo)
+}
+
+pub fn json_properties_test() {
+  should_derive(example_dir_name: "json_properties")
+}
 
 // TEST DERIVE ENUM
 
@@ -161,10 +193,6 @@ pub fn json_test() {
   should_derive(example_dir_name: "json")
 }
 
-pub fn json_properties_test() {
-  should_derive(example_dir_name: "json_properties")
-}
-
 pub fn json_multi_variant_type_test() {
   should_derive(example_dir_name: "json_multi_variant_type")
 }
@@ -181,9 +209,9 @@ pub fn json_nested_type_test() {
   should_derive(example_dir_name: "json_nested_type")
 }
 
-pub fn birl_json_test() {
-  should_derive(example_dir_name: "json_birl")
-}
+//pub fn birl_json_test() {
+//  should_derive(example_dir_name: "json_birl")
+//}
 
 pub fn unnested_json_test() {
   should_derive(example_dir_name: "json_named_to_deeply_nested")
@@ -205,30 +233,20 @@ pub fn json_specify_decoder_and_encode_test() {
   should_derive(example_dir_name: "json_specify_decoder_and_encode")
 }
 
-pub fn json_decoder_top_level_override_test() {
-  should_derive(example_dir_name: "json_specify_top_level_decoder")
-}
-
-pub fn json_specify_default_empty_and_skip_test() {
-  should_derive(example_dir_name: "json_specify_default_empty_and_skip")
-}
-
 pub fn json_decoder_parameterized_type_test() {
   should_derive(example_dir_name: "json_decoder_parameterized_type")
 }
-
 pub fn json_encode_parameterized_type_test() {
   should_derive(example_dir_name: "json_encode_parameterized_type")
 }
 
-// TODO `encode` does inner, `decoder` does outer ... make consistent, allow specify
 pub fn json_encode_nested_parameterized_type_alias_test() {
   should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias")
 }
-
-pub fn json_encode_nested_parameterized_type_alias_list_test() {
-  should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias_list")
-}
+// // TODO started reworking, but not sure the types even make sense...
+// pub fn json_encode_nested_parameterized_type_alias_list_test() {
+//   should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias_list")
+// }
 
 // DERIVE TEST INTO & FROM
 

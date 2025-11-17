@@ -1,6 +1,7 @@
+import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
-import gleam/option.{type Option, None}
+import gleam/option.{type Option}
 
 pub type Maybe {
   //$ derive json decode encode
@@ -16,7 +17,7 @@ pub fn decoder_maybe() -> Decoder(Maybe) {
 pub fn decoder_maybe_maybe() -> Decoder(Maybe) {
   use name <- decode.optional_field(
     "name",
-    None,
+    deriv.none,
     decode.optional(decode.string),
   )
   decode.success(Maybe(name:))

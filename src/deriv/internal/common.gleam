@@ -187,10 +187,10 @@ pub fn gleam_format(src: String) -> String {
 }
 
 pub fn get_field_opts(
-  all_field_opts: DerivFieldOpts,
-  type_: CustomType,
-  variant: Variant,
-  field: String,
+  opts opts: DerivFieldOpts,
+  type_ type_: CustomType,
+  variant variant: Variant,
+  field field: String,
 ) -> List(DerivFieldOpt) {
   let key =
     DerivField(
@@ -199,9 +199,43 @@ pub fn get_field_opts(
       field:,
     )
 
-  all_field_opts
+  opts
   |> dict.get(key)
   |> result.unwrap([])
+}
+
+pub fn get_field_opts_(
+  opts opts: DerivFieldOpts,
+  type_ type_: String,
+  variant variant: String,
+  field field: String,
+) -> List(DerivFieldOpt) {
+  let key =
+    DerivField(type_:, variant:, field:)
+
+  opts
+  |> dict.get(key)
+  |> result.unwrap([])
+}
+
+pub fn get_field_opt(
+  opts opts: DerivFieldOpts,
+  type_ type_: String,
+  variant variant: String,
+  field field: String,
+  err_msg err: String,
+  matching matching: fn(List(String)) -> Result(t, Nil),
+) -> Result(t, Nil) {
+  get_field_opts_(opts:, type_:, variant:, field:)
+  |> list.map(fn(opt) { opt.strs })
+  |> list.filter_map(matching)
+  |> fn(xs) {
+    case xs {
+      [] -> Error(Nil)
+      [x] -> Ok(x)
+      _ -> panic as err
+    }
+  }
 }
 
 pub type BirlTimeKind {
@@ -345,9 +379,21 @@ pub fn are_any_fields_options(
     variant.fields
     |> list.any(fn(field) {
       case field.item {
-        glance.NamedType(name:, ..) if name == "Option" -> True
+        glance.NamedType(name: "Option", parameters:[_], ..) -> True
         _ -> False
       }
+    })
+  })
+}
+
+pub fn are_any_fields_non_string_basic_type_dict_keys(
+  type_: CustomType,
+) -> Bool {
+  type_.variants
+  |> list.any(fn(variant) {
+    variant.fields
+    |> list.any(fn(field) {
+      has_non_string_basic_type_dict_keys(field.item)
     })
   })
 }
@@ -478,5 +524,37 @@ pub fn custom_type_or_panic(
     types.TypeAlias(..) -> {
       panic as { "`" <> deriv_name <> "` doesn't know how to handle type aliases, namely: " <> string.inspect(type_) }
     }
+  }
+}
+
+pub fn is_multi_variant(
+  type_ type_: CustomType,
+) -> Bool {
+  { type_.variants |> list.length } >= 2
+}
+
+pub fn has_non_string_basic_type_dict_keys(
+  type_ type_: glance.Type,
+) -> Bool {
+  case type_ {
+    glance.NamedType(
+      name: "Dict",
+      parameters: [
+        glance.NamedType(name: "String", parameters: [], ..),
+        _,
+      ],
+    ..) -> False
+
+    glance.NamedType(name: "Dict", parameters: [key, _val,], ..) ->
+      case key {
+        glance.NamedType(name:, parameters: params, ..) ->
+          case name, params {
+            "Int", [] | "Float", [] | "Bool", [] -> True
+            _, _ -> False
+          }
+        _ -> False
+      }
+
+    _ -> False
   }
 }

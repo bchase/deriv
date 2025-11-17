@@ -1,3 +1,6 @@
+import deriv/util as deriv
+import gleam/json.{type Json}
+import gleam/dynamic/decode.{type Decoder}
 import gleam/option.{type Option}
 import youid/uuid.{type Uuid}
 
@@ -19,4 +22,12 @@ pub type Bar {
   Bar(
     baz: Bool,
   )
+}
+
+fn encode_uuid(uuid: Uuid) -> Json {
+  deriv.encode_uuid(uuid)
+}
+
+fn decoder_uuid() -> Decoder(Uuid) {
+  deriv.decoder_uuid()
 }

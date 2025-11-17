@@ -1,4 +1,4 @@
-import deriv/util
+import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 
@@ -13,13 +13,13 @@ pub fn decoder_t() -> Decoder(T) {
 }
 
 pub fn decoder_t_x() -> Decoder(T) {
-  use _deriv_var_constr <- decode.field("_var", util.is("X"))
+  use _deriv_var_constr <- decode.field("_var", deriv.is("X"))
   use foo <- decode.field("foo", decode.string)
   decode.success(X(foo:))
 }
 
 pub fn decoder_t_y() -> Decoder(T) {
-  use _deriv_var_constr <- decode.field("_var", util.is("Y"))
+  use _deriv_var_constr <- decode.field("_var", deriv.is("Y"))
   use bar <- decode.field("bar", decode.int)
   decode.success(Y(bar:))
 }
