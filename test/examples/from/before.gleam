@@ -47,6 +47,7 @@ pub type A {
     tf: Int,
     f: Int,
     o: Option(Int),
+    oi: Option(Int),
   )
 }
 
@@ -77,6 +78,9 @@ pub type Overrides {
 
     o: Option(Time),
     //$ from *.o using inner birl.from_unix
+
+    oi: Option(Time),
+    //$ from using inner birl.from_unix
   )
 }
 

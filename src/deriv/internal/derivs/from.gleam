@@ -441,6 +441,13 @@ fn build_field_override(
           Ok(ConvAllWith(conv: { conv |> parse_conv_or_panic }(ValueDotField), inner:))
         }
 
+        ["using", "inner" as inner_str, conv], _ -> {
+          let build_conv = conv |> parse_conv_or_panic
+          let conv = build_conv(ValueDotField)
+          let inner = inner_str |> to_inner(relative_to: type_, on: field)
+          Ok(ConvAllWith(conv:, inner:))
+        }
+
         [ident, "using", "inner" as inner_str, conv], _ |
         [ident, "using", conv], inner_str -> {
           let inner = inner_str |> to_inner(relative_to: type_, on: field)
@@ -466,6 +473,7 @@ fn build_field_override(
         }
 
         _, _ -> {
+          echo opt.strs
           panic as { "`from` invalid field option: " <> opt.strs |> string.join(" ") }
         }
       }

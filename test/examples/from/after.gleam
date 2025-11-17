@@ -47,6 +47,7 @@ pub type A {
     tf: Int,
     f: Int,
     o: Option(Int),
+    oi: Option(Int),
   )
 }
 
@@ -77,6 +78,9 @@ pub type Overrides {
 
     o: Option(Time),
     //$ from *.o using inner birl.from_unix
+
+    oi: Option(Time),
+    //$ from using inner birl.from_unix
   )
 }
 
@@ -141,6 +145,7 @@ pub fn from_a_to_overrides(value: A) -> Overrides {
     tf: value.tf |> birl.from_unix,
     f: value.f |> birl.from_unix,
     o: value.o |> option.map(birl.from_unix),
+    oi: value.oi |> option.map(birl.from_unix),
   )
 }
 
