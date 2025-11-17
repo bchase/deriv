@@ -1,4 +1,5 @@
-import gleam/option.{type Option, None}
+import gleam/bool
+import gleam/option.{type Option, Some, None}
 import gleam/dict
 import gleam/list
 import gleam/string
@@ -584,3 +585,54 @@ pub fn gtype(
 ) -> glance.Type {
   gtype_(name:, params:, module: None)
 }
+
+
+pub type ImportedType {
+  InScope(name: String, module: String, curr_module: Bool)
+  Qualified(name: String, module: String)
+}
+
+pub fn build_imported_type(
+  module_name module_name: String,
+  type_ type_: CustomType,
+  file file: types.File,
+) -> ImportedType {
+  let assert Ok(m) = glance.module(file.src)
+
+  let assert Ok(module) =
+    module_name
+    |> string.split("/")
+    |> list.last
+
+  let is_curr_module = module_name == file.module
+  use <- bool.guard(is_curr_module, InScope(name: type_.name, module:, curr_module: True))
+
+  case find_import(module_name:, module: m) {
+    Error(_) -> panic as {
+      // TODO auto import
+      file.module <> "\n" <>
+      "missing import for: " <> module_name <> "." <> type_.name
+    }
+
+    Ok(glance.Definition(_, import_)) -> {
+      let is_in_scope =
+        import_.unqualified_types
+        |> list.any(fn(t) { t.name == type_.name })
+
+      use <- bool.guard(is_in_scope, InScope(name: type_.name, module:, curr_module: False))
+
+      let module =
+        case import_.alias {
+          Some(glance.Discarded(..)) -> panic as {
+            file.module <> "\n" <>
+            "neither exposing type nor providing module for: " <> module_name <> "." <> type_.name
+          }
+          None -> module
+          Some(glance.Named(module)) -> module
+        }
+
+      Qualified(module:, name: type_.name)
+    }
+  }
+}
+

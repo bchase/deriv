@@ -8,7 +8,9 @@ import gleam/result
 import gleam/string
 import glance.{type CustomType, type Definition, type Function, type Variant, LabelledVariantField, Definition, Function, Public, FunctionParameter, Named, NamedType, Expression, Call, Variable, LabelledField, FieldAccess, Span}
 import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type DerivFieldOpt, type DerivField, DerivFieldOpt} as deriv
-import deriv/internal/common
+import deriv/internal/common.{type ImportedType, InScope, Qualified, gtype, gtype_}
+
+const x = common.x
 
 pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File) -> Gen
 
@@ -35,6 +37,7 @@ pub fn gen(
           overrides,
           file.module,
           module_reader,
+          file,
         )
         |> list.map(into_func)
 
@@ -65,7 +68,7 @@ type IntoFunc {
     func_name: String,
     param_type: String,
     param_alias: Option(String),
-    return_type: String,
+    return_type: ImportedType,
     return_constr: String,
     return_alias: Option(String),
     fields: List(Field),
@@ -463,9 +466,17 @@ fn into_func(
   ) = uf
 
   let return_constr =
-    case return_alias {
-      None -> Variable(common.dummy_location(), return_constr)
-      Some(module) -> FieldAccess(common.dummy_location(), Variable(common.dummy_location(), module), return_constr)
+    // case return_alias {
+    //   None -> Variable(common.dummy_location(), return_constr)
+    //   Some(module) -> FieldAccess(common.dummy_location(), Variable(common.dummy_location(), module), return_constr)
+    // }
+    case return_type {
+      InScope(curr_module: True, ..) ->
+        Variable(x, return_constr)
+
+      InScope(module:, curr_module: False, ..) |
+      Qualified(module:, ..) ->
+        FieldAccess(x, Variable(x, module), return_constr)
     }
 
   let #(missing_params, missing_fields) =
@@ -494,9 +505,22 @@ fn into_func(
     fields
     |> list.append(missing_fields)
 
+  let return_type =
+    case return_type {
+      InScope(name:, ..) ->
+        gtype(name, [])
+
+      Qualified(module:, name:) ->
+        gtype_(
+          module: Some(module),
+          name:,
+          params:[]
+        )
+    }
+
   Definition([], Function(common.dummy_location(), func_name, Public,
     [FunctionParameter(None, Named("value"), Some(NamedType(common.dummy_location(), param_type, param_alias, []))), ..missing_params],
-    Some(NamedType(common.dummy_location(), return_type, return_alias, [])),
+    Some(return_type),
     [Expression(Call(common.dummy_location(), return_constr, fields))])
   )
 }
@@ -519,6 +543,7 @@ type Mapping {
     remote_alias: Option(String),
     remote_type_module: String,
     overrides: IntoFieldOverrides,
+    return_type: ImportedType,
   )
 }
 
@@ -572,7 +597,7 @@ fn into_variant_(
         func_name:,
         param_type: m.local_type.name,
         param_alias: None,
-        return_type: m.remote_type.name,
+        return_type: m.return_type,
         return_constr: m.remote_variant.name,
         return_alias: m.remote_alias,
         fields:,
@@ -883,6 +908,7 @@ fn into_(
   overrides: IntoFieldOverrides,
   module: String,
   module_reader: ModuleReader,
+  file: File,
 ) -> List(IntoFunc) {
   case local_type.variants {
     [local_variant] -> {
@@ -906,6 +932,13 @@ fn into_(
         let #(remote_type_def, remote_variant, remote_type_module) = x
         let remote_type = remote_type_def.definition
 
+        let return_type =
+          common.build_imported_type(
+            module_name: remote_type_module,
+            type_: remote_type,
+            file:,
+          )
+
         Mapping(
           direction: LocalToRemote,
           local_type:,
@@ -915,6 +948,7 @@ fn into_(
           remote_alias:,
           remote_type_module:,
           overrides:,
+          return_type:,
         )
         // |> into_variant_("into_")
         |> into_variant_

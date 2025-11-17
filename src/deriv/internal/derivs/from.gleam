@@ -1,4 +1,3 @@
-import gleam/bool
 import gleam/pair
 import gleam/dict
 import gleam/io
@@ -9,7 +8,7 @@ import gleam/string
 import glance.{type CustomType, type Definition, type Function, type Variant, LabelledVariantField, Definition, Function, Public, FunctionParameter, Named, NamedType, Expression, Call, Variable, LabelledField, FieldAccess} as _
 import glance as g
 import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type DerivFieldOpt, type DerivField, DerivField} as deriv
-import deriv/internal/common.{gtype, gtype_}
+import deriv/internal/common.{type ImportedType, InScope, Qualified, gtype, gtype_, build_imported_type}
 
 pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File) -> Gen
 
@@ -135,56 +134,6 @@ fn from(
   }
 }
 
-type ImportedType {
-  InScope(name: String)
-  Qualified(name: String, module: String)
-}
-
-fn build_imported_type(
-  module_name module_name: String,
-  type_ type_: CustomType,
-  ctx ctx: Context,
-) -> ImportedType {
-  let assert Ok(module) = g.module(ctx.file.src)
-
-  let is_curr_module = module_name == ctx.file.module
-  use <- bool.guard(is_curr_module, InScope(name: type_.name))
-
-  case common.find_import(module_name:, module:) {
-    Error(_) -> panic as {
-      // TODO auto import
-      ctx.file.module <> "\n" <>
-      "missing import for: " <> module_name <> "." <> type_.name
-    }
-
-    Ok(g.Definition(_, import_)) -> {
-      let is_in_scope =
-        import_.unqualified_types
-        |> list.any(fn(t) { t.name == type_.name })
-
-      use <- bool.guard(is_in_scope, InScope(name: type_.name))
-
-      let assert Ok(module) =
-        import_.module
-        |> string.split("/")
-        |> list.last
-
-      let module =
-        case import_.alias {
-          Some(g.Discarded(..)) -> panic as {
-            ctx.file.module <> "\n" <>
-            "neither exposing type nor providing module for: " <> module_name <> "." <> type_.name
-          }
-          None -> module
-          Some(g.Named(module)) -> module
-        }
-
-      Qualified(module:, name: type_.name)
-    }
-  }
-}
-
-
 fn from_variant_(
   param_type_module: String,
   param_type: CustomType,
@@ -213,7 +162,7 @@ fn from_variant_(
   let to = common.snake_case(return_type.name)
 
   let func_name = "from_" <> from <> "_to_" <> to
-  let param_type = build_imported_type(param_type_module, param_type, ctx)
+  let param_type = build_imported_type(param_type_module, param_type, ctx.file)
   let return_type = return_type.name
   let return_contr = return_variant.name
 
@@ -754,7 +703,7 @@ fn from_func(
 
   let param_type =
     case param_type {
-      InScope(name:) -> gtype(name, [])
+      InScope(name:, ..) -> gtype(name, [])
       Qualified(module:, name:) -> gtype_(module: Some(module), name:, params: [])
     }
 
