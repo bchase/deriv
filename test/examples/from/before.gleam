@@ -90,3 +90,11 @@ pub type OverrideUsingTypeNotField {
     //$ from examples/from/before.A* using to_time
   )
 }
+
+pub type PetPlus {
+  //$ derive from examples/from/friend/pet.Pet
+  PetPlus(
+    name: String,
+    missing: Float,
+  )
+}

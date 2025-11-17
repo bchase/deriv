@@ -1,3 +1,5 @@
+import gleam/pair
+import gleam/bool
 import gleam/dict
 import gleam/io
 import gleam/option.{type Option, Some, None}
@@ -11,6 +13,14 @@ import deriv/internal/common
 
 pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File) -> Gen
 
+type Context {
+  Context(
+    opts: DerivFieldOpts,
+    module: String,
+    module_reader: ModuleReader,
+  )
+}
+
 const x = g.Span(-1, -1)
 
 pub fn gen(
@@ -20,6 +30,8 @@ pub fn gen(
   file: File,
   module_reader: ModuleReader,
 ) -> Gen {
+  let ctx = Context(module: file.module, opts:, module_reader:)
+
   case t {
     deriv.TypeAlias(..) ->
       panic as "`deriv.TypeAlias` unimplemented for `deriv/from` "
@@ -40,7 +52,7 @@ pub fn gen(
           type_,
           ident,
           module_reader,
-          opts,
+          ctx,
         )
         |> from_func
         |> list.wrap
@@ -96,7 +108,7 @@ fn from(
   return_type: CustomType,
   ident: String,
   module_reader: ModuleReader,
-  opts: DerivFieldOpts,
+  ctx: Context,
 ) -> FromFunc {
   case return_type.variants {
     [return_variant] -> {
@@ -112,7 +124,7 @@ fn from(
         return_type,
         return_variant,
         ident,
-        opts,
+        ctx,
       )
     }
 
@@ -130,7 +142,7 @@ fn from_variant_(
   return_type: CustomType,
   return_variant: Variant,
   ident: String,
-  opts: DerivFieldOpts,
+  ctx: Context,
 ) -> FromFunc {
   let ident =
     ident
@@ -144,7 +156,7 @@ fn from_variant_(
     |> fields(type_: return_type, variant: _)
     |> list.map(fn(t) {
       let #(field, type_) = t
-      from_func_field(field:, type_:, ident:, opts:)
+      from_func_field(field:, type_:, ident:, ctx:)
     })
 
   let from = common.snake_case(param_type.name)
@@ -169,6 +181,10 @@ type Field {
     param_field: String,
     return_field: String,
     conv: Option(#(Conv, Option(Inner))),
+  )
+  Missing(
+    field: String,
+    type_: g.Type,
   )
 }
 
@@ -496,10 +512,10 @@ fn from_func_field(
   field field: DerivField,
   type_ type_: g.Type,
   ident ident: Ident,
-  opts opts: DerivFieldOpts,
+  ctx ctx: Context,
 ) -> Field {
   let overrides =
-    opts
+    ctx.opts
     |> dict.get(field)
     |> result.unwrap([] )
     |> list.map(build_field_override(opt: _, field:, type_:))
@@ -533,11 +549,40 @@ fn from_func_field(
 
   let conv = conv |> option.map(fn(conv) { #(conv, inner) })
 
-  Field(
-    param_field:,
-    return_field: field.field,
-    conv:,
-  )
+  let ident =
+    ident.module
+    |> option.unwrap(ctx.module)
+    |> string.append(to: _, suffix: "." <> ident.type_)
+
+  case common.fetch_custom_type(ident, ctx.module_reader) {
+    Ok(#(_module, g.Definition(_, g.CustomType(variants: [variant], ..)))) -> {
+      let has_field = variant.fields |> list.any(fn(f) {
+        let assert g.LabelledVariantField(label: name, ..) = f
+        name == param_field
+      })
+
+      case has_field {
+        True ->
+          Field(
+            param_field:,
+            return_field: field.field,
+            conv:,
+          )
+
+        False ->
+          Missing(
+            field: field.field,
+            type_:,
+          )
+      }
+    }
+
+    Ok(#(_module, g.Definition(_, g.CustomType(variants: _, ..))) as t) ->
+      panic as { "`from` doesn't implement multi-variant `CustomType`s -- " <> string.inspect(t) }
+
+    Error(err) ->
+      panic as { "Error fetching `CustomType`: " <> string.inspect(err) }
+  }
 }
 
 fn fields(
@@ -570,62 +615,96 @@ fn from_func(
     fields:,
   ) = uf
 
-  Definition([], Function(x, func_name, Public,
-    [FunctionParameter(None, Named("value"), Some(NamedType(x, param_type, None, [])))],
-    Some(NamedType(x, return_type, None, [])),
-    [Expression(Call(x, Variable(x, return_contr), list.map(fields, fn(field) {
-      case field.conv {
-        None ->
-          LabelledField(field.return_field, FieldAccess(x, Variable(x, "value"), field.param_field))
+  // let #(fields, missing) =
+  let #(fields, missing_params) =
+    list.map(fields, fn(field) {
+      case field {
+        Missing(field:, type_:) ->
+          // Error(g.ShorthandField(label: field))
+          g.ShorthandField(label: field)
+          |> pair.new(Ok(#(field, type_)))
 
-        Some(#(conv, inner)) -> {
-          let value = Variable(x, "value")
+        Field(..) as field -> case field.conv {
+          None ->
+            LabelledField(
+              label: field.return_field,
+              item: FieldAccess(x,
+                Variable(x, "value"),
+                field.param_field
+              ))
+              |> pair.new(Error(Nil))
 
-          let value =
-            case conv.args {
-              EntireValue -> value
-              ValueDotField -> FieldAccess(x, value, field.param_field)
-            }
+          Some(#(conv, inner)) -> {
+            let value = Variable(x, "value")
 
-          let conv_func =
-            case conv {
-              Conv(module: Some(module), func:, ..) ->
-                FieldAccess(x,
-                  Variable(x, module),
-                  func,
-                )
-
-              Conv(module: None, func:, ..) ->
-                Variable(x, func)
-            }
-
-          let conv_func =
-            case inner {
-              None ->
-                conv_func
-
-              Some(inner) -> {
-                let mod =
-                  case inner {
-                    Option -> "option"
-                    List -> "list"
-                  }
-
-                FieldAccess(x, Variable(x, mod), "map")
-                |> Call(x, _, [ conv_func |> g.UnlabelledField ])
+            let value =
+              case conv.args {
+                EntireValue -> value
+                ValueDotField -> FieldAccess(x, value, field.param_field)
               }
-            }
 
-          LabelledField(
-            label: field.return_field,
-            item: g.BinaryOperator(x,
-              name: g.Pipe,
-              left: value,
-              right: conv_func,
-            ),
-          )
+            let conv_func =
+              case conv {
+                Conv(module: Some(module), func:, ..) ->
+                  FieldAccess(x,
+                    Variable(x, module),
+                    func,
+                  )
+
+                Conv(module: None, func:, ..) ->
+                  Variable(x, func)
+              }
+
+            let conv_func =
+              case inner {
+                None ->
+                  conv_func
+
+                Some(inner) -> {
+                  let mod =
+                    case inner {
+                      Option -> "option"
+                      List -> "list"
+                    }
+
+                  FieldAccess(x, Variable(x, mod), "map")
+                  |> Call(x, _, [ conv_func |> g.UnlabelledField ])
+                }
+              }
+
+            LabelledField(
+              label: field.return_field,
+              item: g.BinaryOperator(x,
+                name: g.Pipe,
+                left: value,
+                right: conv_func,
+              ),
+            )
+            |> pair.new(Error(Nil))
+          }
         }
+        // |> Ok
       }
-    })))])
+    })
+    |> list.unzip
+    // |> result.partition
+
+  let missing_params =
+    missing_params
+    |> result.values
+    |> list.map(fn(t) {
+      let #(field, type_) = t
+
+      FunctionParameter(
+        label: Some(field),
+        name: g.Named(field),
+        type_: Some(type_),
+      )
+    })
+
+  Definition([], Function(x, func_name, Public,
+    [FunctionParameter(None, Named("value"), Some(NamedType(x, param_type, None, []))), ..missing_params],
+    Some(NamedType(x, return_type, None, [])),
+    [Expression(Call(x, Variable(x, return_contr), fields))])
   )
 }

@@ -161,6 +161,10 @@ pub fn json_test() {
   should_derive(example_dir_name: "json")
 }
 
+pub fn json_properties_test() {
+  should_derive(example_dir_name: "json_properties")
+}
+
 pub fn json_multi_variant_type_test() {
   should_derive(example_dir_name: "json_multi_variant_type")
 }

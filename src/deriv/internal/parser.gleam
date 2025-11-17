@@ -49,7 +49,6 @@ pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(C
             |> list.flatten
 
           case parse_derivations_from_inside_type_def_lines(lines) {
-            [] -> Error(Nil)
             derivs -> {
               let deriv_field_opts = parse_all_deriv_field_opts(lines)
 

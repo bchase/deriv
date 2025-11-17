@@ -1,3 +1,4 @@
+import gleam/dict
 import gleam/pair
 import gleam/list
 import formal/form
