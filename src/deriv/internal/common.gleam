@@ -322,6 +322,20 @@ fn parse_ident(ident: String) -> Result(#(String, String), ModuleReaderErr) {
   }
 }
 
+pub fn find_import(
+  module_name module_name: String,
+  module module: glance.Module,
+) -> Result(glance.Definition(glance.Import), ModuleReaderErr) {
+  echo {"searching for " <> module_name}
+  module.imports
+  |> echo
+  |> list.find(fn(i) {
+    echo i.definition.module
+    i.definition.module == module_name
+  })
+  |> result.replace_error(types.NotFoundErr(module_name))
+}
+
 fn find_custom_type(
   ref: String,
   module: glance.Module,
@@ -451,7 +465,7 @@ pub fn none_constr_import() -> glance.Import {
 }
 
 pub fn dummy_location() -> glance.Span {
-  glance.Span(start: -1, end: -1)
+  x
 }
 
 // FORM
@@ -557,4 +571,21 @@ pub fn has_non_string_basic_type_dict_keys(
 
     _ -> False
   }
+}
+
+const x = glance.Span(start: -1, end: -1)
+
+pub fn gtype_(
+  module module: Option(String),
+  name name: String,
+  params parameters: List(glance.Type),
+) -> glance.Type {
+  glance.NamedType(x, name:, module:, parameters:)
+}
+
+pub fn gtype(
+  name name: String,
+  params params: List(glance.Type),
+) -> glance.Type {
+  gtype_(name:, params:, module: None)
 }

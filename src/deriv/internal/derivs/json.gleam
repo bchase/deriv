@@ -9,7 +9,7 @@ import gleam/list
 import gleam/string
 import glance as g
 import deriv/internal/types.{type File, type Derivation, type DerivFieldOpt, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt} as deriv
-import deriv/internal/common.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive}
+import deriv/internal/common.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive, gtype}
 
 // TODO conv:
 //   - `use nested_option <- decode.then(decode.at(`
@@ -887,13 +887,6 @@ fn tuple(
   elements: List(g.Expression),
 ) -> g.Expression {
   g.Tuple(x, elements)
-}
-
-fn gtype(
-  name name: String,
-  parameters parameters: List(g.Type),
-) -> g.Type {
-  g.NamedType(x, name:, module: None, parameters:)
 }
 
 //

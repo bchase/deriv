@@ -1,8 +1,8 @@
 import birl.{type Time}
 import examples/from/authe/a.{type AutheA}
-import examples/from/authe/b.{type AutheB}
+import examples/from/authe/b
 import examples/from/friend/person.{type Person}
-import examples/from/friend/pet.{type Pet}
+import examples/from/friend/pet as p
 import gleam/option.{type Option}
 import youid/uuid.{type Uuid}
 
@@ -33,7 +33,7 @@ pub type HasAge {
   HasAge(
     human_years: Int,
     //$ from examples/from/friend/person.Person.age
-    //$ from examples/from/friend/pet.Pet.age using pet.to_human_years
+    //$ from examples/from/friend/pet.Pet.age using p.to_human_years
   )
 }
 

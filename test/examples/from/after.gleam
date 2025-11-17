@@ -1,8 +1,8 @@
 import birl.{type Time}
 import examples/from/authe/a.{type AutheA}
-import examples/from/authe/b.{type AutheB}
+import examples/from/authe/b
 import examples/from/friend/person.{type Person}
-import examples/from/friend/pet.{type Pet}
+import examples/from/friend/pet as p
 import gleam/option.{type Option}
 import youid/uuid.{type Uuid}
 
@@ -33,7 +33,7 @@ pub type HasAge {
   HasAge(
     human_years: Int,
     //$ from examples/from/friend/person.Person.age
-    //$ from examples/from/friend/pet.Pet.age using pet.to_human_years
+    //$ from examples/from/friend/pet.Pet.age using p.to_human_years
   )
 }
 
@@ -107,7 +107,7 @@ pub fn from_authe_a_to_authe_tokens(value: AutheA) -> AutheTokens {
   )
 }
 
-pub fn from_authe_b_to_authe_tokens(value: AutheB) -> AutheTokens {
+pub fn from_authe_b_to_authe_tokens(value: b.AutheB) -> AutheTokens {
   Authe(
     id: value.authe_id,
     encrypted_access_token: value.encrypted_access_token,
@@ -119,7 +119,7 @@ pub fn from_person_to_friend(value: Person) -> Friend {
   Friend(name: value.first_name)
 }
 
-pub fn from_pet_to_friend(value: Pet) -> Friend {
+pub fn from_pet_to_friend(value: p.Pet) -> Friend {
   Friend(name: value.name)
 }
 
@@ -127,8 +127,8 @@ pub fn from_person_to_has_age(value: Person) -> HasAge {
   HasAge(human_years: value.age)
 }
 
-pub fn from_pet_to_has_age(value: Pet) -> HasAge {
-  HasAge(human_years: value.age |> pet.to_human_years)
+pub fn from_pet_to_has_age(value: p.Pet) -> HasAge {
+  HasAge(human_years: value.age |> p.to_human_years)
 }
 
 pub fn from_a_to_overrides(value: A) -> Overrides {
@@ -150,6 +150,6 @@ pub fn from_a_to_override_using_type_not_field(
   OverrideUsingTypeNotField(mt: value |> to_time, t: value |> to_time)
 }
 
-pub fn from_pet_to_pet_plus(value: Pet, missing missing: Float) -> PetPlus {
+pub fn from_pet_to_pet_plus(value: p.Pet, missing missing: Float) -> PetPlus {
   PetPlus(name: value.name, missing:)
 }

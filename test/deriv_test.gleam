@@ -141,6 +141,8 @@ pub fn main() {
   gleeunit.main()
 }
 
+// START TESTS
+
 // TEST DERIV JSON REWRITE
 pub fn json_rewrite_test() {
   should_derive(example_dir_name: "json_rewrite")
