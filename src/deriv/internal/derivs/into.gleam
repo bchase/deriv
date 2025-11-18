@@ -267,7 +267,7 @@ fn build_field_override(
   module_reader: ModuleReader,
 ) -> Result(IntoFieldOverride, Nil) {
   case field_opt {
-    DerivFieldOpt(strs: ["into", "field", ident, field]) -> {
+    DerivFieldOpt(strs: ["into", ident, field]) -> {
       let #(module_name, type_) =
         case common.fetch_custom_type(ident, module_reader) {
           Error(err) -> {
