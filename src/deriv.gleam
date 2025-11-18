@@ -89,8 +89,7 @@ fn load_files(filepaths: List(String)) -> List(File) {
 }
 
 fn project_name() -> String {
-  let assert Ok(output) = shellout.command(in: ".", run: "cat", with: ["gleam.toml"], opt: [])
-  let assert Ok(config) = tom.parse(output)
+  let config = common.gleam_toml()
 
   case tom.get_string(config, ["name"]) {
     Error(_) -> panic as "Cannot determine project name from `gleam.toml`"
