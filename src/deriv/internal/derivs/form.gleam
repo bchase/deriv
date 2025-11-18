@@ -361,7 +361,7 @@ fn build_form_field_opt(
 ) -> FormFieldOpt {
   opts
   |> list.fold(zero_form_field_opt(), fn(acc, opt) {
-    let DerivFieldOpt(strs: tokens) = opt
+    let tokens = opt.strs
 
     case tokens, acc {
       // FORM PARSER

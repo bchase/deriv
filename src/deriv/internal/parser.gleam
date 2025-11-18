@@ -281,7 +281,7 @@ fn parse_deriv_field_opts(str: String) -> List(DerivFieldOpt) {
     [_, magic_comment] ->
       case regexp.split(whitespace_re, magic_comment) {
         [] -> []
-        strs -> [DerivFieldOpt(strs)]
+        strs -> [DerivFieldOpt(strs:, raw: magic_comment)]
       }
 
     _ ->

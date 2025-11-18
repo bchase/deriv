@@ -1,6 +1,6 @@
 import gleam/option.{type Option}
 import gleam/dict.{type Dict}
-import glance.{type Module, type CustomType, type Import, type Definition}
+import glance.{type Module, type Import, type Definition}
 import simplifile
 
 pub type Context {
@@ -92,13 +92,9 @@ pub type DerivField {
 
 pub type DerivFieldOpt {
   DerivFieldOpt(
-    // deriv: String,
-    // opt: Option(String),
-    // key: String,
-    // val: String,
     strs: List(String),
+    raw: String,
   )
 }
 
 pub type DerivFieldOpts = Dict(DerivField, List(DerivFieldOpt))
-

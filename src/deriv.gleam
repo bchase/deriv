@@ -9,7 +9,7 @@ import gleam/regexp
 import simplifile
 import shellout
 import tom
-import deriv/internal/types.{type Context, type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
+import deriv/internal/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/internal/parser
 import deriv/internal/derivs/json as deriv_json
 import deriv/internal/derivs/from_into as deriv_from_into
@@ -43,17 +43,11 @@ pub fn main() -> Nil {
 fn code_gen_cmd(
 ) -> glint.Command(Nil) {
   use <- glint.command_help("Generates derivations")
-  // use own <- glint.flag(own_flag())
   use _named_args, _args, _flags <- glint.command()
-  // let assert Ok(own) = own(flags)
 
   exec_code_gen()
 }
-// fn own_flag() -> glint.Flag(List(String)) {
-//   glint.strings_flag("own")
-//   |> glint.flag_default([])
-//   |> glint.flag_help("Specify your own derivations: --own=module_name1,module_name2")
-// }
+
 fn exec_code_gen() -> Nil {
   let filepaths = find_project_src_gleam_filepaths()
 
@@ -408,7 +402,7 @@ fn build_output_src(gens: List(Gen), output: Output) -> String {
 
     OutputInline(..) -> {
       // TODO don't think this logic is ever run...
-      panic as "don't think this logic ever runs..."
+      panic as "unimplemented"
       // let module_imports = build_module_imports(gens, output)
       // let deriv_imports = list.flat_map(gens, fn(gen) { gen.imports })
 
@@ -442,10 +436,7 @@ fn build_module_imports(gens: List(Gen), _output: Output) -> List(Import) {
           unqualified_types: [],
           unqualified_values: [],
         )
-        // "import MODULE as mINDEX"
-        // |> string.replace(each: "MODULE", with: file.module)
-        // |> string.replace(each: "INDEX", with: idx |> int.to_string)
-        |> fn(x) { [x] }
+        |> list.wrap
 
       None ->
         []
