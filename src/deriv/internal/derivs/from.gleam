@@ -509,37 +509,23 @@ fn func_field(
       opts.match_general(field:, ident:, overrides:)
     })
 
-  let override =
-    case kind, override {
-      opts.Into, Ok(opts.SpecifyField(field:, ..) as sf) -> {
-        echo field
-        echo field
-        echo field
-        echo field
-        Ok(opts.SpecifyField(..sf, field:))
-      }
-
-      opts.Into, _ |
-      opts.From, _ -> override
-    }
-
-  let #(param_field, conv, inner) =
+  let #(target_field, conv, inner) =
     case override {
       Error(Nil) ->
-        #(field.field, None, None)
+        #(None, None, None)
 
       Ok(opts.SpecifyField(field:, ..)) ->
-        #(field, None, None)
+        #(Some(field), None, None)
 
       Ok(opts.ConvAllWith(conv:, inner:)) ->
-        #(field.field, Some(conv), inner)
+        #(None, Some(conv), inner)
 
       Ok(opts.ConvTypeWith(ident:, conv:, inner:)) ->
         case ident {
           opts.IdentFieldForType(field:, ..) ->
-            #(field, Some(conv), inner)
+            #(Some(field), Some(conv), inner)
           opts.IdentType(..) ->
-            #(field.field, Some(conv), inner)
+            #(None, Some(conv), inner)
         }
     }
 
@@ -566,19 +552,29 @@ fn func_field(
   case t {
     Ok(g.CustomType(variants: [variant], ..)) -> {
       let #(param_field, return_field) =
-        case kind {
-          opts.From -> #(param_field, field.field)
-          opts.Into -> #(field.field, param_field)
+        case kind, target_field {
+          opts.From, None |
+          opts.Into, None -> #(field.field, field.field)
+
+          opts.From, Some(target) -> #(field.field, target)
+          opts.Into, Some(target) -> #(target, field.field)
         }
 
       let has_field = variant.fields |> list.any(fn(f) {
         let assert g.LabelledVariantField(label: name, ..) = f
-        name == param_field
+        case kind, target_field {
+          opts.From, _ -> name == param_field
+          opts.Into, _ -> name == return_field
+          // opts.From, None |
+          // opts.Into, None -> True
+
+          // opts.From, Some(target) -> True
+          // opts.Into, Some(target) -> True
+        }
       })
-      echo variant.name
-      echo variant.fields
-      echo param_field
-      echo has_field
+
+      // param_field --> `LABEL: value.field`
+      // return_field --> `value.FIELD`
 
       case has_field {
         True ->
