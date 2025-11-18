@@ -3,7 +3,6 @@ import deriv
 import deriv/internal/common
 import deriv/internal/parser
 import deriv/internal/types.{File, DerivFieldOpt, DerivField}
-import deriv/internal/derivs/from
 import glance
 import gleam/dict
 import gleam/option.{Some}
@@ -13,6 +12,10 @@ import gleeunit/should
 import gleam/io
 import simplifile
 import examples/json_rewrite/after as json_example
+//
+import gleam/result.{try}
+import shellout
+import tom
 
 pub fn glance_read(file_path: String) -> glance.Module {
   let assert Ok(src) = simplifile.read(file_path)
@@ -252,12 +255,16 @@ pub fn json_encode_nested_parameterized_type_alias_test() {
 
 // DERIVE TEST INTO & FROM
 
+pub fn from_test() {
+  should_derive(example_dir_name: "from")
+}
+
 pub fn into_test() {
   should_derive(example_dir_name: "into")
 }
 
-pub fn from_test() {
-  should_derive(example_dir_name: "from")
+pub fn into_simple_test() {
+  should_derive(example_dir_name: "into_simple")
 }
 
 // TEST GENERAL

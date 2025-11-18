@@ -3,6 +3,15 @@ import gleam/dict.{type Dict}
 import glance.{type Module, type CustomType, type Import, type Definition}
 import simplifile
 
+pub type Context {
+  Context(
+    deriv: Derivation,
+    opts: DerivFieldOpts,
+    file: File,
+    module_reader: ModuleReader,
+  )
+}
+
 pub type Type {
   Type(type_: glance.CustomType)
   TypeAlias(type_alias: glance.TypeAlias)

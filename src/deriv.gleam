@@ -9,27 +9,35 @@ import gleam/regexp
 import simplifile
 import shellout
 import tom
-import deriv/internal/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
+import deriv/internal/types.{type Context, type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/internal/parser
 import deriv/internal/derivs/json as deriv_json
-import deriv/internal/derivs/from as deriv_from
+import deriv/internal/derivs/from_into as deriv_from_into
 import deriv/internal/derivs/zero as deriv_zero
-import deriv/internal/derivs/into as deriv_into
-import deriv/internal/derivs/form as deriv_form
 import deriv/internal/derivs/enum as deriv_enum
+import deriv/internal/derivs/form as deriv_form
 import deriv/internal/common
 import gleam/io
 import argv
 import glint
 
+fn from(t,d,o,f,m) {
+  let ctx = deriv.Context(d,o,f,m)
+  deriv_from_into.gen_from(t, ctx)
+}
+fn into(t,d,o,f,m) {
+  let ctx = deriv.Context(d,o,f,m)
+  deriv_from_into.gen_into(t, ctx)
+}
+
 const all_type_gen_funcs: List(#(String, GenFunc)) =
   [
     #("json", deriv_json.gen),
-    #("from", deriv_from.gen),
+    #("from", from),
+    #("into", into),
     #("zero", deriv_zero.gen),
-    #("into", deriv_into.gen),
-    #("form", deriv_form.gen),
     #("enum", deriv_enum.gen),
+    #("form", deriv_form.gen),
   ]
 
 pub fn main() -> Nil {
