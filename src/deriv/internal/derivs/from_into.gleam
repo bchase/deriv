@@ -9,51 +9,33 @@ import gleam/result
 import gleam/string
 import glance.{type CustomType, type Definition, type Function, type Variant, LabelledVariantField, Definition, Function, Public, FunctionParameter, Named, NamedType, Expression, Call, Variable, LabelledField, FieldAccess} as _
 import glance as g
-import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type DerivFieldOpt, type DerivField, DerivField} as deriv
+import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type DerivFieldOpt, type DerivField, DerivField, type Context, Context} as deriv
 import deriv/internal/common.{type ImportedType, InScope, Qualified, gtype, gtype_, build_imported_type}
 import deriv/internal/opts
 
-type From
-type Into
-
 pub type Override = opts.FromIntoOverride
-
-pub type GenFunc = fn(CustomType, Derivation, DerivFieldOpts, File) -> Gen
-
-type Context {
-  Context(
-    file: File,
-    opts: DerivFieldOpts,
-    module_reader: ModuleReader,
-  )
-}
 
 const x = g.Span(-1, -1)
 
 fn gen(
   kind: opts.FromInto,
   t: deriv.Type,
-  deriv: Derivation,
-  opts: DerivFieldOpts,
-  file: File,
-  module_reader: ModuleReader,
+  ctx: Context,
 ) -> Gen {
-  let ctx = Context(file:, opts:, module_reader:)
-
   case t {
     deriv.TypeAlias(..) ->
       panic as "`deriv.TypeAlias` unimplemented for `from`/`into`"
 
     deriv.Type(type_:) -> {
       let ident =
-        case deriv.opts {
+        case ctx.deriv.opts {
           [ident] -> ident
           _ -> panic as "`from`/`into` requires specifying a single type in the form `m1/m2.T"
         }
 
       let funcs =
         kind
-        |> func(module: file.module, type_:, ident:, ctx:)
+        |> func(module: ctx.file.module, type_:, ident:, ctx:)
         |> build_glance_func
         |> list.wrap
 
@@ -62,29 +44,23 @@ fn gen(
         |> list.map(common.func_str)
         |> string.join("\n\n")
 
-      Gen(file:, deriv:, imports: [], funcs:, types: [], src:, meta: dict.new())
+      Gen(file: ctx.file, deriv: ctx.deriv, imports: [], funcs:, types: [], src:, meta: dict.new())
     }
   }
 }
 
 pub fn gen_from(
   t: deriv.Type,
-  deriv: Derivation,
-  opts: DerivFieldOpts,
-  file: File,
-  module_reader: ModuleReader,
+  ctx: Context,
 ) -> Gen {
-  gen(opts.From, t, deriv, opts, file, module_reader)
+  gen(opts.From, t, ctx)
 }
 
 pub fn gen_into(
   t: deriv.Type,
-  deriv: Derivation,
-  opts: DerivFieldOpts,
-  file: File,
-  module_reader: ModuleReader,
+  ctx: Context,
 ) -> Gen {
-  gen(opts.Into, t, deriv, opts, file, module_reader)
+  gen(opts.Into, t, ctx)
 }
 
 type Func(kind) {
