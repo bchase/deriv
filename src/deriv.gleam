@@ -21,20 +21,11 @@ import gleam/io
 import argv
 import glint
 
-fn from(t,d,o,f,m) {
-  let ctx = deriv.Context(d,o,f,m)
-  deriv_from_into.gen_from(t, ctx)
-}
-fn into(t,d,o,f,m) {
-  let ctx = deriv.Context(d,o,f,m)
-  deriv_from_into.gen_into(t, ctx)
-}
-
 const all_type_gen_funcs: List(#(String, GenFunc)) =
   [
     #("json", deriv_json.gen),
-    #("from", from),
-    #("into", into),
+    #("from", deriv_from_into.gen_from),
+    #("into", deriv_from_into.gen_into),
     #("zero", deriv_zero.gen),
     #("enum", deriv_enum.gen),
     #("form", deriv_form.gen),
@@ -243,12 +234,20 @@ fn gen_type_derivs(
 ) -> List(Gen) {
   let #(type_, derivs, field_opts) = x
 
+  let to_ctx =
+    deriv.Context(
+      deriv: _,
+      opts: field_opts,
+      file:,
+      module_reader:,
+    )
+
   derivs
-  |> list.map(fn(d) {
-    case dict.get(gen_funcs, d.name) {
+  |> list.map(fn(deriv) {
+    case dict.get(gen_funcs, deriv.name) {
       Error(_) -> Error(Nil)
       Ok(f) -> {
-        Ok(f(type_, d, field_opts, file, module_reader))
+        Ok(f(type_, deriv |> to_ctx))
       }
     }
   })

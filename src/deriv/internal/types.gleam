@@ -17,7 +17,7 @@ pub type Type {
   TypeAlias(type_alias: glance.TypeAlias)
 }
 
-pub type GenFunc = fn(Type, Derivation, DerivFieldOpts, File, ModuleReader) -> Gen
+pub type GenFunc = fn(Type, Context) -> Gen
 
 pub type ModuleReaderErr {
   FileErr(simplifile.FileError)

@@ -7,7 +7,7 @@ import gleam/list
 import gleam/result
 import gleam/string
 import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type Span, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, Span, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, BinaryOperator, Pipe, FnCapture}
-import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader, DerivFieldOpt} as deriv
+import deriv/internal/types.{type Context, type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader, DerivFieldOpt} as deriv
 import deriv/internal/common
 import birl
 
@@ -767,22 +767,19 @@ fn zero_form_field_opt() -> FormFieldOpt {
 // derive form lookups lustre -- form parser, plus field type & lookups, plus lustre html example func
 pub fn gen(
   t: deriv.Type,
-  deriv: Derivation,
-  field_opts: DerivFieldOpts,
-  file: File,
-  module_reader: ModuleReader,
+  ctx: Context,
 ) -> Gen {
   let ffp = build_form_func_params(type_: t)
-  let opts = build_form_field_opts(from: field_opts, for: ffp)
+  let opts = build_form_field_opts(from: ctx.opts, for: ffp)
 
   case t {
     deriv.TypeAlias(..) ->
       panic as "`deriv.TypeAlias` unimplemented for `deriv/form` "
 
     deriv.Type(type_:) -> {
-      let module = file.module
-      let imports = gen_imports(type_, deriv)
-      let fields = build_form_fields(type_:, opts:, module:, read_module: module_reader)
+      let module = ctx.file.module
+      let imports = gen_imports(type_, ctx.deriv)
+      let fields = build_form_fields(type_:, opts:, module:, read_module: ctx.module_reader)
 
       let funcs =
         form_func(
@@ -792,7 +789,7 @@ pub fn gen(
         |> list.wrap
 
       let _checked_deriv_opts =
-        case deriv.opts |> list.contains("lustre"), deriv.opts |> list.contains("lookups") {
+        case ctx.deriv.opts |> list.contains("lustre"), ctx.deriv.opts |> list.contains("lookups") {
           True, False -> {
             panic as "`derive form` requires the opt `lookups` if using the `lustre` opt"
           }
@@ -803,7 +800,7 @@ pub fn gen(
         }
 
       let #(types, lookups_funcs) =
-        case deriv.opts |> list.contains("lookups") {
+        case ctx.deriv.opts |> list.contains("lookups") {
           True -> {
             let types = [
               form_field_type(type_:, fields:),
@@ -822,7 +819,7 @@ pub fn gen(
         }
 
       let lustre_example_funcs =
-        case deriv.opts {
+        case ctx.deriv.opts {
           ["lookups", "lustre"] | ["lustre", "lookups"] -> {
             [
               example_lustre_html_form_func(type_:, fields:),
@@ -844,7 +841,7 @@ pub fn gen(
         |> list.map(common.func_str)
         |> string.join("\n\n")
 
-      Gen(file:, deriv:, imports:, funcs:, types:, src:, meta: dict.new())
+      Gen(file: ctx.file, deriv: ctx.deriv, imports:, funcs:, types:, src:, meta: dict.new())
     }
   }
 }

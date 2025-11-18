@@ -4,16 +4,13 @@ import gleam/list
 import gleam/result
 import gleam/string
 import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type Span, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, Span, List, UnlabelledField, String, Int, Float}
-import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
+import deriv/internal/types.{type Context, type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/internal/common
 
 
 pub fn gen(
   t: deriv.Type,
-  deriv: Derivation,
-  _field_opts: DerivFieldOpts,
-  file: File,
-  _module_reader: ModuleReader,
+  ctx: Context,
 ) -> Gen {
   case t {
     deriv.TypeAlias(..) ->
@@ -31,7 +28,7 @@ pub fn gen(
         |> list.map(common.func_str)
         |> string.join("\n\n")
 
-      Gen(file:, deriv:, imports:, funcs:, types: [], src:, meta: dict.new())
+      Gen(file: ctx.file, deriv: ctx.deriv, imports:, funcs:, types: [], src:, meta: dict.new())
     }
   }
 }

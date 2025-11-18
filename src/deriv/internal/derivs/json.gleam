@@ -8,53 +8,37 @@ import gleam/result
 import gleam/list
 import gleam/string
 import glance as g
-import deriv/internal/types.{type File, type Derivation, type DerivFieldOpt, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt} as deriv
+import deriv/internal/types.{type File, type Derivation, type DerivFieldOpt, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt, type Context, Context} as deriv
 import deriv/internal/common.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive, gtype}
-
-// TODO conv:
-//   - `use nested_option <- decode.then(decode.at(`
 
 const deriv_variant_json_key = "_var"
 
-type Context {
-  Context(
-    deriv: Derivation,
-    all_field_opts: DerivFieldOpts,
-    file: File,
-    module_reader: ModuleReader,
-    type_aliases: List(g.TypeAlias),
-  )
-}
-
 pub fn gen(
   type_: deriv.Type,
-  deriv: Derivation,
-  field_opts: DerivFieldOpts,
-  file: File,
-  module_reader: ModuleReader,
+  ctx: Context,
 ) -> Gen {
-  let imports = gen_imports(deriv.opts, type_)
+  let imports = gen_imports(ctx.deriv.opts, type_)
 
   let gen_funcs_for_opts =
     [
       #("decode", gen_json_decoders),
-      #("encode", gen_json_encoders |> to_gen_func(deriv, module_reader)),
-      #("properties", gen_json_properties |> to_gen_func(deriv, module_reader)),
+      #("encode", gen_json_encoders |> to_gen_func(ctx.deriv, ctx.module_reader)),
+      #("properties", gen_json_properties |> to_gen_func(ctx.deriv, ctx.module_reader)),
     ]
     |> dict.from_list
 
   let funcs =
-    deriv.opts
+    ctx.deriv.opts
     |> list.map(dict.get(gen_funcs_for_opts, _))
     |> result.values
-    |> list.flat_map(fn(f) { f(type_, field_opts, file)})
+    |> list.flat_map(fn(f) { f(type_, ctx.opts, ctx.file)})
 
   let src =
     funcs
     |> list.map(common.func_str)
     |> string.join("\n\n")
 
-  Gen(file:, deriv:, imports:, funcs:, types: [], src:, meta: dict.new())
+  Gen(file: ctx.file, deriv: ctx.deriv, imports:, funcs:, types: [], src:, meta: dict.new())
 }
 
 fn alias_to_type(
@@ -81,8 +65,6 @@ fn gen_json_properties(
   type_: deriv.Type,
   ctx: Context,
 ) -> List(g.Definition(g.Function)) {
-  let type_aliases = type_aliases_in(file: ctx.file)
-
   case type_ {
     deriv.TypeAlias(..)  ->
       panic as "`json properties` not implemented for type aliases"
@@ -189,7 +171,7 @@ fn variant_props(
 
       g.LabelledVariantField(label: field, ..), t -> {
         let opts =
-          ctx.all_field_opts
+          ctx.opts
           |> common.get_field_opts(type_, variant, field)
           |> list.filter_map(fn(opt) {
             case opt.strs {
@@ -290,7 +272,7 @@ fn variant_props(
                           }
 
                           Ok(#(t, _derivs, opts)) -> {
-                            let ctx = Context(..ctx, all_field_opts: opts)
+                            let ctx = Context(..ctx, opts: opts)
 
                             variant_props(type_: t, variant:, ctx:, acc: acc |> list.append([field]))
                             |> list.flatten
@@ -419,7 +401,7 @@ fn gen_json_encoders(
         ],
         return: Some(g.NamedType(x, module: None, name: "Json", parameters: [])),
         body: [
-          encode_call(type_:, field: None, opts: ctx.all_field_opts, discard_value: False, inner: dict.new()) |> g.Expression,
+          encode_call(type_:, field: None, opts: ctx.opts, discard_value: False, inner: dict.new()) |> g.Expression,
         ],
       )
       |> list.wrap
@@ -429,10 +411,10 @@ fn gen_json_encoders(
     deriv.Type(type_:) -> {
       let is_multi_variant = type_ |> common.is_multi_variant
 
-      let type_ = to_type(type_:, opts: ctx.all_field_opts)
+      let type_ = to_type(type_:, opts: ctx.opts)
 
       [
-        type_encode_func(type_:, opts: ctx.all_field_opts, is_multi_variant:),
+        type_encode_func(type_:, opts: ctx.opts, is_multi_variant:),
       ]
       |> list.map(g.Definition([], _))
     }
@@ -449,7 +431,7 @@ fn to_gen_func(
     field_opts: DerivFieldOpts,
     file: File,
   ) {
-    f(type_, Context(file:, deriv:, module_reader:, all_field_opts: field_opts, type_aliases: type_aliases_in(file:)))
+    f(type_, Context(file:, deriv:, module_reader:, opts: field_opts))
   }
 }
 

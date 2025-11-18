@@ -4,7 +4,7 @@ import gleam/dict.{type Dict}
 import gleam/list
 import gleam/string
 import glance.{type CustomType, type Definition, type Function, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, UnlabelledField, FunctionParameter, Named, Case, Variant, Clause, PatternString, PatternDiscard, PatternVariant, String}
-import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
+import deriv/internal/types.{type Context, type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
 import deriv/internal/common
 
 fn to_string_func(
@@ -156,10 +156,7 @@ fn display_func_(
 
 pub fn gen(
   t: deriv.Type,
-  deriv: Derivation,
-  opts: DerivFieldOpts,
-  file: File,
-  _module_reader: ModuleReader,
+  ctx: Context,
 ) -> Gen {
   let type_ = common.custom_type_or_panic(type_: t, deriv_name: "enum")
 
@@ -170,14 +167,14 @@ pub fn gen(
       parse_func(type_:),
       to_string_func(type_:),
     ]
-    |> list.append(optional_funcs(type_:, opts:))
+    |> list.append(optional_funcs(type_:, opts: ctx.opts))
 
   let src = ""
     funcs
     |> list.map(common.func_str)
     |> string.join("\n\n")
 
-  Gen(file:, deriv:, imports:, funcs:, types: [], src:, meta: dict.new())
+  Gen(file: ctx.file, deriv: ctx.deriv, imports:, funcs:, types: [], src:, meta: dict.new())
 }
 
 fn optional_funcs(
