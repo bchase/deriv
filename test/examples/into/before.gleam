@@ -2,11 +2,11 @@ import examples/into/bar.{type Baz}
 import examples/into/foo as f
 
 pub type Bar {
-  //$ derive into examples/into/foo.Foo as f
+  //$ derive into examples/into/foo.Foo
   //$ derive into Missing
   Bar(
     title: String,
-    //$ into field examples/into/foo.Foo name
+    //$ into examples/into/foo.Foo.name
     count: Int,
   )
 }

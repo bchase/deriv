@@ -27,7 +27,8 @@ const all_type_gen_funcs: List(#(String, GenFunc)) =
     #("json", deriv_json.gen),
     #("from", deriv_from.gen),
     #("zero", deriv_zero.gen),
-    #("into", deriv_into.gen),
+    // #("into", deriv_into.gen),
+    #("into", deriv_from.gen_into),
     #("form", deriv_form.gen),
     #("enum", deriv_enum.gen),
   ]

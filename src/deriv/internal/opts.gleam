@@ -50,13 +50,13 @@ pub type FromInto {
 }
 
 pub fn build_from_into_field_override(
-  from_into from_into: FromInto,
+  kind kind: FromInto,
   opt opt: DerivFieldOpt,
   field field: DerivField,
   type_ type_: g.Type,
 ) -> Result(FromIntoOverride, Nil) {
   let from_into =
-    case from_into {
+    case kind {
       From -> "from"
       Into -> "into"
     }
