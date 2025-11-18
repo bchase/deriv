@@ -122,9 +122,10 @@ pub fn gen_into(
 type Func(kind) {
   Func(
     kind: opts.FromInto,
+    publicity: g.Publicity,
     func_name: String,
     param_type: ImportedType,
-    return_type: String,
+    return_type: ImportedType,
     return_constr: String,
     imported_type: Option(ImportedType),
     fields: List(Field(kind)),
@@ -206,6 +207,8 @@ fn func(
         None
     }
 
+  let publicity = type_.publicity
+
   case type_.variants {
     [variant] -> {
       let local_type_variant = TypeVariant(module:, type_:, variant:, qualified: None)
@@ -216,7 +219,7 @@ fn func(
           opts.Into -> #(local_type_variant, remote_type_variant)
         }
 
-      variant_func(kind:, param:, return:, imported_type:, ident:, ctx:)
+      variant_func(kind:, publicity:, param:, return:, imported_type:, ident:, ctx:)
     }
 
     _, -> {
@@ -242,6 +245,7 @@ fn build_glance_func(
 ) -> Definition(Function) {
   let Func(
     kind:,
+    publicity:,
     func_name:,
     param_type:,
     return_type:,
@@ -250,32 +254,45 @@ fn build_glance_func(
     fields:,
   ) = uf
 
-  // let #(fields, missing) =
   let #(fields, missing_params) =
     list.map(fields, fn(field) {
       case field {
         Missing(field:, type_:) ->
-          // Error(g.ShorthandField(label: field))
           g.ShorthandField(label: field)
           |> pair.new(Ok(#(field, type_)))
 
         Field(..) as field -> case field.conv {
-          None ->
+          None -> {
+            let #(label, param_field) = case kind {
+              opts.Into -> #(field.param_field, field.return_field)
+              opts.From -> #(field.return_field, field.param_field)
+            }
+            // let #(label, param_field) =
+            //   #(field.return_field, field.param_field)
+
             LabelledField(
-              label: field.return_field,
+              label:,
               item: FieldAccess(x,
                 Variable(x, "value"),
-                field.param_field
+                param_field,
               ))
               |> pair.new(Error(Nil))
+          }
 
           Some(#(conv, inner)) -> {
             let value = Variable(x, "value")
 
+            let #(label, param_field) = case kind {
+              opts.Into -> #(field.param_field, field.return_field)
+              opts.From -> #(field.return_field, field.param_field)
+            }
+            // let #(label, param_field) =
+            //   #(field.return_field, field.param_field)
+
             let value =
               case conv.args {
                 opts.EntireValue -> value
-                opts.ValueDotField -> FieldAccess(x, value, field.param_field)
+                opts.ValueDotField -> FieldAccess(x, value, param_field)
               }
 
             let conv_func =
@@ -308,7 +325,7 @@ fn build_glance_func(
               }
 
             LabelledField(
-              label: field.return_field,
+              label:,
               item: g.BinaryOperator(x,
                 name: g.Pipe,
                 left: value,
@@ -318,11 +335,9 @@ fn build_glance_func(
             |> pair.new(Error(Nil))
           }
         }
-        // |> Ok
       }
     })
     |> list.unzip
-    // |> result.partition
 
   let missing_params =
     missing_params
@@ -344,8 +359,18 @@ fn build_glance_func(
     }
 
   let return_type =
-    // NamedType(x, return_type, None, [])
-    gtype(return_type, [])
+    case kind, return_type {
+      opts.From, _ |
+      opts.Into, InScope(..) ->
+        gtype(return_type.name, [])
+
+      opts.Into, Qualified(module:, name:) ->
+        gtype_(
+          module: Some(module),
+          name:,
+          params:[]
+        )
+    }
 
   let #(return_type, return_constr) =
     case kind, imported_type {
@@ -364,7 +389,7 @@ fn build_glance_func(
       }
     }
 
-  Definition([], Function(x, func_name, Public,
+  Definition([], Function(x, func_name, publicity,
     [FunctionParameter(None, Named("value"), Some(param_type)), ..missing_params],
     Some(return_type),
     [Expression(Call(x, return_constr, fields))])
@@ -373,8 +398,29 @@ fn build_glance_func(
 
 // GENERAL
 
+type Idents {
+  Idents(
+    deriv: opts.Ident,
+    target: opts.Ident,
+  )
+}
+
+// todo
+//   local
+//   X - basic
+//     - rename
+//     - using
+//     - rename using
+//     - missing
+//   remote
+//     - basic
+//     - rename
+//     - using
+//     - rename using
+//     - missing
 fn variant_func(
   kind kind: opts.FromInto,
+  publicity publicity: g.Publicity,
   param param: TypeVariant,
   return return: TypeVariant,
   imported_type imported_type: Option(ImportedType),
@@ -388,12 +434,18 @@ fn variant_func(
       panic as { "`from`/`into` couldn't make sense of this type identifier: " <> ident }
     })
 
+  let type_variant =
+    case kind {
+      opts.From -> return
+      opts.Into -> param
+    }
+
   let fields =
-    return.variant
-    |> fields(type_: return.type_, variant: _)
+    type_variant
+    |> fields
     |> list.map(fn(t) {
       let #(field, type_) = t
-      func_field(kind:, field:, type_:, ident:, ctx:)
+      func_field(kind:, param:, return:, field:, type_:, ident:, ctx:)
     })
 
   // TODO rename things
@@ -406,11 +458,12 @@ fn variant_func(
     }
 
   let param_type = build_imported_type(param.module, param.type_, ctx.file)
-  let return_type = return.type_.name
+  let return_type = build_imported_type(return.module, return.type_, ctx.file)
   let return_constr = return.variant.name
 
   Func(
     func_name:,
+    publicity:,
     param_type:,
     return_type:,
     return_constr:,
@@ -434,11 +487,15 @@ type Field(kind) {
 
 fn func_field(
   kind kind: opts.FromInto,
+  param param: TypeVariant,
+  return return: TypeVariant,
   field field: DerivField,
   type_ type_: g.Type,
   ident ident: opts.Ident,
   ctx ctx: Context,
 ) -> Field(kind) {
+  let type_variant = param
+
   let overrides =
     ctx.opts
     |> dict.get(field)
@@ -451,6 +508,20 @@ fn func_field(
     |> result.lazy_or(fn() {
       opts.match_general(field:, ident:, overrides:)
     })
+
+  let override =
+    case kind, override {
+      opts.Into, Ok(opts.SpecifyField(field:, ..) as sf) -> {
+        echo field
+        echo field
+        echo field
+        echo field
+        Ok(opts.SpecifyField(..sf, field:))
+      }
+
+      opts.Into, _ |
+      opts.From, _ -> override
+    }
 
   let #(param_field, conv, inner) =
     case override {
@@ -479,30 +550,53 @@ fn func_field(
     |> option.unwrap(ctx.file.module)
     |> string.append(to: _, suffix: "." <> ident.type_)
 
-  case common.fetch_custom_type(ident, ctx.module_reader) {
-    Ok(#(_module, g.Definition(_, g.CustomType(variants: [variant], ..)))) -> {
+  let t =
+    case kind {
+      opts.From ->
+        common.fetch_custom_type(ident, ctx.module_reader)
+        |> result.map(fn(t) {
+          let #(_, g.Definition(_, definition: type_)) = t
+          type_
+        })
+
+      opts.Into ->
+        Ok(type_variant.type_)
+    }
+
+  case t {
+    Ok(g.CustomType(variants: [variant], ..)) -> {
+      let #(param_field, return_field) =
+        case kind {
+          opts.From -> #(param_field, field.field)
+          opts.Into -> #(field.field, param_field)
+        }
+
       let has_field = variant.fields |> list.any(fn(f) {
         let assert g.LabelledVariantField(label: name, ..) = f
         name == param_field
       })
+      echo variant.name
+      echo variant.fields
+      echo param_field
+      echo has_field
 
       case has_field {
         True ->
           Field(
             param_field:,
-            return_field: field.field,
+            return_field:,
             conv:,
           )
 
         False ->
           Missing(
-            field: field.field,
+            field: return_field,
             type_:,
           )
       }
     }
 
-    Ok(#(_module, g.Definition(_, g.CustomType(variants: _, ..))) as t) ->
+    Ok(g.CustomType(variants: _, ..) as t) ->
       panic as { "`from`/`into` doesn't implement multi-variant `CustomType`s -- " <> string.inspect(t) }
 
     Error(err) ->
@@ -511,9 +605,10 @@ fn func_field(
 }
 
 fn fields(
-  type_ type_: CustomType,
-  variant variant: Variant,
+  variant variant: TypeVariant,
 ) -> List(#(DerivField, g.Type)) {
+  let #(type_, variant) = #(variant.type_, variant. variant)
+
   variant.fields
   |> list.map(fn(field) {
     case field {

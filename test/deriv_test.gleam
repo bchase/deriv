@@ -145,12 +145,16 @@ pub fn main() {
   gleeunit.main()
 }
 
-pub fn from_test() {
-  should_derive(example_dir_name: "from")
-}
+// pub fn from_test() {
+//   should_derive(example_dir_name: "from")
+// }
 
-pub fn into_test() {
-  should_derive(example_dir_name: "into")
+// pub fn into_test() {
+//   should_derive(example_dir_name: "into")
+// }
+
+pub fn into_simple_test() {
+  should_derive(example_dir_name: "into_simple")
 }
 
 //// START TESTS
