@@ -1454,17 +1454,31 @@ fn variant_encode_case_clause(
       ]
     }
 
-  g.Clause(
-    patterns: [[
-      g.PatternAssignment(x,
-        attern: g.PatternVariant(x,
+  let pattern =
+    case variant.fields {
+      [] ->
+        g.PatternVariant(x,
           module: None,
           constructor: variant.pascal_case,
           arguments: [],
-          with_spread: True,
-        ),
-        name: "value",
-      ),
+          with_spread: False,
+        )
+
+      _ ->
+        g.PatternAssignment(x,
+          attern: g.PatternVariant(x,
+            module: None,
+            constructor: variant.pascal_case,
+            arguments: [],
+            with_spread: True,
+          ),
+          name: "value",
+        )
+    }
+
+  g.Clause(
+    patterns: [[
+      pattern,
     ]],
     guard: None,
     body: {
