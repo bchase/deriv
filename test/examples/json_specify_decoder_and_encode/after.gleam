@@ -1,7 +1,7 @@
 import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
-import gleam/option.{type Option}
+import gleam/option.{type Option, None}
 
 pub type Maybe {
   //$ derive json decode encode
@@ -12,12 +12,12 @@ pub type Maybe {
   )
 }
 
-fn some_decoder_name() -> Decoder(Option(String)) {
-  todo
+pub fn some_decoder_name() -> Decoder(Option(String)) {
+  decode.success(None)
 }
 
-fn some_encode_func_name(x: Option(String)) -> Json {
-  todo
+pub fn some_encode_func_name(x: Option(String)) -> Json {
+  json.nullable(x, json.string)
 }
 
 pub fn decoder_maybe() -> Decoder(Maybe) {

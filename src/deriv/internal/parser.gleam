@@ -1,6 +1,5 @@
 import gleam/pair
 import gleam/option.{type Option, Some, None}
-import gleam/io
 import gleam/dict
 import gleam/result
 import gleam/list
@@ -107,22 +106,6 @@ pub fn parse_type_aliases_with_derivations(type_: TypeAlias, src: String) -> Res
     }
   }
 }
-
-// fn parse_derivations_for_type_alias(lines: List(String)) -> List(Derivation) {
-//   lines
-//   |> list.map(fn(line) {
-//     case string.split(line, "//$") {
-//       [_, mc] ->
-//         parse_derivations(mc)
-//         |> result.unwrap([])
-
-//       _ ->
-//         []
-//     }
-//   })
-//   |> list.flatten
-//   |> list.reverse
-// }
 
 fn parse_derivations_from_inside_type_def_lines(lines: List(String)) -> List(Derivation) {
   lines

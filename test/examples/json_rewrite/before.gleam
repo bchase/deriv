@@ -1,6 +1,17 @@
 import examples/json_rewrite/bar.{type Bar, Bar, decoder_bar, decoder_custom_string, encode_bar, encode_custom_string}
 import gleam/option.{type Option}
 
+// IGNORE, HERE TO SUPPRESS WARNINGS
+pub const bar = Bar
+pub const decoder_bar = decoder_bar
+pub const decoder_custom_string = decoder_custom_string
+pub const encode_bar = encode_bar
+pub const encode_custom_string = encode_custom_string
+
+pub fn zero_bar() -> Bar {
+  Bar
+}
+
 pub type Foo {
   //$ derive zero
   //$ derive json decode encode
@@ -30,8 +41,4 @@ pub type Foo {
     nested_list: List(String),
     //$ json named nested.list
   )
-}
-
-fn zero_bar() -> Bar {
-  Bar
 }
