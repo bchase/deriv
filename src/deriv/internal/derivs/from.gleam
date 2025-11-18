@@ -1,3 +1,4 @@
+import deriv/internal/types
 import gleam/bool
 import gleam/pair
 import gleam/dict
@@ -398,26 +399,6 @@ fn build_glance_func(
 
 // GENERAL
 
-type Idents {
-  Idents(
-    deriv: opts.Ident,
-    target: opts.Ident,
-  )
-}
-
-// todo
-//   local
-//   X - basic
-//     - rename
-//     - using
-//     - rename using
-//     - missing
-//   remote
-//     - basic
-//     - rename
-//     - using
-//     - rename using
-//     - missing
 fn variant_func(
   kind kind: opts.FromInto,
   publicity publicity: g.Publicity,
@@ -427,6 +408,8 @@ fn variant_func(
   ident ident: String,
   ctx ctx: Context,
 ) -> Func(kind) {
+  // TODO refactor1 -- rename `param` & `return`
+
   let ident =
     ident
     |> opts.parse_ident
@@ -448,7 +431,71 @@ fn variant_func(
       func_field(kind:, param:, return:, field:, type_:, ident:, ctx:)
     })
 
-  // TODO rename things
+  let fields =
+    case kind {
+      opts.From ->
+        fields
+
+      // TODO refactor1
+      opts.Into -> {
+        let fs =
+          param.variant.fields
+          |> list.filter_map(fn(field) {
+            use #(field, type_) <- result.try(case field {
+              g.LabelledVariantField(label: field, item: type_) -> Ok(#(field, type_))
+              g.UnlabelledVariantField(..) -> Error(Nil)
+            })
+
+            let f = types.DerivField(param.type_.name, param.variant.name, field)
+
+            let overrides =
+              ctx.opts
+              |> dict.get(f)
+              |> result.unwrap([] )
+              |> list.map(opts.build_from_into_field_override(kind:, opt: _, field: f, type_:))
+              |> result.values
+
+            let override =
+              opts.match_specific(field: f, ident:, overrides:)
+              |> result.lazy_or(fn() {
+                opts.match_general(field: f, ident:, overrides:)
+              })
+
+            let field =
+              case override {
+                Error(Nil) |
+                Ok(opts.ConvAllWith(..)) |
+                Ok(opts.ConvTypeWith(ident: opts.IdentType(..), ..), ..) ->
+                  field
+
+                Ok(opts.SpecifyField(field:, ..)) |
+                Ok(opts.ConvTypeWith(ident: opts.IdentFieldForType(field:, ..), ..)) ->
+                  field
+              }
+
+              Ok(field)
+          })
+
+        let missing =
+          return.variant.fields
+          |> list.filter_map(fn(field) {
+            case field {
+              g.LabelledVariantField(label: field, item: type_) -> {
+                use <- bool.guard(field |> list.contains(fs, _), Error(Nil))
+                Ok(Missing(field:, type_:))
+              }
+
+              g.UnlabelledVariantField(..) ->
+                Error(Nil)
+            }
+          })
+
+        [ fields, missing ]
+        |> list.flatten
+      }
+    }
+
+  // TODO refactor1 -- rename
   let from = common.snake_case(param.type_.name)
   let to = common.snake_case(return.type_.name)
   let func_name =
@@ -494,8 +541,6 @@ fn func_field(
   ident ident: opts.Ident,
   ctx ctx: Context,
 ) -> Field(kind) {
-  let type_variant = param
-
   let overrides =
     ctx.opts
     |> dict.get(field)
@@ -531,72 +576,59 @@ fn func_field(
 
   let conv = conv |> option.map(fn(conv) { #(conv, inner) })
 
-  let ident =
-    ident.module
-    |> option.unwrap(ctx.file.module)
-    |> string.append(to: _, suffix: "." <> ident.type_)
+  // TODO refactor1 -- all `case kind` below
+  let #(param_field, return_field) =
+    case kind, target_field {
+      opts.From, None |
+      opts.Into, None ->
+        #(field.field, field.field)
 
-  let t =
+      opts.From, Some(target) -> #(field.field, target)
+      opts.Into, Some(target) -> #(target, field.field)
+    }
+
+  let variant =
     case kind {
-      opts.From ->
-        common.fetch_custom_type(ident, ctx.module_reader)
-        |> result.map(fn(t) {
-          let #(_, g.Definition(_, definition: type_)) = t
-          type_
-        })
-
-      opts.Into ->
-        Ok(type_variant.type_)
+      opts.From -> param.variant
+      opts.Into -> return.variant
     }
 
-  case t {
-    Ok(g.CustomType(variants: [variant], ..)) -> {
-      let #(param_field, return_field) =
-        case kind, target_field {
-          opts.From, None |
-          opts.Into, None -> #(field.field, field.field)
+  let has_field = variant.fields |> list.any(fn(f) {
+    let assert g.LabelledVariantField(label: name, ..) = f
+    case kind, target_field {
+      // opts.From, _ -> name == return_field
+      // opts.Into, _ -> name == param_field
 
-          opts.From, Some(target) -> #(field.field, target)
-          opts.Into, Some(target) -> #(target, field.field)
-        }
+      opts.From, None -> name == return_field
+      opts.From, Some(target) -> target == return_field
 
-      let has_field = variant.fields |> list.any(fn(f) {
-        let assert g.LabelledVariantField(label: name, ..) = f
-        case kind, target_field {
-          opts.From, _ -> name == param_field
-          opts.Into, _ -> name == return_field
-          // opts.From, None |
-          // opts.Into, None -> True
+      opts.Into, None -> name == param_field
+      opts.Into, Some(target) -> target == param_field
+    }
+  })
 
-          // opts.From, Some(target) -> True
-          // opts.Into, Some(target) -> True
-        }
-      })
-
-      // param_field --> `LABEL: value.field`
-      // return_field --> `value.FIELD`
-
-      case has_field {
-        True ->
-          Field(
-            param_field:,
-            return_field:,
-            conv:,
-          )
-
-        False ->
-          Missing(
-            field: return_field,
-            type_:,
-          )
-      }
+  let #(param_field, return_field) =
+    case kind {
+      opts.Into -> #(param_field, return_field)
+      opts.From -> #(return_field, param_field)
     }
 
-    Ok(g.CustomType(variants: _, ..) as t) ->
-      panic as { "`from`/`into` doesn't implement multi-variant `CustomType`s -- " <> string.inspect(t) }
+  // param_field --> `LABEL: value.field`
+  // return_field --> `value.FIELD`
 
-    Error(err) ->
-      panic as { "Error fetching `CustomType`: " <> string.inspect(err) }
+  case has_field {
+    True ->
+      Field(
+        param_field:,
+        return_field:,
+        conv:,
+      )
+
+    False ->
+      Missing(
+        field: return_field,
+        type_:,
+      )
   }
 }
 
