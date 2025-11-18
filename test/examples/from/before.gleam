@@ -3,7 +3,7 @@ import examples/from/authe/a.{type AutheA}
 import examples/from/authe/b
 import examples/from/friend/person.{type Person}
 import examples/from/friend/pet as p
-import gleam/option.{type Option}
+import gleam/option.{type Option, None}
 import youid/uuid.{type Uuid}
 
 pub type AutheTokens {
@@ -51,8 +51,8 @@ pub type A {
   )
 }
 
-fn to_time(value: A) -> Time {
-  todo
+pub fn to_time(_) -> Time {
+  birl.from_unix(0)
 }
 
 pub type Overrides {
@@ -102,3 +102,14 @@ pub type PetPlus {
     missing: Float,
   )
 }
+
+pub fn suppress_warning_authe_a() ->  AutheA {
+  let uuid = uuid.v7_from_millisec(0)
+  a.AutheA(uuid, "", "", uuid, uuid, "", None, None, "", "")
+}
+pub fn suppress_warning_authe_b() ->  b.AutheB {
+  let uuid = uuid.v7_from_millisec(0)
+  b.AutheB(uuid, "", "", uuid, uuid, "", None, None, "", "")
+}
+pub const suppress_warning_person: Person = person.Person(0, "", "", 0)
+pub const suppress_warning_pet: p.Pet = p.Pet(0, "", p.PetAge(p.Cat, 0))

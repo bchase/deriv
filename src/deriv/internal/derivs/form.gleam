@@ -6,10 +6,9 @@ import gleam/dict.{type Dict}
 import gleam/list
 import gleam/result
 import gleam/string
-import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type Span, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, Span, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, BinaryOperator, Pipe, FnCapture}
-import deriv/internal/types.{type Context, type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader, DerivFieldOpt} as deriv
+import glance.{type CustomType, type Definition, type Function, type Variant, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, FnCapture}
+import deriv/internal/types.{type Context, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader} as deriv
 import deriv/internal/common
-import birl
 
 // IMPROVE
 //   - support nested forms (see `formal/scratch.gleam`; would need to parse nested opts)
@@ -218,7 +217,7 @@ fn parser_expr(
     }
 
     BirlTimeParser(parser: BirlParseISO8601) -> {
-      Call(x, FieldAccess(x, Variable(x, "util"), "birl_time_iso8601_parser"), [])
+      Call(x, FieldAccess(x, Variable(x, "deriv"), "birl_time_iso8601_parser"), [])
     }
 
     CustomParser(func_name:, type_: _) -> {
@@ -875,7 +874,7 @@ fn base_imports() -> List(Import) {
 
 fn lookups_imports() -> List(Import) {
   [
-    common.import_("deriv/util"),
+    common.import__("deriv/util", Some("deriv"), [], []),
   ]
 }
 
@@ -963,7 +962,7 @@ fn example_lustre_html_form_func(
     Some(NamedType(x, "Element", Some(element), [VariableType(x, "msg")])),
     [
       // STATIC `input` HELPER FUNC
-      Assignment(x, Let, PatternVariable(x, "input"), None, Fn(x, [FnParameter(Named("field"), None), FnParameter(Named("label_str"), None)], None, [Assignment(x, Let, PatternVariable(x, "input"), None, Call(x, FieldAccess(x, Variable(x, html), "input"), [ShorthandField("field"), LabelledField("overrides", Call(x, FieldAccess(x, Variable(x, html), "placeholder"), [UnlabelledField(Variable(x, "label_str"))])), LabelledField("err", FieldAccess(x, Variable(x, "util"), "none")), LabelledField("lookup", Call(x, Variable(x, lookups_func_name), [])), ShorthandField("form")])), Assignment(x, Let, PatternVariable(x, "errs"), None, Call(x, FieldAccess(x, Variable(x, html), "ul"), [UnlabelledField(List(x, [], None)), UnlabelledField(Call(x, FieldAccess(x, Variable(x, "util"), "list_map"), [UnlabelledField(FieldAccess(x, FieldAccess(x, Variable(x, "input"), "field"), "errs")), UnlabelledField(Fn(x, [FnParameter(Named("err"), None)], None, [Expression(Call(x, FieldAccess(x, Variable(x, html), "li"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, html), "text"), [UnlabelledField(Variable(x, "err"))])], None))]))]))]))])), Expression(Call(x, FieldAccess(x, Variable(x, html), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, html), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, html), "label"), [UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, attr), "for"), [UnlabelledField(FieldAccess(x, FieldAccess(x, Variable(x, "input"), "field"), "id"))])], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, html), "text"), [UnlabelledField(Variable(x, "label_str"))])], None))])], None))]), Call(x, FieldAccess(x, Variable(x, html), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "input"), "render"), [UnlabelledField(Call(x, FieldAccess(x, Variable(x, html), "InputParams"), [LabelledField("class", FieldAccess(x, Variable(x, "util"), "none"))]))]), Variable(x, "errs")], None))])], None))]))])),
+      Assignment(x, Let, PatternVariable(x, "input"), None, Fn(x, [FnParameter(Named("field"), None), FnParameter(Named("label_str"), None)], None, [Assignment(x, Let, PatternVariable(x, "input"), None, Call(x, FieldAccess(x, Variable(x, html), "input"), [ShorthandField("field"), LabelledField("overrides", Call(x, FieldAccess(x, Variable(x, html), "placeholder"), [UnlabelledField(Variable(x, "label_str"))])), LabelledField("err", FieldAccess(x, Variable(x, "deriv"), "none")), LabelledField("lookup", Call(x, Variable(x, lookups_func_name), [])), ShorthandField("form")])), Assignment(x, Let, PatternVariable(x, "errs"), None, Call(x, FieldAccess(x, Variable(x, html), "ul"), [UnlabelledField(List(x, [], None)), UnlabelledField(Call(x, FieldAccess(x, Variable(x, "deriv"), "list_map"), [UnlabelledField(FieldAccess(x, FieldAccess(x, Variable(x, "input"), "field"), "errs")), UnlabelledField(Fn(x, [FnParameter(Named("err"), None)], None, [Expression(Call(x, FieldAccess(x, Variable(x, html), "li"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, html), "text"), [UnlabelledField(Variable(x, "err"))])], None))]))]))]))])), Expression(Call(x, FieldAccess(x, Variable(x, html), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, html), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, html), "label"), [UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, attr), "for"), [UnlabelledField(FieldAccess(x, FieldAccess(x, Variable(x, "input"), "field"), "id"))])], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, html), "text"), [UnlabelledField(Variable(x, "label_str"))])], None))])], None))]), Call(x, FieldAccess(x, Variable(x, html), "div"), [UnlabelledField(List(x, [], None)), UnlabelledField(List(x, [Call(x, FieldAccess(x, Variable(x, "input"), "render"), [UnlabelledField(Call(x, FieldAccess(x, Variable(x, html), "InputParams"), [LabelledField("class", FieldAccess(x, Variable(x, "deriv"), "none"))]))]), Variable(x, "errs")], None))])], None))]))])),
 
       // LUSTRE `html.form`
       Expression(
@@ -1084,7 +1083,7 @@ fn form_field_lookups_func(
 ) -> Definition(Function) {
   let x = common.dummy_location()
 
-  let gleam_type_module = "util"
+  let gleam_type_module = "deriv"
 
   let form_type_name = type_.name
   let form_field_type_name = form_field_type_name(type_:)
@@ -1122,16 +1121,16 @@ fn form_field_lookups_func(
     ]))
 
   let lookups_return =
-    Expression(Call(x, FieldAccess(x, Variable(x, "util"), "DerivedFormLookups"), [
+    Expression(Call(x, FieldAccess(x, Variable(x, "deriv"), "DerivedFormLookups"), [
       ShorthandField("name_to_field"),
       ShorthandField("field_to_name"),
       ShorthandField("field_to_type"),
-      LabelledField("field_to_dom_id", FieldAccess(x, Variable(x, "util"), "inspect")),
-      LabelledField("field_to_default_label", FnCapture(x, None, FieldAccess(x, Variable(x, "util"), "field_to_default_label"), [], [ShorthandField("field_to_name")]))
+      LabelledField("field_to_dom_id", FieldAccess(x, Variable(x, "deriv"), "inspect")),
+      LabelledField("field_to_default_label", FnCapture(x, None, FieldAccess(x, Variable(x, "deriv"), "field_to_default_label"), [], [ShorthandField("field_to_name")]))
     ]))
 
   Function(x, lookups_func_name, Public, [],
-    Some(NamedType(x, "DerivedFormLookups", Some("util"), [NamedType(x, form_field_type_name, None, []), NamedType(x, form_type_name, None, [])])),
+    Some(NamedType(x, "DerivedFormLookups", Some("deriv"), [NamedType(x, form_field_type_name, None, []), NamedType(x, form_type_name, None, [])])),
     [
       field_to_name,
       name_to_field,

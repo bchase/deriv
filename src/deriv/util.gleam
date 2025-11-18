@@ -1,4 +1,3 @@
-import gleam/dict
 import gleam/bool
 import gleam/pair
 import gleam/list
@@ -17,6 +16,7 @@ import gleam/option
 // stdlib re-exports
 
 pub const none = option.None
+pub const some = option.Some
 pub const list_map = list.map
 
 // dep re-exports

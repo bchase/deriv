@@ -1,10 +1,10 @@
 import gleam/result
-import gleam/option.{type Option, Some, None}
+import gleam/option.{Some, None}
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/string
 import glance.{type CustomType, type Definition, type Function, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, UnlabelledField, FunctionParameter, Named, Case, Variant, Clause, PatternString, PatternDiscard, PatternVariant, String}
-import deriv/internal/types.{type Context, type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader} as deriv
+import deriv/internal/types.{type Context, type Gen, Gen, type DerivFieldOpts} as deriv
 import deriv/internal/common
 
 fn to_string_func(

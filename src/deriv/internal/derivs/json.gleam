@@ -8,8 +8,8 @@ import gleam/result
 import gleam/list
 import gleam/string
 import glance as g
-import deriv/internal/types.{type File, type Derivation, type DerivFieldOpt, type Gen, Gen, type DerivFieldOpts, type ModuleReader, DerivFieldOpt, type Context, Context} as deriv
-import deriv/internal/common.{type BirlTimeKind, BirlTimeISO8601, BirlTimeUnixMicro, BirlTimeUnixMilli, BirlTimeUnix, BirlTimeHTTP, BirlTimeNaive, gtype}
+import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type Context, Context} as deriv
+import deriv/internal/common.{gtype}
 
 const deriv_variant_json_key = "_var"
 
@@ -435,16 +435,6 @@ fn to_gen_func(
   }
 }
 
-fn type_aliases_in(
-  file file: File,
-) -> List(g.TypeAlias) {
-  let assert Ok(g.Module(type_aliases:, ..)) =
-    g.module(file.src)
-
-  type_aliases
-  |> list.map(fn(ta) { ta.definition })
-}
-
 fn gen_imports(
   opts: List(String),
   type_: deriv.Type,
@@ -490,7 +480,7 @@ fn decode_imports(
         type_ |> common.are_any_fields_options,
       ]
 
-      deriv.TypeAlias(type_alias:) -> [
+      deriv.TypeAlias(type_alias: _) -> [
       ]
     }
     |> list.any(fn(b) {b})
@@ -642,43 +632,6 @@ fn to_type(
       ))
     },
   )
-}
-
-fn to_type_(
-  type_ type_: g.Type,
-  publicity publicity: g.Publicity,
-) -> Type {
-  case type_ {
-    // g.VariableType(..) as type_ -> {
-    //   todo
-    // }
-
-    g.NamedType(..) as type_ -> {
-      let params =
-        type_.parameters
-        |> list.filter_map(fn(param) {
-          case param {
-            g.VariableType(name:, ..) ->
-              Ok(name)
-
-            _ ->
-              Error(Nil)
-          }
-        })
-
-      Type(
-        publicity:,
-        type_:,
-        params:,
-        pascal_case: type_.name,
-        snake_case: type_.name |> common.snake_case,
-        variants: [],
-      )
-    }
-
-    _ ->
-      panic as "not implemented"
-  }
 }
 
 fn to_decode_variant(
@@ -1423,7 +1376,7 @@ fn to_json_object_tuples(
 }
 
 fn variant_encode_case_clause(
-  type_ type_: Type,
+  type_ _type_: Type,
   variant variant: Variant,
   opts opts: DerivFieldOpts,
   is_multi_variant is_multi_variant: Bool,
@@ -1454,17 +1407,31 @@ fn variant_encode_case_clause(
       ]
     }
 
-  g.Clause(
-    patterns: [[
-      g.PatternAssignment(x,
-        attern: g.PatternVariant(x,
+  let pattern =
+    case variant.fields {
+      [] ->
+        g.PatternVariant(x,
           module: None,
           constructor: variant.pascal_case,
           arguments: [],
-          with_spread: True,
-        ),
-        name: "value",
-      ),
+          with_spread: False,
+        )
+
+      _ ->
+        g.PatternAssignment(x,
+          attern: g.PatternVariant(x,
+            module: None,
+            constructor: variant.pascal_case,
+            arguments: [],
+            with_spread: True,
+          ),
+          name: "value",
+        )
+    }
+
+  g.Clause(
+    patterns: [[
+      pattern,
     ]],
     guard: None,
     body: {

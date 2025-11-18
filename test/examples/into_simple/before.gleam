@@ -1,8 +1,6 @@
 import gleam/int
 
-pub const to_string = int.to_string
-
-type Named {
+pub type Named {
   //$ derive into Local
   //$ derive into Titled
   //$ derive into Missing
@@ -12,7 +10,7 @@ type Named {
   )
 }
 
-type Using {
+pub type Using {
   //$ derive into Named
   Using(
     num: Int,
@@ -20,21 +18,24 @@ type Using {
   )
 }
 
-type Local {
+pub type Local {
   Local(
     name: String,
   )
 }
 
-type Titled {
+pub type Titled {
   Titled(
     title: String,
   )
 }
 
-type Missing {
+pub type Missing {
   Missing(
     name: String,
     missing: Int,
   )
 }
+
+pub const to_string = int.to_string
+

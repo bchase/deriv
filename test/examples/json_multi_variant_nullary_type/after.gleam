@@ -24,7 +24,7 @@ pub fn decoder_t_y() -> Decoder(T) {
 
 pub fn encode_t(value: T) -> Json {
   case value {
-    X(..) as value -> json.object([#("_var", json.string("X"))])
-    Y(..) as value -> json.object([#("_var", json.string("Y"))])
+    X -> json.object([#("_var", json.string("X"))])
+    Y -> json.object([#("_var", json.string("Y"))])
   }
 }

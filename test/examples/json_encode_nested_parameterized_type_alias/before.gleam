@@ -27,26 +27,10 @@ pub type Form {
   )
 }
 
-fn decoder_fields(inner: Decoder(t)) -> Decoder(Fields(t)) {
-  todo
-}
-
-fn encode_fields(x: Fields(t), inner: fn(t) -> Json) -> Json {
-  todo
-}
-
-fn decoder_override() -> Decoder(Fields(String)) {
-  todo
-}
-
-fn encode_override(x: Fields(String)) -> Json {
-  todo
-}
-
-fn decoder_override_inner() -> Decoder(String) {
-  todo
-}
-
-fn encode_override_inner(x: String) -> Json {
-  todo
-}
+// IGNORE
+pub fn decoder_fields(_) -> Decoder(Fields(t)) { decode.success(dict.new()) }
+pub fn encode_fields(_, _) { json.null() }
+pub fn decoder_override() { decode.success(dict.new()) }
+pub fn encode_override(_) -> Json { json.null() }
+pub fn decoder_override_inner() { decode.string }
+pub const encode_override_inner = json.string
