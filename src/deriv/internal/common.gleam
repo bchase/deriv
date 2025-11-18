@@ -1,9 +1,9 @@
 import gleam/bool
 import gleam/option.{type Option, Some, None}
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/list
 import gleam/string
-import gleam/result
+import gleam/result.{try}
 import gleam/regexp.{type Regexp}
 import glance.{type Module, type Definition, type Function, Module, Definition, Function, type CustomType, type Variant}
 import glance_printer
@@ -11,6 +11,32 @@ import deriv/internal/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField
 import gleam/io
 import shellout
 import simplifile
+import tom
+
+pub fn gleam_toml() -> Dict(String, tom.Toml) {
+  let assert Ok(output) = shellout.command(in: ".", run: "cat", with: ["gleam.toml"], opt: [])
+  let assert Ok(config) = tom.parse(output)
+  config
+}
+
+pub fn gleam_toml_dep_path(
+  name name: String,
+) -> Result(String, Nil) {
+  let gt = gleam_toml()
+
+  use deps <- try(tom.get_table(gt, ["dependencies"]) |> result.replace_error(Nil))
+  use dep <- try(dict.get(deps, name))
+
+  use cfg <- try(case dep {
+    tom.InlineTable(cfg) -> Ok(cfg)
+    _ -> Error(Nil)
+  })
+
+  case dict.get(cfg, "path") {
+    Ok(tom.String(path)) -> Ok(path)
+    _ -> Error(Nil)
+  }
+}
 
 pub fn indent(str: String, level level: Int) {
   let pad =
@@ -290,6 +316,17 @@ fn fetch_module_in_dependencies(
   path path: String,
 ) -> Result(Module, ModuleReaderErr) {
   let assert Ok(package) = path |> string.split("/") |> list.first
+
+  case gleam_toml_dep_path(name: package) {
+    Error(_) -> fetch_module_in_build_packages(path:, package:)
+    Ok(dir_path) -> fetch_module_(path_prefix: dir_path <> "/src/", path:)
+  }
+}
+
+fn fetch_module_in_build_packages(
+  path path: String,
+  package package: String
+) -> Result(Module, ModuleReaderErr) {
   let path_prefix = "build/packages/" <> package <> "/src"
 
   fetch_module_(path_prefix:, path:)
@@ -676,3 +713,9 @@ pub fn build_imported_type(
   }
 }
 
+pub fn starts_with_uppercase(str: String) -> Bool {
+  str
+  |> string.first
+  |> result.map(fn(ch) { ch == string.uppercase(ch) })
+  |> result.unwrap(False)
+}
