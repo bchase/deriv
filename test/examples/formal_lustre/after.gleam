@@ -1,5 +1,5 @@
 import deriv/lustre as f
-import deriv/util
+import deriv/util as deriv
 import formal/form
 
 pub type Form {
@@ -20,7 +20,7 @@ pub fn form_form() -> form.Form(Form) {
   })
 }
 
-pub fn form_field_lookups() -> util.DerivedFormLookups(FormField, Form) {
+pub fn form_field_lookups() -> deriv.DerivedFormLookups(FormField, Form) {
   let field_to_name = fn(field) {
     case field {
       FormStr -> "str"
@@ -34,15 +34,15 @@ pub fn form_field_lookups() -> util.DerivedFormLookups(FormField, Form) {
   }
   let field_to_type = fn(field) {
     case field {
-      FormStr -> util.String
+      FormStr -> deriv.String
     }
   }
-  util.DerivedFormLookups(
+  deriv.DerivedFormLookups(
     name_to_field:,
     field_to_name:,
     field_to_type:,
-    field_to_dom_id: util.inspect,
-    field_to_default_label: util.field_to_default_label(_, field_to_name:),
+    field_to_dom_id: deriv.inspect,
+    field_to_default_label: deriv.field_to_default_label(_, field_to_name:),
   )
 }
 
@@ -55,18 +55,18 @@ pub fn example_lustre_html_form_for_form(
       f.input(
         field:,
         overrides: f.placeholder(label_str),
-        err: util.none,
+        err: deriv.none,
         lookup: form_field_lookups(),
         form:,
       )
     let errs =
       f.ul(
         [],
-        util.list_map(input.field.errs, fn(err) { f.li([], [f.text(err)]) }),
+        deriv.list_map(input.field.errs, fn(err) { f.li([], [f.text(err)]) }),
       )
     f.div([], [
       f.div([], [f.label([f.for(input.field.id)], [f.text(label_str)])]),
-      f.div([], [input.render(f.InputParams(class: util.none)), errs]),
+      f.div([], [input.render(f.InputParams(class: deriv.none)), errs]),
     ])
   }
   f.form([f.on_submit(submit_msg)], [

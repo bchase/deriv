@@ -17,6 +17,7 @@ import gleam/option
 // stdlib re-exports
 
 pub const none = option.None
+pub const some = option.Some
 pub const list_map = list.map
 
 // dep re-exports

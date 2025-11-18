@@ -1,5 +1,5 @@
 import birl
-import deriv/util
+import deriv/util as deriv
 import formal/form
 import gleam/int
 import gleam/option.{type Option}
@@ -90,17 +90,17 @@ pub type Dir {
   //$ enum display down
 }
 
-fn custom_parse_int() -> form.Parser(Int) {
-  util.formal_scalar_parser(type_display: "integer", zero: 0, parse: int.parse)
+pub fn custom_parse_int() -> form.Parser(Int) {
+  deriv.formal_scalar_parser(type_display: "integer", zero: 0, parse: int.parse)
 }
-fn custom_parse_int_option() -> form.Parser(Option(Int)) {
-  todo
+pub fn custom_parse_int_option() -> form.Parser(Option(Int)) {
+  form.parse_int |> form.map(deriv.some)
 }
-fn custom_parse_int_list() -> form.Parser(List(Int)) {
-  todo
+pub fn custom_parse_int_list() -> form.Parser(List(Int)) {
+  form.parse_list(form.parse_int)
 }
 
-fn divisible_by_two(
+pub fn divisible_by_two(
   num num: Int,
 ) -> Result(Int, String) {
   let den = 2
@@ -116,8 +116,8 @@ fn divisible_by_two(
   })
 }
 
-fn parser_dir() -> form.Parser(Dir) {
-  util.formal_scalar_parser(
+pub fn parser_dir() -> form.Parser(Dir) {
+  deriv.formal_scalar_parser(
     parse: parse_enum_dir,
     type_display: "direction",
     zero: Up,
@@ -189,7 +189,9 @@ pub fn form_form() -> form.Form(Form) {
     use date <- form.field("date", { form.parse_date })
     use time <- form.field("time", { form.parse_time })
     use date_time <- form.field("date_time", { form.parse_date_time })
-    use birl_time <- form.field("birl_time", { util.birl_time_iso8601_parser() })
+    use birl_time <- form.field("birl_time", {
+      deriv.birl_time_iso8601_parser()
+    })
     use email_confirm <- form.field("email_confirm", {
       form.parse_email |> form.check_confirms(email)
     })
