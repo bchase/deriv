@@ -206,13 +206,11 @@ pub fn match_specific(
   |> list.filter(fn(override) {
     case override {
       SpecifyField(ident:, ..) |
-      ConvTypeWith(ident:, ..) -> {
+      ConvTypeWith(ident:, ..) ->
         generalize_field_ident(ident) == module_type
-      }
 
-      _ -> {
+      _ ->
         False
-      }
     }
   })
   |> fn(os) {

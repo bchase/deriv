@@ -11,7 +11,7 @@ pub type Named {
 }
 
 pub type Using {
-  //$ derive into Named
+  //$ derive into Local
   Using(
     num: Int,
     //$ into Local.name using int.to_string
@@ -51,6 +51,6 @@ pub fn into_missing_from_named(value: Named, missing missing: Int) -> Missing {
   Missing(name: value.name, missing:)
 }
 
-pub fn into_named_from_using(value: Using) -> Named {
-  Named(name: value.num |> int.to_string)
+pub fn into_local_from_using(value: Using) -> Local {
+  Local(name: value.num |> int.to_string)
 }

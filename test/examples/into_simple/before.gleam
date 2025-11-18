@@ -11,7 +11,7 @@ pub type Named {
 }
 
 pub type Using {
-  //$ derive into Named
+  //$ derive into Local
   Using(
     num: Int,
     //$ into Local.name using int.to_string

@@ -384,19 +384,19 @@ fn variant_func(
                 opts.match_general(field: f, ident:, overrides:)
               })
 
-            let field =
-              case override {
-                Error(Nil) |
-                Ok(opts.ConvAllWith(..)) |
-                Ok(opts.ConvTypeWith(ident: opts.IdentType(..), ..), ..) ->
-                  field
+            case override {
+              // Ok(opts.ConvAllWith(..)) ->
+              //   Error(Nil)
 
-                Ok(opts.SpecifyField(field:, ..)) |
-                Ok(opts.ConvTypeWith(ident: opts.IdentFieldForType(field:, ..), ..)) ->
-                  field
-              }
+              Error(Nil) |
+              Ok(opts.ConvAllWith(..)) |
+              Ok(opts.ConvTypeWith(ident: opts.IdentType(..), ..), ..) ->
+                Ok(field)
 
-              Ok(field)
+              Ok(opts.SpecifyField(field:, ..)) |
+              Ok(opts.ConvTypeWith(ident: opts.IdentFieldForType(field:, ..), ..)) ->
+                Ok(field)
+            }
           })
 
         let missing =
