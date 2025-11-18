@@ -1,15 +1,13 @@
-import deriv/internal/types
 import gleam/bool
 import gleam/pair
 import gleam/dict
-import gleam/io
 import gleam/option.{type Option, Some, None}
 import gleam/list
 import gleam/result
 import gleam/string
-import glance.{type CustomType, type Definition, type Function, type Variant, LabelledVariantField, Definition, Function, Public, FunctionParameter, Named, NamedType, Expression, Call, Variable, LabelledField, FieldAccess} as _
+import glance.{type CustomType, type Definition, type Function, LabelledVariantField, Definition, Function, FunctionParameter, Named, NamedType, Expression, Call, Variable, LabelledField, FieldAccess} as _
 import glance as g
-import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type DerivFieldOpt, type DerivField, DerivField, type Context, Context} as deriv
+import deriv/internal/types.{type Gen, Gen, type DerivField, DerivField, type Context} as deriv
 import deriv/internal/common.{type ImportedType, InScope, Qualified, gtype, gtype_, build_imported_type}
 import deriv/internal/opts
 
@@ -371,7 +369,7 @@ fn variant_func(
               g.UnlabelledVariantField(..) -> Error(Nil)
             })
 
-            let f = types.DerivField(param.type_.name, param.variant.name, field)
+            let f = deriv.DerivField(param.type_.name, param.variant.name, field)
 
             let overrides =
               ctx.opts

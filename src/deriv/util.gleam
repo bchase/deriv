@@ -1,4 +1,3 @@
-import gleam/dict
 import gleam/bool
 import gleam/pair
 import gleam/list

@@ -277,15 +277,10 @@ fn gleam_type_to_input_type(t: util.GleamType) -> String {
     util.Bool -> "checkbox"
     util.Option(t) -> gleam_type_to_input_type(t)
     util.List(t) -> gleam_type_to_input_type(t)
-    // `uri`
-    util.Uri -> todo
-    // `calendar`
-    util.Date -> todo
-    util.TimeOfDay -> todo
-    // util.DateTime -> todo
-    //
-    // util.Enum(ident:) -> todo
-    // util.Uuid -> "hidden"
+    util.Uri |
+    util.Date |
+    util.TimeOfDay ->
+      panic as "unimplemented"
   }
 }
 

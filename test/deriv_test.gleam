@@ -12,10 +12,6 @@ import gleeunit/should
 import gleam/io
 import simplifile
 import examples/json_rewrite/after as json_example
-//
-import gleam/result.{try}
-import shellout
-import tom
 
 pub fn glance_read(file_path: String) -> glance.Module {
   let assert Ok(src) = simplifile.read(file_path)

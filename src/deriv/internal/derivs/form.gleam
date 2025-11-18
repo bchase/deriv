@@ -6,10 +6,9 @@ import gleam/dict.{type Dict}
 import gleam/list
 import gleam/result
 import gleam/string
-import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type Span, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, Span, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, BinaryOperator, Pipe, FnCapture}
-import deriv/internal/types.{type Context, type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader, DerivFieldOpt} as deriv
+import glance.{type CustomType, type Definition, type Function, type Variant, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, FnCapture}
+import deriv/internal/types.{type Context, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader} as deriv
 import deriv/internal/common
-import birl
 
 // IMPROVE
 //   - support nested forms (see `formal/scratch.gleam`; would need to parse nested opts)
