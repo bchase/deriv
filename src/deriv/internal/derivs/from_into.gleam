@@ -30,7 +30,8 @@ type Context {
 
 const x = g.Span(-1, -1)
 
-pub fn gen(
+fn gen(
+  kind: opts.FromInto,
   t: deriv.Type,
   deriv: Derivation,
   opts: DerivFieldOpts,
@@ -41,26 +42,18 @@ pub fn gen(
 
   case t {
     deriv.TypeAlias(..) ->
-      panic as "`deriv.TypeAlias` unimplemented for `deriv/from` "
+      panic as "`deriv.TypeAlias` unimplemented for `from`/`into`"
 
     deriv.Type(type_:) -> {
       let ident =
         case deriv.opts {
-          [ident] -> {
-            ident
-          }
+          [ident] -> ident
           _ -> panic as "`from`/`into` requires specifying a single type in the form `m1/m2.T"
         }
 
-      let imports = []
-
       let funcs =
-        from(
-          module: file.module,
-          type_:,
-          ident:,
-          ctx:,
-        )
+        kind
+        |> func(module: file.module, type_:, ident:, ctx:)
         |> build_glance_func
         |> list.wrap
 
@@ -69,9 +62,19 @@ pub fn gen(
         |> list.map(common.func_str)
         |> string.join("\n\n")
 
-      Gen(file:, deriv:, imports:, funcs:, types: [], src:, meta: dict.new())
+      Gen(file:, deriv:, imports: [], funcs:, types: [], src:, meta: dict.new())
     }
   }
+}
+
+pub fn gen_from(
+  t: deriv.Type,
+  deriv: Derivation,
+  opts: DerivFieldOpts,
+  file: File,
+  module_reader: ModuleReader,
+) -> Gen {
+  gen(opts.From, t, deriv, opts, file, module_reader)
 }
 
 pub fn gen_into(
@@ -81,43 +84,7 @@ pub fn gen_into(
   file: File,
   module_reader: ModuleReader,
 ) -> Gen {
-  let ctx = Context(file:, opts:, module_reader:)
-
-  case t {
-    deriv.TypeAlias(..) ->
-      panic as "`deriv.TypeAlias` unimplemented for `deriv/from` "
-
-    deriv.Type(type_:) -> {
-      let ident =
-        case deriv.opts {
-          [ident] -> {
-            ident
-          }
-          idents -> panic as {
-            "`from`/`into` requires specifying a single type in the form `m1/m2.T`, got: " <> string.inspect(idents)
-          }
-        }
-
-      let imports = []
-
-      let funcs =
-        into(
-          module: file.module,
-          type_:,
-          ident:,
-          ctx:,
-        )
-        |> build_glance_func
-        |> list.wrap
-
-      let src =
-        funcs
-        |> list.map(common.func_str)
-        |> string.join("\n\n")
-
-      Gen(file:, deriv:, imports:, funcs:, types: [], src:, meta: dict.new())
-    }
-  }
+  gen(opts.Into, t, deriv, opts, file, module_reader)
 }
 
 type Func(kind) {
@@ -158,24 +125,6 @@ fn get_type_variant(
       panic as "`from`/`into` derivation currently only supports invariant types"
     }
   }
-}
-
-fn from(
-  module module: String,
-  type_ type_: CustomType,
-  ident ident: String,
-  ctx ctx: Context,
-) -> Func(From) {
-  func(kind: opts.From, module:, type_:, ident:, ctx:)
-}
-
-fn into(
-  module module: String,
-  type_ type_: CustomType,
-  ident ident: String,
-  ctx ctx: Context,
-) -> Func(Into) {
-  func(kind: opts.Into, module:, type_:, ident:, ctx:)
 }
 
 fn func(

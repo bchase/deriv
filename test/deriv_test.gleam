@@ -3,7 +3,6 @@ import deriv
 import deriv/internal/common
 import deriv/internal/parser
 import deriv/internal/types.{File, DerivFieldOpt, DerivField}
-import deriv/internal/derivs/from
 import glance
 import gleam/dict
 import gleam/option.{Some}
