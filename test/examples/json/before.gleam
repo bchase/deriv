@@ -24,10 +24,10 @@ pub type Bar {
   )
 }
 
-fn encode_uuid(uuid: Uuid) -> Json {
+pub fn encode_uuid(uuid: Uuid) -> Json {
   deriv.encode_uuid(uuid)
 }
 
-fn decoder_uuid() -> Decoder(Uuid) {
+pub fn decoder_uuid() -> Decoder(Uuid) {
   deriv.decoder_uuid()
 }

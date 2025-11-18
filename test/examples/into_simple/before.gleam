@@ -1,4 +1,4 @@
-type Named {
+pub type Named {
   //$ derive into Local
   //$ derive into Titled
   //$ derive into Missing
@@ -8,19 +8,19 @@ type Named {
   )
 }
 
-type Local {
+pub type Local {
   Local(
     name: String,
   )
 }
 
-type Titled {
+pub type Titled {
   Titled(
     title: String,
   )
 }
 
-type Missing {
+pub type Missing {
   Missing(
     name: String,
     missing: Int,

@@ -19,25 +19,10 @@ pub type Field1(t) {
   )
 }
 
-pub fn encode_fake_validation(
-  _value: Validation(t),
-) -> Json {
-  json.null()
-}
-
-pub fn encode_list_fake_validation(
-  _value: List(Validation(t)),
-) -> Json {
-  json.array([], encode_fake_validation)
-}
-
-pub fn decoder_fake_validation() -> Decoder(Validation(t)) {
-  decode.success(fn(_) { Error([]) })
-}
-
-pub fn decoder_list_fake_validation() -> Decoder(List(Validation(t))) {
-  decode.list(decode.success(fn(_) { Error([]) }))
-}
+pub fn encode_fake_validation(_) -> Json { json.null() }
+pub fn encode_list_fake_validation(_) { json.preprocessed_array([]) }
+pub fn decoder_fake_validation() -> Decoder(Validation(t)) { decode.success(fn(_) { Error([]) }) }
+pub fn decoder_list_fake_validation() { decode.success([]) }
 
 pub fn encode_field1(value: Field1(t), encode_t: fn(t) -> Json) -> Json {
   case value {
@@ -47,11 +32,11 @@ pub fn encode_field1(value: Field1(t), encode_t: fn(t) -> Json) -> Json {
         #("id", json.string(value.id)),
         #("touched", json.bool(value.touched)),
         #("validations", encode_list_fake_validation(value.validations)),
-        #(
-          "validations_inner",
-          // json.array(value.validations_inner, encode_fake_validation(encode_t)),
-          todo as "think e.g. `encode_fake_validation` needs to take a `fn(t) -> Json`",
-        ),
+        // #(
+        //   "validations_inner",
+        //   // json.array(value.validations_inner, encode_fake_validation(encode_t)),
+        //   todo as "think e.g. `encode_fake_validation` needs to take a `fn(t) -> Json`",
+        // ),
         #("value", encode_t(value.value)),
       ])
   }

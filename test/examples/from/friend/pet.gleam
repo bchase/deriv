@@ -7,6 +7,7 @@ pub type Pet {
 }
 
 pub type PetType {
+  Cat
   Dog
 }
 
@@ -20,7 +21,7 @@ pub type PetAge {
 pub fn to_human_years(
   _pet_age: PetAge,
 ) -> Int {
-  todo
+  -1
 }
 
 // age: Int,

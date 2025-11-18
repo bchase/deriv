@@ -19,22 +19,7 @@ pub type Field1(t) {
   )
 }
 
-pub fn encode_fake_validation(
-  _value: Validation(t),
-) -> Json {
-  json.null()
-}
-
-pub fn encode_list_fake_validation(
-  _value: List(Validation(t)),
-) -> Json {
-  json.array([], encode_fake_validation)
-}
-
-pub fn decoder_fake_validation() -> Decoder(Validation(t)) {
-  decode.success(fn(_) { Error([]) })
-}
-
-pub fn decoder_list_fake_validation() -> Decoder(List(Validation(t))) {
-  decode.list(decode.success(fn(_) { Error([]) }))
-}
+pub fn encode_fake_validation(_) -> Json { json.null() }
+pub fn encode_list_fake_validation(_) { json.preprocessed_array([]) }
+pub fn decoder_fake_validation() -> Decoder(Validation(t)) { decode.success(fn(_) { Error([]) }) }
+pub fn decoder_list_fake_validation() { decode.success([]) }

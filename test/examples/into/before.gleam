@@ -28,6 +28,9 @@ pub type Missing {
   )
 }
 
+pub const suppress_warning_bar: Baz = bar.Baz("")
+pub const suppress_warning_foo = f.Foo("", 0)
+
 // pub type UserForm {
 //   UserForm(
 //     first_name: String,
