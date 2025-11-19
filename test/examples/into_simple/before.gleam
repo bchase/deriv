@@ -62,4 +62,11 @@ pub type NamedNamedNamed {
   )
 }
 
+pub type Use {
+  //$ derive into Named
+  Use(
+    name: String,
+  )
+}
+
 pub const to_string = int.to_string

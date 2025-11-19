@@ -477,9 +477,13 @@ fn build_uniq_func_param_name_(
   field_names field_names: List(String),
   check check: String,
 ) -> String {
-  case list.contains(field_names, check) {
-    False -> check
-    True -> build_uniq_func_param_name_(field_names:, check: check <> "_")
+  let is_gleam_reserved_word = list.contains(common.gleam_reserved_words, check)
+  let collides_with_field_name = list.contains(field_names, check)
+
+  case is_gleam_reserved_word, collides_with_field_name {
+    True, _ |
+    _, True -> build_uniq_func_param_name_(field_names:, check: check <> "_")
+    _, False -> check
   }
 }
 

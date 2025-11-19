@@ -13,6 +13,11 @@ import shellout
 import simplifile
 import tom
 
+pub const gleam_reserved_words = [
+  "case", "const", "external", "fn", "import", "let", "opaque", "pub", "type", "use",
+  "auto", "delegate", "derive", "else", "implement", "macro", "test", "echo",
+]
+
 pub fn gleam_toml() -> Dict(String, tom.Toml) {
   let assert Ok(output) = shellout.command(in: ".", run: "cat", with: ["gleam.toml"], opt: [])
   let assert Ok(config) = tom.parse(output)

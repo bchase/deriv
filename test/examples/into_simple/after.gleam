@@ -62,6 +62,13 @@ pub type NamedNamedNamed {
   )
 }
 
+pub type Use {
+  //$ derive into Named
+  Use(
+    name: String,
+  )
+}
+
 pub const to_string = int.to_string
 
 pub fn into_local_from_named(named named: Named) -> Local {
@@ -100,4 +107,8 @@ pub fn into_local_from_using(using using: Using) -> Local {
 
 pub fn into_named_from_extra(extra extra: Extra) -> Named {
   Named(name: extra.name)
+}
+
+pub fn into_named_from_use(use_ use_: Use) -> Named {
+  Named(name: use_.name)
 }
