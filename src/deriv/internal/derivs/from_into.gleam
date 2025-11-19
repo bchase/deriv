@@ -216,9 +216,13 @@ fn build_glance_func(
 
             let value =
               case conv {
-                opts.ConvFunc(args: opts.EntireValue, ..) -> value
-                opts.ConvFunc(args: opts.ValueDotField, ..) -> FieldAccess(x, value, param_field)
-                opts.ConvFieldAccess(subfields:, ..) ->
+                opts.Conv(func: Some(opts.ConvFunc(args: opts.EntireValue, ..)), ..) ->
+                  value
+
+                opts.Conv(func: Some(opts.ConvFunc(args: opts.ValueDotField, ..)), ..) ->
+                  FieldAccess(x, value, param_field)
+
+                opts.Conv(subfields:, ..) ->
                   FieldAccess(x, value, param_field)
                   |> list.fold(subfields, _, fn(acc, subfield) {
                     acc |> FieldAccess(x, _, subfield)
@@ -227,17 +231,15 @@ fn build_glance_func(
 
             let conv_func =
               case conv {
-                opts.ConvFieldAccess(..) ->
+                opts.Conv(func: Some(opts.ConvFunc(module: Some(module), name:, ..)), ..) ->
+                  Variable(x, module)
+                  |> FieldAccess(x, _, name)
+
+                opts.Conv(func: Some(opts.ConvFunc(module: None, name:, ..)), ..) ->
+                  Variable(x, name)
+
+                _ ->
                   value
-
-                opts.ConvFunc(module: Some(module), func:, ..) ->
-                  FieldAccess(x,
-                    Variable(x, module),
-                    func,
-                  )
-
-                opts.ConvFunc(module: None, func:, ..) ->
-                  Variable(x, func)
               }
 
             let conv_func =
@@ -258,12 +260,12 @@ fn build_glance_func(
               }
 
             case conv {
-              opts.ConvFieldAccess(..) ->
+              opts.Conv(subfields: [_, ..], ..) ->
                 value
                 |> g.LabelledField(label:, item: _)
                 |> pair.new(Error(Nil))
 
-              opts.ConvFunc(..) ->
+              opts.Conv(..) ->
                 LabelledField(
                   label:,
                   item: g.BinaryOperator(x,

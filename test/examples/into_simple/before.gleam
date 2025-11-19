@@ -81,7 +81,7 @@ pub type FieldAccess {
 //  //$ derive into Named
 //  FieldAccessConv(
 //    depth0: Nested,
-//    //$ into Named.name using .depth1.depth2 int.to_string
+//    //$ into Named.name using .depth1.depth2_int int.to_string
 //  )
 //}
 

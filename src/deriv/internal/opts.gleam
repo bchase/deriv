@@ -32,15 +32,18 @@ pub type Inner {
 }
 
 pub type Conv {
-  ConvFunc(
-    module: Option(String),
-    func: String,
-    args: ConvArgs,
+  Conv(
+    subfields: List(String),
+    func: Option(ConvFunc),
     inner: Option(Inner),
   )
-  ConvFieldAccess(
-    subfields: List(String),
-    inner: Option(Inner),
+}
+
+pub type ConvFunc {
+  ConvFunc(
+    module: Option(String),
+    name: String,
+    args: ConvArgs,
   )
 }
 
@@ -99,7 +102,9 @@ pub fn build_from_into_field_override(
         }
 
         [ident, "using", "inner" as inner_str, conv], _ |
+        // [ident, "using", conv, _], inner_str |
         [ident, "using", conv], inner_str -> {
+        // [ident, "using", conv, subfields], inner_str -> {
           let inner = inner_str |> to_inner(relative_to: type_, on: field)
 
           result.try(parse_ident(ident:), fn(ident) {
@@ -196,10 +201,17 @@ fn parse_conv_func(
   args args: ConvArgs,
 ) -> Result(Conv, Nil) {
   case str |> string.split(".") {
-    [""] -> Error(Nil)
-    [func] -> Ok(ConvFunc(module: None, func:, args:, inner: None))
-    [module, func] -> Ok(ConvFunc(module: Some(module), func:, args:, inner: None))
-    _ -> Error(Nil)
+    [""] ->
+      Error(Nil)
+
+    [name] ->
+      Ok(Conv(func: Some(ConvFunc(module: None, name:, args:)), inner: None, subfields: []))
+
+    [module, name] ->
+      Ok(Conv(func: Some(ConvFunc(module: Some(module), name:, args:)), subfields: [], inner: None))
+
+    _ ->
+      Error(Nil)
   }
 }
 
@@ -212,7 +224,7 @@ fn parse_field_access(
     True, [_, ..] as matches -> {
       let subfields = matches |> list.map(fn(match) { match.content })
 
-      Ok(ConvFieldAccess(subfields:, inner: None))
+      Ok(Conv(subfields:, func: None, inner: None))
     }
 
     False, _ | _, _ ->
