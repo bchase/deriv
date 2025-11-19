@@ -480,11 +480,8 @@ fn build_uniq_func_param_name_(
   let is_gleam_reserved_word = list.contains(common.gleam_reserved_words, check)
   let collides_with_field_name = list.contains(field_names, check)
 
-  case is_gleam_reserved_word, collides_with_field_name {
-    True, _ |
-    _, True -> build_uniq_func_param_name_(field_names:, check: check <> "_")
-    _, False -> check
-  }
+  use <- bool.guard(!{ is_gleam_reserved_word || collides_with_field_name }, check)
+  build_uniq_func_param_name_(field_names:, check: check <> "_")
 }
 
 fn field_names(
