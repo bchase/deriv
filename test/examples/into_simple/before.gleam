@@ -58,7 +58,7 @@ pub type NamedNamedNamed {
   NamedNamedNamed(
     name: String,
     named: String,
-    named_deriv: String,
+    named_: String,
   )
 }
 

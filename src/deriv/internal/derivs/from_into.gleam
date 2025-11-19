@@ -479,10 +479,7 @@ fn build_uniq_func_param_name_(
 ) -> String {
   case list.contains(field_names, check) {
     False -> check
-    True -> {
-      let check = check <> "_deriv"
-      build_uniq_func_param_name_(field_names:, check:)
-    }
+    True -> build_uniq_func_param_name_(field_names:, check: check <> "_")
   }
 }
 

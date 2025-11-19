@@ -58,7 +58,7 @@ pub type NamedNamedNamed {
   NamedNamedNamed(
     name: String,
     named: String,
-    named_deriv: String,
+    named_: String,
   )
 }
 
@@ -80,18 +80,18 @@ pub fn into_missing_from_named(
 }
 
 pub fn into_named_named_from_named(
-  named_deriv named_deriv: Named,
+  named_ named_: Named,
   named named: String,
 ) -> NamedNamed {
-  NamedNamed(name: named_deriv.name, named:)
+  NamedNamed(name: named_.name, named:)
 }
 
 pub fn into_named_named_named_from_named(
-  named_deriv_deriv named_deriv_deriv: Named,
+  named__ named__: Named,
   named named: String,
-  named_deriv named_deriv: String,
+  named_ named_: String,
 ) -> NamedNamedNamed {
-  NamedNamedNamed(name: named_deriv_deriv.name, named:, named_deriv:)
+  NamedNamedNamed(name: named__.name, named:, named_:)
 }
 
 pub fn into_local_from_using(using using: Using) -> Local {
