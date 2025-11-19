@@ -167,6 +167,8 @@ fn parse_override(
 
   let conv = parse_conv_or_panic(str1:, str2:, args:)
 
+  let conv = Conv(..conv, inner:) // TODO refactor2 `inner` in `Conv` & `Override`...
+
   to_override(ident, conv, inner)
 }
 

@@ -8,6 +8,7 @@ import gleam/result
 import gleam/list
 import gleam/string
 import glance as g
+import deriv/internal/glance.{x, string, list, term, call, call_, dot, tuple, identity_func} as _
 import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type Context, Context} as deriv
 import deriv/internal/common.{gtype}
 
@@ -773,76 +774,6 @@ fn get_field_opts(
   |> list.filter_map(fn(dfo) {
     matching(dfo.strs)
   })
-}
-
-// HELPERS
-
-const x = g.Span(-1, -1)
-
-fn string(
-  str str: String,
-) -> g.Expression {
-  g.String(x, str)
-}
-
-fn list(
-  xs: List(g.Expression)
-) -> g.Expression {
-  g.List(x, xs, None)
-}
-
-fn term(
-  str: String,
-) -> g.Expression {
-  g.Variable(x, str)
-}
-
-fn call(
-  function f: g.Expression,
-  arguments args: List(g.Expression),
-) -> g.Expression {
-  f |> call_(args |> list.map(g.UnlabelledField))
-}
-
-fn call_(
-  function f: g.Expression,
-  arguments args: List(g.Field(g.Expression)),
-) -> g.Expression {
-  g.Call(x, f, args)
-}
-
-fn dot(
-  a: String,
-  b: String,
-) -> g.Expression {
-  g.FieldAccess(x, term(a), b)
-}
-
-fn tuple(
-  elements: List(g.Expression),
-) -> g.Expression {
-  g.Tuple(x, elements)
-}
-
-//
-
-fn identity_func(
-  param_name param_name: String,
-) -> g.Expression {
-  g.Fn(x,
-    arguments: [
-      g.FnParameter(
-        name: g.Named(param_name),
-        type_: None,
-      )
-    ],
-    body: [
-      g.Expression(
-        param_name |> term,
-      ),
-    ],
-    return_annotation: None,
-  )
 }
 
 // DECODER FUNC GEN

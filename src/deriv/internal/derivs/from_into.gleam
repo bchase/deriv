@@ -10,6 +10,7 @@ import glance as g
 import deriv/internal/types.{type Gen, Gen, type DerivField, DerivField, type Context} as deriv
 import deriv/internal/common.{type ImportedType, InScope, Qualified, gtype, gtype_, build_imported_type}
 import deriv/internal/opts
+import deriv/internal/glance.{term, call, dot, dot_, fn_} as _
 
 pub type Override = opts.FromIntoOverride
 
@@ -211,81 +212,116 @@ fn build_glance_func(
               opts.Into -> #(field.param_field, field.return_field)
               opts.From -> #(field.return_field, field.param_field)
             }
-            // let #(label, param_field) =
-            //   #(field.return_field, field.param_field)
 
-            let value =
-              case conv {
-                opts.Conv(subfields: [_, ..] as subfields, ..) ->
-                  FieldAccess(x, value, param_field)
-                  |> list.fold(subfields, _, fn(acc, subfield) {
-                    acc |> FieldAccess(x, _, subfield)
-                  })
+            case conv.inner, conv.subfields {
+              Some(inner), [_, ..] -> {
+                let value = value |> dot_(param_field)
 
-                _ ->
-                  value
-              }
+                let module =
+                  case inner {
+                    opts.Option -> "option"
+                    opts.List -> "list"
+                  }
 
-            let value =
-              case conv {
-                opts.Conv(func: Some(opts.ConvFunc(args: opts.EntireValue, ..)), ..) ->
-                  value
+                let inner_map =
+                  module |> dot("map") |> call([
+                    fn_(["x"], [
+                      conv.subfields
+                      |> list.fold({"x" |> term}, fn(acc, subfield) {
+                        acc |> dot_(subfield)
+                      })
+                      |> g.Expression
+                    ])
+                  ])
 
-                opts.Conv(subfields: [], func: Some(opts.ConvFunc(args: opts.ValueDotField, ..)), ..) ->
-                  FieldAccess(x, value, param_field)
-
-                _ ->
-                  value
-              }
-
-            let conv_func =
-              case conv {
-                opts.Conv(func: Some(opts.ConvFunc(module: Some(module), name:, ..)), ..) ->
-                  Variable(x, module)
-                  |> FieldAccess(x, _, name)
-
-                opts.Conv(func: Some(opts.ConvFunc(module: None, name:, ..)), ..) ->
-                  Variable(x, name)
-
-                _ ->
-                  value
-              }
-
-            let conv_func =
-              case inner {
-                None ->
-                  conv_func
-
-                Some(inner) -> {
-                  let mod =
-                    case inner {
-                      opts.Option -> "option"
-                      opts.List -> "list"
-                    }
-
-                  FieldAccess(x, Variable(x, mod), "map")
-                  |> Call(x, _, [ conv_func |> g.UnlabelledField ])
-                }
-              }
-
-            case conv {
-              opts.Conv(func: None, subfields: [_, ..], ..) ->
-                value
-                |> g.LabelledField(label:, item: _)
-                |> pair.new(Error(Nil))
-
-              opts.Conv(..) -> {
                 LabelledField(
                   label:,
                   item: g.BinaryOperator(x,
                     name: g.Pipe,
                     left: value,
-                    right: conv_func,
+                    right: inner_map,
                   ),
                 )
                 |> pair.new(Error(Nil))
               }
+
+              Some(_inner), [] |
+              None, _ -> {
+                let value =
+                  case conv {
+                    opts.Conv(inner: None, subfields: [_, ..] as subfields, ..) ->
+                      FieldAccess(x, value, param_field)
+                      |> list.fold(subfields, _, fn(acc, subfield) {
+                        acc |> FieldAccess(x, _, subfield)
+                      })
+
+                    _ ->
+                      value
+                  }
+
+                let value =
+                  case conv {
+                    opts.Conv(func: Some(opts.ConvFunc(args: opts.EntireValue, ..)), ..) ->
+                      value
+
+                    opts.Conv(subfields: [], func: Some(opts.ConvFunc(args: opts.ValueDotField, ..)), ..) ->
+                      FieldAccess(x, value, param_field)
+
+                    _ ->
+                      value
+                  }
+
+                let conv_func =
+                  case conv {
+                    opts.Conv(func: Some(opts.ConvFunc(module: Some(module), name:, ..)), ..) ->
+                      Variable(x, module)
+                      |> FieldAccess(x, _, name)
+
+                    opts.Conv(func: Some(opts.ConvFunc(module: None, name:, ..)), ..) ->
+                      Variable(x, name)
+
+                    _ ->
+                      value
+                  }
+
+                let conv_func =
+                  case inner {
+                    None ->
+                      conv_func
+
+                    Some(inner) -> {
+                      let mod =
+                        case inner {
+                          opts.Option -> "option"
+                          opts.List -> "list"
+                        }
+
+                      FieldAccess(x, Variable(x, mod), "map")
+                      |> Call(x, _, [ conv_func |> g.UnlabelledField ])
+                    }
+                  }
+
+                case conv {
+                  opts.Conv(func: None, subfields: [_, ..], ..) ->
+                    value
+                    |> g.LabelledField(label:, item: _)
+                    |> pair.new(Error(Nil))
+
+                  opts.Conv(..) -> {
+                    LabelledField(
+                      label:,
+                      item: g.BinaryOperator(x,
+                        name: g.Pipe,
+                        left: value,
+                        right: conv_func,
+                      ),
+                    )
+                    |> pair.new(Error(Nil))
+                  }
+                }
+              }
             }
+
           }
         }
       }

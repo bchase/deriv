@@ -1,4 +1,5 @@
 import gleam/int
+import gleam/option.{type Option}
 
 pub type Named {
   //$ derive into Local
@@ -90,6 +91,20 @@ pub type FieldAccessConvB {
   FieldAccessConvB(
     depth0: Nested,
     //$ into Named.name using int.to_string .depth1.depth2_int
+  )
+}
+
+pub type FieldAccessInner {
+  //$ derive into OptionNamed
+  FieldAccessInner(
+    name: Option(Named),
+    //$ into OptionNamed using inner .name
+  )
+}
+
+pub type OptionNamed {
+  OptionNamed(
+    name: Option(String),
   )
 }
 
