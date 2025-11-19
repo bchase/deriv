@@ -4,6 +4,8 @@ pub type Named {
   //$ derive into Local
   //$ derive into Titled
   //$ derive into Missing
+  //$ derive into Valued
+  //$ derive into ValuedDeriv
   Named(
     name: String,
     //$ into Titled.title
@@ -42,6 +44,21 @@ pub type Extra {
   Extra(
     name: String,
     extra: Float,
+  )
+}
+
+pub type Valued {
+  Valued(
+    name: String,
+    value: String,
+  )
+}
+
+pub type ValuedDeriv {
+  ValuedDeriv(
+    name: String,
+    value: String,
+    value_deriv: String,
   )
 }
 
