@@ -92,11 +92,11 @@ pub fn build_from_into_field_override(
         ["using", conv, "inner" as inner_str], _ -> {
           let inner = inner_str |> to_inner(relative_to: type_, on: field)
 
-          Ok(ConvAllWith(conv: { conv |> parse_conv_or_panic(args: ValueDotField) }, inner:))
+          Ok(ConvAllWith(conv: { conv |> parse_conv_or_panic(str1: _, str2: None, args: ValueDotField) }, inner:))
         }
 
         ["using", "inner" as inner_str, conv], _ -> {
-          let conv = conv |> parse_conv_or_panic(args: ValueDotField)
+          let conv = conv |> parse_conv_or_panic(str1: _, str2: None, args: ValueDotField)
           let inner = inner_str |> to_inner(relative_to: type_, on: field)
           Ok(ConvAllWith(conv:, inner:))
         }
@@ -115,7 +115,7 @@ pub fn build_from_into_field_override(
                 False, True -> EntireValue
                 False, False -> ValueDotField
                }
-            let conv = conv |> parse_conv_or_panic(args:)
+            let conv = conv |> parse_conv_or_panic(str1: _, str2: None, args:)
             let type_ = ident.type_ |> string.replace("*", "")
             let ident =
               case ident {
@@ -180,21 +180,85 @@ fn to_inner(
   }
 }
 
+fn result_combine(
+  result1 result1: Result(t, err),
+  result2 result2: Result(t, err),
+  combine combine: fn(t, t) -> t,
+) -> Result(t, #(err, err)) {
+  case result1, result2 {
+    Ok(x1), Ok(x2) -> Ok(combine(x1, x2))
+    Ok(x), Error(_) | Error(_), Ok(x) -> Ok(x)
+    Error(err1), Error(err2) -> Error(#(err1, err2))
+  }
+}
+
 fn parse_conv_or_panic(
-  str str: String,
+  str1 str1: String,
+  str2 str2: Option(String),
   args args: ConvArgs,
 ) -> Conv {
+  let field_access =
+    parse_field_access(str: str1)
+    |> result.lazy_or(fn() {
+      str2
+      |> option.to_result(Nil)
+      |> result.try(parse_field_access(str: _))
+    })
+
+  let conv_func =
+    parse_conv_func(str: str1, args:)
+    |> result.lazy_or(fn() {
+      str2
+      |> option.to_result(Nil)
+      |> result.try(parse_field_access(str: _))
+    })
+
   let result =
-    parse_field_access(str:) // NOTE: order matters
-    |> result.lazy_or(fn() { parse_conv_func(str:, args:) })
+    result_combine(field_access, conv_func, combine: fn(field_access, conv_func) {
+      let inner = option.or(conv_func.inner, field_access.inner)
+
+      Conv(
+        inner:,
+        subfields: field_access.subfields,
+        func: conv_func.func
+      )
+    })
 
   case result {
     Ok(conv) -> conv
-    Error(Nil) -> panic as {
-      "`from`/`into` field convert function specified by `using` is invalid. Valid syntax is `func_name` or `module.func_name` or `.field`, but got: " <> str
+    Error(_) -> panic as {
+      "`from`/`into` field convert function specified by `using` is invalid. Valid syntax is `func_name` or `module.func_name` or `.field`, but got:\n" <>
+      string.inspect(str1) <> "\n" <>
+      string.inspect(str2)
     }
   }
 }
+
+// fn parse_conv_or_panic(
+//   str str: String,
+//   args args: ConvArgs,
+// ) -> Conv {
+//   let field_access = parse_field_access(str:)
+//   let conv_func = parse_conv_func(str:, args:)
+
+//   let result =
+//     result_combine(field_access, conv_func, combine: fn(field_access, conv_func) {
+//       let inner = option.or(conv_func.inner, field_access.inner)
+
+//       Conv(
+//         inner:,
+//         subfields: field_access.subfields,
+//         func: conv_func.func
+//       )
+//     })
+
+//   case result {
+//     Ok(conv) -> conv
+//     Error(_) -> panic as {
+//       "`from`/`into` field convert function specified by `using` is invalid. Valid syntax is `func_name` or `module.func_name` or `.field`, but got: " <> str
+//     }
+//   }
+// }
 
 fn parse_conv_func(
   str str: String,
