@@ -4,8 +4,8 @@ pub type Named {
   //$ derive into Local
   //$ derive into Titled
   //$ derive into Missing
-  //$ derive into Valued
-  //$ derive into ValuedDeriv
+  //$ derive into NamedNamed
+  //$ derive into NamedNamedNamed
   Named(
     name: String,
     //$ into Titled.title
@@ -47,18 +47,18 @@ pub type Extra {
   )
 }
 
-pub type Valued {
-  Valued(
+pub type NamedNamed {
+  NamedNamed(
     name: String,
-    value: String,
+    named: String,
   )
 }
 
-pub type ValuedDeriv {
-  ValuedDeriv(
+pub type NamedNamedNamed {
+  NamedNamedNamed(
     name: String,
-    value: String,
-    value_deriv: String,
+    named: String,
+    named_deriv: String,
   )
 }
 

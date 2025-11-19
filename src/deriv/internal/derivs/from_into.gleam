@@ -315,7 +315,7 @@ fn build_glance_func(
     }
 
   Definition([], Function(x, func_name, publicity,
-    [FunctionParameter(None, Named(func_param_name), Some(param_type)), ..missing_params],
+    [FunctionParameter(Some(func_param_name), Named(func_param_name), Some(param_type)), ..missing_params],
     Some(return_type),
     [Expression(Call(x, return_constr, fields))])
   )
@@ -448,7 +448,7 @@ fn variant_func(
   let return_type = build_imported_type(return.module, return.type_, ctx.file)
   let return_constr = return.variant.name
 
-  let func_param_name = build_uniq_func_param_name(return.variant.fields)
+  let func_param_name = build_uniq_func_param_name(param:, return:)
 
   Func(
     func_name:,
@@ -464,14 +464,14 @@ fn variant_func(
 }
 
 fn build_uniq_func_param_name(
-  fields fields: List(g.VariantField),
+  param param: TypeVariant,
+  return return: TypeVariant,
 ) -> String {
-  let field_names = fields |> field_names
-
-  build_uniq_func_param_name_(field_names:, check: default_func_param_name)
+  return.variant.fields
+  |> field_names
+  |> build_uniq_func_param_name_(check: param.type_.name |> common.snake_case)
+  // |> build_uniq_func_param_name_(check: "value")
 }
-
-const default_func_param_name = "value"
 
 fn build_uniq_func_param_name_(
   field_names field_names: List(String),

@@ -114,58 +114,58 @@ pub fn suppress_warning_authe_b() ->  b.AutheB {
 pub const suppress_warning_person: Person = person.Person(0, "", "", 0)
 pub const suppress_warning_pet: p.Pet = p.Pet(0, "", p.PetAge(p.Cat, 0))
 
-pub fn from_authe_a_to_authe_tokens(value: AutheA) -> AutheTokens {
+pub fn from_authe_a_to_authe_tokens(authe_a authe_a: AutheA) -> AutheTokens {
   Authe(
-    id: value.authe_id,
-    encrypted_access_token: value.encrypted_access_token,
-    encrypted_refresh_token: value.encrypted_refresh_token,
+    id: authe_a.authe_id,
+    encrypted_access_token: authe_a.encrypted_access_token,
+    encrypted_refresh_token: authe_a.encrypted_refresh_token,
   )
 }
 
-pub fn from_authe_b_to_authe_tokens(value: b.AutheB) -> AutheTokens {
+pub fn from_authe_b_to_authe_tokens(authe_b authe_b: b.AutheB) -> AutheTokens {
   Authe(
-    id: value.authe_id,
-    encrypted_access_token: value.encrypted_access_token,
-    encrypted_refresh_token: value.encrypted_refresh_token,
+    id: authe_b.authe_id,
+    encrypted_access_token: authe_b.encrypted_access_token,
+    encrypted_refresh_token: authe_b.encrypted_refresh_token,
   )
 }
 
-pub fn from_person_to_friend(value: Person) -> Friend {
-  Friend(name: value.first_name)
+pub fn from_person_to_friend(person person: Person) -> Friend {
+  Friend(name: person.first_name)
 }
 
-pub fn from_pet_to_friend(value: p.Pet) -> Friend {
-  Friend(name: value.name)
+pub fn from_pet_to_friend(pet pet: p.Pet) -> Friend {
+  Friend(name: pet.name)
 }
 
-pub fn from_person_to_has_age(value: Person) -> HasAge {
-  HasAge(human_years: value.age)
+pub fn from_person_to_has_age(person person: Person) -> HasAge {
+  HasAge(human_years: person.age)
 }
 
-pub fn from_pet_to_has_age(value: p.Pet) -> HasAge {
-  HasAge(human_years: value.age |> p.to_human_years)
+pub fn from_pet_to_has_age(pet pet: p.Pet) -> HasAge {
+  HasAge(human_years: pet.age |> p.to_human_years)
 }
 
-pub fn from_a_to_overrides(value: A) -> Overrides {
+pub fn from_a_to_overrides(a a: A) -> Overrides {
   Overrides(
-    all: value.all |> birl.from_unix,
-    all_star: value.all_star |> birl.from_unix,
-    mt: value.mt |> birl.from_unix,
-    t: value.t |> birl.from_unix,
-    mtf: value.mtf |> birl.from_unix,
-    tf: value.tf |> birl.from_unix,
-    f: value.f |> birl.from_unix,
-    o: value.o |> option.map(birl.from_unix),
-    oi: value.oi |> option.map(birl.from_unix),
+    all: a.all |> birl.from_unix,
+    all_star: a.all_star |> birl.from_unix,
+    mt: a.mt |> birl.from_unix,
+    t: a.t |> birl.from_unix,
+    mtf: a.mtf |> birl.from_unix,
+    tf: a.tf |> birl.from_unix,
+    f: a.f |> birl.from_unix,
+    o: a.o |> option.map(birl.from_unix),
+    oi: a.oi |> option.map(birl.from_unix),
   )
 }
 
 pub fn from_a_to_override_using_type_not_field(
-  value: A,
+  a a: A,
 ) -> OverrideUsingTypeNotField {
-  OverrideUsingTypeNotField(mt: value |> to_time, t: value |> to_time)
+  OverrideUsingTypeNotField(mt: a |> to_time, t: a |> to_time)
 }
 
-pub fn from_pet_to_pet_plus(value: p.Pet, missing missing: Float) -> PetPlus {
-  PetPlus(name: value.name, missing:)
+pub fn from_pet_to_pet_plus(pet pet: p.Pet, missing missing: Float) -> PetPlus {
+  PetPlus(name: pet.name, missing:)
 }

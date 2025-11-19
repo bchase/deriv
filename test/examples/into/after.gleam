@@ -57,22 +57,22 @@ pub const suppress_warning_foo = f.Foo("", 0)
 //   )
 // }
 
-pub fn into_foo_from_bar(value: Bar) -> f.Foo {
-  f.Foo(name: value.title, count: value.count)
+pub fn into_foo_from_bar(bar bar: Bar) -> f.Foo {
+  f.Foo(name: bar.title, count: bar.count)
 }
 
-pub fn into_missing_from_bar(value: Bar, bonus bonus: Bool) -> Missing {
-  Missing(title: value.title, count: value.count, bonus:)
+pub fn into_missing_from_bar(bar bar: Bar, bonus bonus: Bool) -> Missing {
+  Missing(title: bar.title, count: bar.count, bonus:)
 }
 
-pub fn into_foo_from_named(value: Named, count count: Int) -> f.Foo {
-  f.Foo(name: value.name, count:)
+pub fn into_foo_from_named(named named: Named, count count: Int) -> f.Foo {
+  f.Foo(name: named.name, count:)
 }
 
-pub fn into_bar_from_named(value: Named) -> bar.Bar {
-  bar.Bar(name: value.name)
+pub fn into_bar_from_named(named named: Named) -> bar.Bar {
+  bar.Bar(name: named.name)
 }
 
-pub fn into_baz_from_named(value: Named) -> Baz {
-  bar.Baz(name: value.name)
+pub fn into_baz_from_named(named named: Named) -> Baz {
+  bar.Baz(name: named.name)
 }

@@ -4,8 +4,8 @@ pub type Named {
   //$ derive into Local
   //$ derive into Titled
   //$ derive into Missing
-  //$ derive into Valued
-  //$ derive into ValuedDeriv
+  //$ derive into NamedNamed
+  //$ derive into NamedNamedNamed
   Named(
     name: String,
     //$ into Titled.title
@@ -47,51 +47,57 @@ pub type Extra {
   )
 }
 
-pub type Valued {
-  Valued(
+pub type NamedNamed {
+  NamedNamed(
     name: String,
-    value: String,
+    named: String,
   )
 }
 
-pub type ValuedDeriv {
-  ValuedDeriv(
+pub type NamedNamedNamed {
+  NamedNamedNamed(
     name: String,
-    value: String,
-    value_deriv: String,
+    named: String,
+    named_deriv: String,
   )
 }
 
 pub const to_string = int.to_string
 
-pub fn into_local_from_named(value: Named) -> Local {
-  Local(name: value.name)
+pub fn into_local_from_named(named named: Named) -> Local {
+  Local(name: named.name)
 }
 
-pub fn into_titled_from_named(value: Named) -> Titled {
-  Titled(title: value.name)
+pub fn into_titled_from_named(named named: Named) -> Titled {
+  Titled(title: named.name)
 }
 
-pub fn into_missing_from_named(value: Named, missing missing: Int) -> Missing {
-  Missing(name: value.name, missing:)
+pub fn into_missing_from_named(
+  named named: Named,
+  missing missing: Int,
+) -> Missing {
+  Missing(name: named.name, missing:)
 }
 
-pub fn into_valued_from_named(value_deriv: Named, value value: String) -> Valued {
-  Valued(name: value_deriv.name, value:)
+pub fn into_named_named_from_named(
+  named_deriv named_deriv: Named,
+  named named: String,
+) -> NamedNamed {
+  NamedNamed(name: named_deriv.name, named:)
 }
 
-pub fn into_valued_deriv_from_named(
-  value_deriv_deriv: Named,
-  value value: String,
-  value_deriv value_deriv: String,
-) -> ValuedDeriv {
-  ValuedDeriv(name: value_deriv_deriv.name, value:, value_deriv:)
+pub fn into_named_named_named_from_named(
+  named_deriv_deriv named_deriv_deriv: Named,
+  named named: String,
+  named_deriv named_deriv: String,
+) -> NamedNamedNamed {
+  NamedNamedNamed(name: named_deriv_deriv.name, named:, named_deriv:)
 }
 
-pub fn into_local_from_using(value: Using) -> Local {
-  Local(name: value.num |> int.to_string)
+pub fn into_local_from_using(using using: Using) -> Local {
+  Local(name: using.num |> int.to_string)
 }
 
-pub fn into_named_from_extra(value: Extra) -> Named {
-  Named(name: value.name)
+pub fn into_named_from_extra(extra extra: Extra) -> Named {
+  Named(name: extra.name)
 }
