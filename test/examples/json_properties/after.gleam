@@ -86,7 +86,12 @@ pub fn json_properties_for_mono() -> List(String) {
 
 pub fn json_properties_for_nesting() -> List(String) {
   [
-    "option", "list", "nested.scalar", "nested.nested.double",
-    "nested.nested.nested.triple", "nested.alias", "nested_list.list",
+    "option",
+    "list",
+    "nested.scalar",
+    "nested.nested.double",
+    "nested.nested.nested.triple",
+    "nested.alias",
+    "nested_list.list",
   ]
 }

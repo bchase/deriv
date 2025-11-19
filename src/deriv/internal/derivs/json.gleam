@@ -237,7 +237,7 @@ fn variant_props(
 
               "Option", [g.NamedType(name: type_name, parameters:, ..)] |
               "List", [g.NamedType(name: type_name, parameters:, ..)] |
-              type_name, _ as parameters -> {
+              type_name, parameters -> {
                 case t.name, type_name, parameters {
                   "Option", "String", [] |
                   "Option", "Int", [] |
@@ -1471,14 +1471,13 @@ fn encode_call(
     encode_name |> term |> call([value])
   })
   |> result.lazy_unwrap(fn() {
-    encode_call_(type_:, field:, opts:, value_arg: True, inner:)
+    encode_call_(type_:, field:, value_arg: True, inner:)
   })
 }
 
 fn encode_call_(
   type_ type_: T,
   field field: Option(Field),
-  opts opts: DerivFieldOpts,
   value_arg value_arg: Bool,
   inner inner: Dict(Int, String),
 ) -> g.Expression {
@@ -1490,7 +1489,7 @@ fn encode_call_(
     }
 
   let encode_call_ = fn(type_) {
-    encode_call_(type_:, field:, opts:, value_arg: False, inner:)
+    encode_call_(type_:, field:, value_arg: False, inner:)
   }
 
   case type_.name, type_.params {
