@@ -69,6 +69,35 @@ pub type Use {
   )
 }
 
+pub type FieldAccess {
+  //$ derive into Named
+  FieldAccess(
+    depth0: Nested,
+    //$ into Named.name using .depth1.depth2_string
+  )
+}
+
+//pub type FieldAccessConv {
+//  //$ derive into Named
+//  FieldAccessConv(
+//    depth0: Nested,
+//    //$ into Named.name using .depth1.depth2 int.to_string
+//  )
+//}
+
+pub type Nested {
+  Nested(
+    depth1: NestedNested,
+  )
+}
+
+pub type NestedNested {
+  NestedNested(
+    depth2_int: Int,
+    depth2_string: String,
+  )
+}
+
 pub const to_string = int.to_string
 
 pub fn into_local_from_named(named named: Named) -> Local {
@@ -111,4 +140,10 @@ pub fn into_named_from_extra(extra extra: Extra) -> Named {
 
 pub fn into_named_from_use(use_ use_: Use) -> Named {
   Named(name: use_.name)
+}
+
+pub fn into_named_from_field_access(
+  field_access field_access: FieldAccess,
+) -> Named {
+  Named(name: field_access.depth0.depth1.depth2_string)
 }

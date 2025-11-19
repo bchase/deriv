@@ -215,20 +215,28 @@ fn build_glance_func(
             //   #(field.return_field, field.param_field)
 
             let value =
-              case conv.args {
-                opts.EntireValue -> value
-                opts.ValueDotField -> FieldAccess(x, value, param_field)
+              case conv {
+                opts.ConvFunc(args: opts.EntireValue, ..) -> value
+                opts.ConvFunc(args: opts.ValueDotField, ..) -> FieldAccess(x, value, param_field)
+                opts.ConvFieldAccess(subfields:, ..) ->
+                  FieldAccess(x, value, param_field)
+                  |> list.fold(subfields, _, fn(acc, subfield) {
+                    acc |> FieldAccess(x, _, subfield)
+                  })
               }
 
             let conv_func =
               case conv {
-                opts.Conv(module: Some(module), func:, ..) ->
+                opts.ConvFieldAccess(..) ->
+                  value
+
+                opts.ConvFunc(module: Some(module), func:, ..) ->
                   FieldAccess(x,
                     Variable(x, module),
                     func,
                   )
 
-                opts.Conv(module: None, func:, ..) ->
+                opts.ConvFunc(module: None, func:, ..) ->
                   Variable(x, func)
               }
 
@@ -249,15 +257,23 @@ fn build_glance_func(
                 }
               }
 
-            LabelledField(
-              label:,
-              item: g.BinaryOperator(x,
-                name: g.Pipe,
-                left: value,
-                right: conv_func,
-              ),
-            )
-            |> pair.new(Error(Nil))
+            case conv {
+              opts.ConvFieldAccess(..) ->
+                value
+                |> g.LabelledField(label:, item: _)
+                |> pair.new(Error(Nil))
+
+              opts.ConvFunc(..) ->
+                LabelledField(
+                  label:,
+                  item: g.BinaryOperator(x,
+                    name: g.Pipe,
+                    left: value,
+                    right: conv_func,
+                  ),
+                )
+                |> pair.new(Error(Nil))
+            }
           }
         }
       }

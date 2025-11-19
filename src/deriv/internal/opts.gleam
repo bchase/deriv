@@ -1,5 +1,6 @@
 import gleam/io
 import gleam/list
+import gleam/regexp
 import gleam/string
 import deriv/internal/common
 import gleam/result
@@ -31,10 +32,14 @@ pub type Inner {
 }
 
 pub type Conv {
-  Conv(
+  ConvFunc(
     module: Option(String),
     func: String,
     args: ConvArgs,
+    inner: Option(Inner),
+  )
+  ConvFieldAccess(
+    subfields: List(String),
     inner: Option(Inner),
   )
 }
@@ -84,12 +89,11 @@ pub fn build_from_into_field_override(
         ["using", conv, "inner" as inner_str], _ -> {
           let inner = inner_str |> to_inner(relative_to: type_, on: field)
 
-          Ok(ConvAllWith(conv: { conv |> parse_conv_or_panic }(ValueDotField), inner:))
+          Ok(ConvAllWith(conv: { conv |> parse_conv_or_panic(args: ValueDotField) }, inner:))
         }
 
         ["using", "inner" as inner_str, conv], _ -> {
-          let build_conv = conv |> parse_conv_or_panic
-          let conv = build_conv(ValueDotField)
+          let conv = conv |> parse_conv_or_panic(args: ValueDotField)
           let inner = inner_str |> to_inner(relative_to: type_, on: field)
           Ok(ConvAllWith(conv:, inner:))
         }
@@ -99,7 +103,6 @@ pub fn build_from_into_field_override(
           let inner = inner_str |> to_inner(relative_to: type_, on: field)
 
           result.try(parse_ident(ident:), fn(ident) {
-            let build_conv = conv |> parse_conv_or_panic
             // TODO clean up `*` handling
             let args =
               case ident.type_ == "*", ident.type_ |> string.contains("*") {
@@ -107,7 +110,7 @@ pub fn build_from_into_field_override(
                 False, True -> EntireValue
                 False, False -> ValueDotField
                }
-            let conv = build_conv(args)
+            let conv = conv |> parse_conv_or_panic(args:)
             let type_ = ident.type_ |> string.replace("*", "")
             let ident =
               case ident {
@@ -174,17 +177,48 @@ fn to_inner(
 
 fn parse_conv_or_panic(
   str str: String,
-) -> fn(ConvArgs) -> Conv {
-  case str |> string.split(".") {
-    [""] -> panic as { "`from` must specify a convert function for `using`" }
-    [func] -> fn(args) { Conv(module: None, func:, args:, inner: None) }
-    [module, func] -> fn(args) { Conv(module: Some(module), func:, args:, inner: None) }
-    _ -> panic as {
-      "`from` field convert function specified by `using` is invalid. Valid syntax is `func_name` or `module.func_name`, but got: " <> str
+  args args: ConvArgs,
+) -> Conv {
+  let result =
+    parse_field_access(str:) // NOTE: order matters
+    |> result.lazy_or(fn() { parse_conv_func(str:, args:) })
+
+  case result {
+    Ok(conv) -> conv
+    Error(Nil) -> panic as {
+      "`from`/`into` field convert function specified by `using` is invalid. Valid syntax is `func_name` or `module.func_name` or `.field`, but got: " <> str
     }
   }
 }
 
+fn parse_conv_func(
+  str str: String,
+  args args: ConvArgs,
+) -> Result(Conv, Nil) {
+  case str |> string.split(".") {
+    [""] -> Error(Nil)
+    [func] -> Ok(ConvFunc(module: None, func:, args:, inner: None))
+    [module, func] -> Ok(ConvFunc(module: Some(module), func:, args:, inner: None))
+    _ -> Error(Nil)
+  }
+}
+
+fn parse_field_access(
+  str str: String,
+) -> Result(Conv, Nil) {
+  let assert Ok(check_re) = "^([.][a-z0-9_]+)+$" |> regexp.from_string
+  let assert Ok(scan_re) = "[a-z0-9_]+" |> regexp.from_string
+  case regexp.check(check_re, str), regexp.scan(scan_re, str) {
+    True, [_, ..] as matches -> {
+      let subfields = matches |> list.map(fn(match) { match.content })
+
+      Ok(ConvFieldAccess(subfields:, inner: None))
+    }
+
+    False, _ | _, _ ->
+      Error(Nil)
+  }
+}
 
 fn generalize_field_ident(
   ident ident: Ident,

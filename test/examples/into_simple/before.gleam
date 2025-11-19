@@ -69,4 +69,33 @@ pub type Use {
   )
 }
 
+pub type FieldAccess {
+  //$ derive into Named
+  FieldAccess(
+    depth0: Nested,
+    //$ into Named.name using .depth1.depth2_string
+  )
+}
+
+//pub type FieldAccessConv {
+//  //$ derive into Named
+//  FieldAccessConv(
+//    depth0: Nested,
+//    //$ into Named.name using .depth1.depth2 int.to_string
+//  )
+//}
+
+pub type Nested {
+  Nested(
+    depth1: NestedNested,
+  )
+}
+
+pub type NestedNested {
+  NestedNested(
+    depth2_int: Int,
+    depth2_string: String,
+  )
+}
+
 pub const to_string = int.to_string
