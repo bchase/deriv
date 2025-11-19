@@ -89,26 +89,32 @@ pub fn build_from_into_field_override(
         ["*", "using", conv], inner_str |
         ["*", "using", "inner" as inner_str, conv], _ |
         ["using", conv], inner_str |
-        ["using", conv, "inner" as inner_str], _ -> {
-          let inner = inner_str |> to_inner(relative_to: type_, on: field)
-
-          Ok(ConvAllWith(conv: { conv |> parse_conv_or_panic(str1: _, str2: None, args: ValueDotField) }, inner:))
-        }
-
-        ["using", "inner" as inner_str, conv], _ -> {
-          let conv = conv |> parse_conv_or_panic(str1: _, str2: None, args: ValueDotField)
-          let inner = inner_str |> to_inner(relative_to: type_, on: field)
-          Ok(ConvAllWith(conv:, inner:))
-        }
+        ["using", conv, "inner" as inner_str], _ |
+        ["using", "inner" as inner_str, conv], _ ->
+          parse_override(ident: None, str1: conv, str2: None, inner_str:, field:, type_:,
+            to_override: fn(_ident, conv, inner) {
+              Ok(ConvAllWith(conv:, inner:))
+            }
+          )
 
         [ident, "using", "inner" as inner_str, conv], _ |
         [ident, "using", conv], inner_str ->
-          parse_override(ident:, str1: conv, str2: None, inner_str:, field:, type_:)
+          parse_override(ident: Some(ident), str1: conv, str2: None, inner_str:, field:, type_:,
+            to_override: fn(ident, conv, inner) {
+              use ident <- result.try(ident)
+              Ok(ConvTypeWith(ident:, conv:, inner:))
+            }
+          )
 
         [ident, "using", conv_or_field_access1, conv_or_field_access2], inner_str -> {
           let str1 = conv_or_field_access1
           let str2 = conv_or_field_access2 |> Some
-          parse_override(ident:, str1:, str2:, inner_str:, field:, type_:)
+          parse_override(ident: Some(ident), str1:, str2:, inner_str:, field:, type_:,
+            to_override: fn(ident, conv, inner) {
+              use ident <- result.try(ident)
+              Ok(ConvTypeWith(ident:, conv:, inner:))
+            }
+          )
         }
 
         _, _ -> {
@@ -125,32 +131,43 @@ pub fn build_from_into_field_override(
 }
 
 fn parse_override(
-  ident ident: String,
+  ident ident: Option(String),
   str1 str1: String,
   str2 str2: Option(String),
   inner_str inner_str: String,
   field field: DerivField,
   type_ type_: g.Type,
+  to_override to_override: fn(Result(Ident, Nil), Conv, Option(Inner)) -> Result(FromIntoOverride, Nil),
 ) -> Result(FromIntoOverride, Nil) {
   let inner = inner_str |> to_inner(relative_to: type_, on: field)
 
-  result.try(parse_ident(ident:), fn(ident) {
-    // TODO clean up `*` handling
-    let args =
-      case ident.type_ == "*", ident.type_ |> string.contains("*") {
-        True, _ -> ValueDotField
-        False, True -> EntireValue
-        False, False -> ValueDotField
-       }
-    let conv = parse_conv_or_panic(str1:, str2:, args:)
-    let type_ = ident.type_ |> string.replace("*", "")
-    let ident =
-      case ident {
-        IdentFieldForType(..) -> IdentFieldForType(..ident, type_:)
-        IdentType(..) -> IdentType(..ident, type_:)
-      }
-    Ok(ConvTypeWith(ident:, conv:, inner:))
-  })
+  let #(ident, args) =
+    ident
+    |> option.to_result(Nil)
+    |> result.try(parse_ident)
+    |> result.try(fn(ident) {
+      // TODO clean up `*` handling
+      let args =
+        case ident.type_ == "*", ident.type_ |> string.contains("*") {
+          True, _ -> ValueDotField
+          False, True -> EntireValue
+          False, False -> ValueDotField
+         }
+
+      let type_ = ident.type_ |> string.replace("*", "")
+      let ident =
+        case ident {
+          IdentFieldForType(..) -> IdentFieldForType(..ident, type_:)
+          IdentType(..) -> IdentType(..ident, type_:)
+        }
+
+      Ok(#(Ok(ident), args))
+    })
+    |> result.unwrap(#(Error(Nil), ValueDotField))
+
+  let conv = parse_conv_or_panic(str1:, str2:, args:)
+
+  to_override(ident, conv, inner)
 }
 
 pub fn parse_ident(
