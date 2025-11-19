@@ -295,15 +295,13 @@ fn parse_conv_func(
   str str: String,
   args args: ConvArgs,
 ) -> Result(Conv, Nil) {
-  case str |> string.split(".") {
-    [""] ->
-      Error(Nil)
-
-    [name] ->
-      Ok(Conv(func: Some(ConvFunc(module: None, name:, args:)), inner: None, subfields: []))
-
-    [module, name] ->
+  let assert Ok(re) = "^(([a-z0-9_]+)[.])?([a-z0-9_]+)$" |> regexp.from_string
+  case regexp.scan(re, str) {
+    [regexp.Match(_, [_, Some(module), Some(name)])] ->
       Ok(Conv(func: Some(ConvFunc(module: Some(module), name:, args:)), subfields: [], inner: None))
+
+    [regexp.Match(_, [_, None, Some(name)])] ->
+      Ok(Conv(func: Some(ConvFunc(module: None, name:, args:)), inner: None, subfields: []))
 
     _ ->
       Error(Nil)
