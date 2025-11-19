@@ -102,28 +102,13 @@ pub fn build_from_into_field_override(
         }
 
         [ident, "using", "inner" as inner_str, conv], _ |
-        // [ident, "using", conv, _], inner_str |
-        [ident, "using", conv], inner_str -> {
-        // [ident, "using", conv, subfields], inner_str -> {
-          let inner = inner_str |> to_inner(relative_to: type_, on: field)
+        [ident, "using", conv], inner_str ->
+          parse_override(ident:, str1: conv, str2: None, inner_str:, field:, type_:)
 
-          result.try(parse_ident(ident:), fn(ident) {
-            // TODO clean up `*` handling
-            let args =
-              case ident.type_ == "*", ident.type_ |> string.contains("*") {
-                True, _ -> ValueDotField
-                False, True -> EntireValue
-                False, False -> ValueDotField
-               }
-            let conv = conv |> parse_conv_or_panic(str1: _, str2: None, args:)
-            let type_ = ident.type_ |> string.replace("*", "")
-            let ident =
-              case ident {
-                IdentFieldForType(..) -> IdentFieldForType(..ident, type_:)
-                IdentType(..) -> IdentType(..ident, type_:)
-              }
-            Ok(ConvTypeWith(ident:, conv:, inner:))
-          })
+        [ident, "using", conv_or_field_access1, conv_or_field_access2], inner_str -> {
+          let str1 = conv_or_field_access1
+          let str2 = conv_or_field_access2 |> Some
+          parse_override(ident:, str1:, str2:, inner_str:, field:, type_:)
         }
 
         _, _ -> {
@@ -137,6 +122,35 @@ pub fn build_from_into_field_override(
       Error(Nil)
     }
   }
+}
+
+fn parse_override(
+  ident ident: String,
+  str1 str1: String,
+  str2 str2: Option(String),
+  inner_str inner_str: String,
+  field field: DerivField,
+  type_ type_: g.Type,
+) -> Result(FromIntoOverride, Nil) {
+  let inner = inner_str |> to_inner(relative_to: type_, on: field)
+
+  result.try(parse_ident(ident:), fn(ident) {
+    // TODO clean up `*` handling
+    let args =
+      case ident.type_ == "*", ident.type_ |> string.contains("*") {
+        True, _ -> ValueDotField
+        False, True -> EntireValue
+        False, False -> ValueDotField
+       }
+    let conv = parse_conv_or_panic(str1:, str2:, args:)
+    let type_ = ident.type_ |> string.replace("*", "")
+    let ident =
+      case ident {
+        IdentFieldForType(..) -> IdentFieldForType(..ident, type_:)
+        IdentType(..) -> IdentType(..ident, type_:)
+      }
+    Ok(ConvTypeWith(ident:, conv:, inner:))
+  })
 }
 
 pub fn parse_ident(
@@ -210,7 +224,7 @@ fn parse_conv_or_panic(
     |> result.lazy_or(fn() {
       str2
       |> option.to_result(Nil)
-      |> result.try(parse_field_access(str: _))
+      |> result.try(parse_conv_func(str: _, args:))
     })
 
   let result =

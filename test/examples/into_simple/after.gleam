@@ -77,13 +77,21 @@ pub type FieldAccess {
   )
 }
 
-//pub type FieldAccessConv {
-//  //$ derive into Named
-//  FieldAccessConv(
-//    depth0: Nested,
-//    //$ into Named.name using .depth1.depth2_int int.to_string
-//  )
-//}
+pub type FieldAccessConvA {
+  //$ derive into Named
+  FieldAccessConvA(
+    depth0: Nested,
+    //$ into Named.name using .depth1.depth2_int int.to_string
+  )
+}
+
+pub type FieldAccessConvB {
+  //$ derive into Named
+  FieldAccessConvB(
+    depth0: Nested,
+    //$ into Named.name using int.to_string .depth1.depth2_int
+  )
+}
 
 pub type Nested {
   Nested(
@@ -146,4 +154,16 @@ pub fn into_named_from_field_access(
   field_access field_access: FieldAccess,
 ) -> Named {
   Named(name: field_access.depth0.depth1.depth2_string)
+}
+
+pub fn into_named_from_field_access_conv_a(
+  field_access_conv_a field_access_conv_a: FieldAccessConvA,
+) -> Named {
+  Named(name: field_access_conv_a.depth0.depth1.depth2_int |> int.to_string)
+}
+
+pub fn into_named_from_field_access_conv_b(
+  field_access_conv_b field_access_conv_b: FieldAccessConvB,
+) -> Named {
+  Named(name: field_access_conv_b.depth0.depth1.depth2_int |> int.to_string)
 }

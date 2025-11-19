@@ -216,17 +216,26 @@ fn build_glance_func(
 
             let value =
               case conv {
-                opts.Conv(func: Some(opts.ConvFunc(args: opts.EntireValue, ..)), ..) ->
-                  value
-
-                opts.Conv(func: Some(opts.ConvFunc(args: opts.ValueDotField, ..)), ..) ->
-                  FieldAccess(x, value, param_field)
-
-                opts.Conv(subfields:, ..) ->
+                opts.Conv(subfields: [_, ..] as subfields, ..) ->
                   FieldAccess(x, value, param_field)
                   |> list.fold(subfields, _, fn(acc, subfield) {
                     acc |> FieldAccess(x, _, subfield)
                   })
+
+                _ ->
+                  value
+              }
+
+            let value =
+              case conv {
+                opts.Conv(func: Some(opts.ConvFunc(args: opts.EntireValue, ..)), ..) ->
+                  value
+
+                opts.Conv(subfields: [], func: Some(opts.ConvFunc(args: opts.ValueDotField, ..)), ..) ->
+                  FieldAccess(x, value, param_field)
+
+                _ ->
+                  value
               }
 
             let conv_func =
@@ -260,12 +269,12 @@ fn build_glance_func(
               }
 
             case conv {
-              opts.Conv(subfields: [_, ..], ..) ->
+              opts.Conv(func: None, subfields: [_, ..], ..) ->
                 value
                 |> g.LabelledField(label:, item: _)
                 |> pair.new(Error(Nil))
 
-              opts.Conv(..) ->
+              opts.Conv(..) -> {
                 LabelledField(
                   label:,
                   item: g.BinaryOperator(x,
@@ -275,6 +284,7 @@ fn build_glance_func(
                   ),
                 )
                 |> pair.new(Error(Nil))
+              }
             }
           }
         }
