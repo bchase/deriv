@@ -103,6 +103,26 @@ pub type PetPlus {
   )
 }
 
+pub type Newtype {
+  Newtype(
+    name: String,
+  )
+}
+
+pub type Named {
+  Named(
+    name: String,
+  )
+}
+
+pub type Constr {
+  //$ derive from Named
+  Constr(
+    newtype: Newtype,
+    //$ from Named.name using Newtype
+  )
+}
+
 pub fn suppress_warning_authe_a() ->  AutheA {
   let uuid = uuid.v7_from_millisec(0)
   a.AutheA(uuid, "", "", uuid, uuid, "", None, None, "", "")
@@ -168,4 +188,8 @@ pub fn from_a_to_override_using_type_not_field(
 
 pub fn from_pet_to_pet_plus(pet pet: p.Pet, missing missing: Float) -> PetPlus {
   PetPlus(name: pet.name, missing:)
+}
+
+pub fn from_named_to_constr(named named: Named) -> Constr {
+  Constr(newtype: named.name |> Newtype)
 }

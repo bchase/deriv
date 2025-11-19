@@ -295,7 +295,7 @@ fn parse_conv_func(
   str str: String,
   args args: ConvArgs,
 ) -> Result(Conv, Nil) {
-  let assert Ok(re) = "^(([a-z0-9_]+)[.])?([a-z0-9_]+)$" |> regexp.from_string
+  let assert Ok(re) = "^(([a-z0-9_]+)[.])?([A-Z][A-Za-z0-9]+|[a-z0-9_]+)$" |> regexp.from_string
   case regexp.scan(re, str) {
     [regexp.Match(_, [_, Some(module), Some(name)])] ->
       Ok(Conv(func: Some(ConvFunc(module: Some(module), name:, args:)), subfields: [], inner: None))
