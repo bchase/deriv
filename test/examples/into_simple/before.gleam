@@ -37,5 +37,12 @@ pub type Missing {
   )
 }
 
-pub const to_string = int.to_string
+pub type Extra {
+  //$ derive into Named
+  Extra(
+    name: String,
+    extra: Float,
+  )
+}
 
+pub const to_string = int.to_string

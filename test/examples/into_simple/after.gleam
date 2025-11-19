@@ -37,6 +37,14 @@ pub type Missing {
   )
 }
 
+pub type Extra {
+  //$ derive into Named
+  Extra(
+    name: String,
+    extra: Float,
+  )
+}
+
 pub const to_string = int.to_string
 
 pub fn into_local_from_named(value: Named) -> Local {
@@ -53,4 +61,8 @@ pub fn into_missing_from_named(value: Named, missing missing: Int) -> Missing {
 
 pub fn into_local_from_using(value: Using) -> Local {
   Local(name: value.num |> int.to_string)
+}
+
+pub fn into_named_from_extra(value: Extra) -> Named {
+  Named(name: value.name)
 }

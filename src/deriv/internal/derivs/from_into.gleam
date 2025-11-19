@@ -361,7 +361,7 @@ fn variant_func(
 
       // TODO refactor1
       opts.Into -> {
-        let fs =
+        let param_fields =
           param.variant.fields
           |> list.filter_map(fn(field) {
             use #(field, type_) <- result.try(case field {
@@ -399,12 +399,35 @@ fn variant_func(
             }
           })
 
+        let return_fields =
+          return.variant.fields
+          |> list.filter_map(fn(field) {
+            case field {
+              g.LabelledVariantField(label: field, ..) -> Ok(field)
+              g.UnlabelledVariantField(..) -> Error(Nil)
+            }
+          })
+
+        let fields =
+          fields
+          |> list.filter_map(fn(field) {
+            case field {
+              Field(..) ->
+                Ok(field)
+
+              Missing(field: f, ..) -> {
+                use <- bool.guard(return_fields |> list.contains(f), Ok(field))
+                Error(Nil)
+              }
+            }
+          })
+
         let missing =
           return.variant.fields
           |> list.filter_map(fn(field) {
             case field {
               g.LabelledVariantField(label: field, item: type_) -> {
-                use <- bool.guard(field |> list.contains(fs, _), Error(Nil))
+                use <- bool.guard(field |> list.contains(param_fields, _), Error(Nil))
                 Ok(Missing(field:, type_:))
               }
 
