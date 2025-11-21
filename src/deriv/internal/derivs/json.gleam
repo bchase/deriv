@@ -26,8 +26,8 @@ pub fn gen(
   let gen_funcs_for_opts =
     [
       #("decode", gen_json_decoders),
-      #("encode", gen_json_encoders |> to_gen_func(ctx.deriv, ctx.module_reader)),
-      #("properties", gen_json_properties |> to_gen_func(ctx.deriv, ctx.module_reader)),
+      #("encode", gen_json_encoders),
+      #("properties", gen_json_properties),
     ]
     |> dict.from_list
 
@@ -35,7 +35,7 @@ pub fn gen(
     ctx.deriv.opts
     |> list.map(dict.get(gen_funcs_for_opts, _))
     |> result.values
-    |> list.flat_map(fn(f) { f(type_, ctx.opts, ctx.file)})
+    |> list.flat_map(fn(f) { f(type_, ctx) })
 
   let src =
     funcs
@@ -310,8 +310,7 @@ fn variant_props(
 
 fn gen_json_decoders(
   type_: deriv.Type,
-  opts: DerivFieldOpts,
-  _file: File,
+  ctx: Context,
 ) -> List(g.Definition(g.Function)) {
   case type_ {
     deriv.TypeAlias(type_alias:) -> {
@@ -346,7 +345,7 @@ fn gen_json_decoders(
           }),
         ])),
         body: [
-          decoder_call(type_: to_t(t.type_), field: None, opts:, inner: dict.new(), top_level: True) |> g.Expression,
+          decoder_call(type_: to_t(t.type_), field: None, opts: ctx.opts, inner: dict.new(), top_level: True) |> g.Expression,
         ],
       )
       |> list.wrap
@@ -356,13 +355,13 @@ fn gen_json_decoders(
     deriv.Type(type_:) -> {
       let is_multi_variant = type_ |> common.is_multi_variant
 
-      let type_ = to_type(type_:, opts:)
+      let type_ = to_type(type_:, opts: ctx.opts)
 
       [
         type_decoder_func(type_:),
         ..{
           type_.variants
-          |> list.map(variant_decoder_func(type_:, variant: _, opts:, is_multi_variant:))
+          |> list.map(variant_decoder_func(type_:, variant: _, opts: ctx.opts, is_multi_variant:))
         }
       ]
       |> list.map(g.Definition([], _))
@@ -422,20 +421,6 @@ fn gen_json_encoders(
       ]
       |> list.map(g.Definition([], _))
     }
-  }
-}
-
-fn to_gen_func(
-  f: fn(deriv.Type, Context) -> List(g.Definition(g.Function)),
-  deriv: Derivation,
-  module_reader: ModuleReader,
-) -> fn(deriv.Type, DerivFieldOpts, File) -> List(g.Definition(g.Function)) {
-  fn(
-    type_: deriv.Type,
-    field_opts: DerivFieldOpts,
-    file: File,
-  ) {
-    f(type_, Context(file:, deriv:, module_reader:, opts: field_opts))
   }
 }
 
