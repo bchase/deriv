@@ -1,3 +1,6 @@
+import gleam/float
+import gleam/int
+import gleam/regexp
 import deriv/internal/parser
 import gleam/pair
 import gleam/bool
@@ -8,8 +11,8 @@ import gleam/result
 import gleam/list
 import gleam/string
 import glance as g
-import deriv/internal/glance.{x, string, list, term, call, call_, dot, tuple, identity_func} as _
-import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type ModuleReader, type Context, Context} as deriv
+import deriv/internal/glance.{x, string, list, term, call, call_, dot, tuple, pipe, identity_func} as _
+import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader, type Context, Context} as deriv
 import deriv/internal/common.{gtype}
 
 const deriv_variant_json_key = "_var"
@@ -18,7 +21,7 @@ pub fn gen(
   type_: deriv.Type,
   ctx: Context,
 ) -> Gen {
-  let imports = gen_imports(ctx.deriv.opts, type_)
+  let imports = gen_imports(type_, ctx)
 
   let gen_funcs_for_opts =
     [
@@ -437,13 +440,13 @@ fn to_gen_func(
 }
 
 fn gen_imports(
-  opts: List(String),
   type_: deriv.Type,
+  ctx: Context,
 ) -> List(g.Import) {
   [
-    decode_imports(opts:, type_:),
-    encode_imports(opts:, type_:),
-    properties_imports(opts:, type_:),
+    decode_imports(type_:, ctx:),
+    encode_imports(type_:, opts: ctx.deriv.opts),
+    properties_imports(type_:, opts: ctx.deriv.opts),
   ]
   |> list.flatten
 }
@@ -461,10 +464,10 @@ fn properties_imports(
 }
 
 fn decode_imports(
-  opts opts: List(String),
   type_ type_: deriv.Type,
+  ctx ctx: Context,
 ) -> List(g.Import) {
-  use <- bool.guard(!{opts |> list.contains("decode")}, return: [])
+  use <- bool.guard(!{ctx.deriv.opts |> list.contains("decode")}, return: [])
 
   let standard = [
     common.import__(
@@ -475,10 +478,13 @@ fn decode_imports(
     )
   ]
 
+  let assert Ok(json_guard_re) = "^json\\s+guard" |> regexp.from_string
+
   let needs_util =
     case type_ {
       deriv.Type(type_:) -> [
         type_ |> common.are_any_fields_options,
+        ctx.opts |> common.any_raw_field_options_match(json_guard_re),
       ]
 
       deriv.TypeAlias(type_alias: _) -> [
@@ -688,7 +694,7 @@ fn to_decode_field(
 
       let json =
         get_field_opt(field:, opts:, desc: "json named", matching: fn(opt) {
-          case opt {
+          case opt.strs {
             ["json", "named", path] ->
               Ok(path |> string.split("."))
 
@@ -739,7 +745,7 @@ fn get_field_opt(
   field field: Field,
   opts opts: DerivFieldOpts,
   desc desc: String,
-  matching matching: fn(List(String)) -> Result(t, Nil),
+  matching matching: fn(DerivFieldOpt) -> Result(t, Nil),
 ) -> Result(t, Nil) {
   common.get_field_opt(
     opts:,
@@ -957,12 +963,94 @@ fn decoder_call(
 
       Some(field) ->
         get_field_opt(field:, opts:, desc: "json decoder", matching: fn(opt) {
-          case is_list_or_option, opt {
+          case is_list_or_option, opt.strs {
             True, ["json", "decoder", "inner", decoder] ->
               Ok(decoder)
 
             _, ["json", "decoder", decoder] ->
               Ok(decoder)
+
+            _, _ ->
+              Error(Nil)
+          }
+        })
+    }
+
+  let decoder_guard =
+    case field {
+      None ->
+        Error(Nil)
+
+      Some(field) ->
+        get_field_opt(field:, opts:, desc: "json guard", matching: fn(opt) {
+          case field.type_, opt.strs {
+            // T("Int" as type_, []), ["json", "guard", ..] |
+            // T("Float" as type_, []), ["json", "guard", ..] |
+            // T("Bool" as type_, []), ["json", "guard", ..] |
+            T("String" as type_, []), ["json", "guard", ..] -> {
+              let #(re, to_expr) =
+                case type_ {
+                  "String" -> {
+                    let assert Ok(str_re) = "\"([^\"]+)\"$" |> regexp.from_string
+                    #(str_re, fn(str) { Ok(g.String(x, str)) })
+                  }
+
+                  // "Int" -> {
+                  //   let assert Ok(int_re) = "(\\d+)$" |> regexp.from_string
+
+                  //   let to_expr = fn(str) {
+                  //     str
+                  //     |> int.parse
+                  //     |> result.map(int.to_string)
+                  //     |> result.map(g.Int(x, _))
+                  //   }
+
+                  //   #(int_re, to_expr)
+                  // }
+
+                  // "Float" -> {
+                  //   let assert Ok(float_re) = "(((\\d+)[.])?\\d+)$" |> regexp.from_string
+
+                  //   let to_expr = fn(str) {
+                  //     str
+                  //     |> float.parse
+                  //     |> result.map(float.to_string)
+                  //     |> result.map(g.Float(x, _))
+                  //   }
+
+                  //   #(float_re, to_expr)
+                  // }
+
+                  // "Bool" -> {
+                  //   let assert Ok(bool_re) = "(True|False)$" |> regexp.from_string
+
+                  //   let to_expr = fn(str) {
+                  //     case str {
+                  //       "True" -> Ok("True" |> term)
+                  //       "False" -> Ok("False" |> term)
+                  //       _ -> Error(Nil)
+                  //     }
+                  //   }
+
+                  //   #(bool_re, to_expr)
+                  // }
+
+                  _ -> panic as { "`json guard` parse unimplemented for: " <> type_ }
+                }
+
+              case opt.raw |> regexp.scan(re, _) {
+                [regexp.Match(_, [Some(str)])] -> Ok(str)
+                _ -> Error(Nil)
+              }
+              |> result.try(to_expr)
+              |> result.lazy_unwrap(fn() {
+                panic as { "`json guard` failed to parse `" <> type_ <> "` out of: " <> opt.raw}
+              })
+              |> Ok
+            }
+
+            _ , ["json", "guard", ..] ->
+              panic as { "`json guard` invalid type: " <> string.inspect(field) }
 
             _, _ ->
               Error(Nil)
@@ -1035,8 +1123,14 @@ fn decoder_call(
       "String", [] |
       "Int", [] |
       "Float", [] |
-      "Bool", [] ->
-        "decode" |> dot(type_name |> common.snake_case)
+      "Bool", [] -> {
+        let decode = "decode" |> dot(type_name |> common.snake_case)
+
+        case decoder_guard {
+          Error(Nil) -> decode
+          Ok(check) -> decode |> pipe("deriv" |> dot("decoder_guard") |> call([check]))
+        }
+      }
 
       type_name, params -> {
         let decoder = { "decoder_" <> type_name |> common.snake_case } |> term
@@ -1444,7 +1538,7 @@ fn encode_call(
 
       Some(field) ->
         get_field_opt(field:, opts:, desc: "json encode", matching: fn(opt) {
-          case opt {
+          case opt.strs {
             ["json", "encode", encode] ->
               Ok(encode)
 

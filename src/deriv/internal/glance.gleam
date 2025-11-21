@@ -75,6 +75,13 @@ pub fn fn_(
   )
 }
 
+pub fn pipe(
+  left left: g.Expression,
+  right right: g.Expression,
+) -> g.Expression {
+  g.BinaryOperator(x, name: g.Pipe, left:, right:)
+}
+
 //
 
 pub fn identity_func(

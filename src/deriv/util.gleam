@@ -132,10 +132,19 @@ pub fn is(
   value: String,
 ) -> Decoder(Nil) {
   decode.string
-  |> decode.then(fn(str) {
-    case str == value {
-      True -> decode.success(Nil)
-      False -> decode.failure(Nil, "failed to match for value: " <> value)
+  |> decoder_guard(value)
+  |> decode.map(fn(_) { Nil })
+}
+
+pub fn decoder_guard(
+  decoder: Decoder(t),
+  check: t,
+) -> Decoder(t) {
+  decoder
+  |> decode.then(fn(value) {
+    case value == check {
+      True -> decode.success(value)
+      False -> decode.failure(check, "failed to match for value: " <> string.inspect(value))
     }
   })
 }

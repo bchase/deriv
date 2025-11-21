@@ -147,6 +147,10 @@ pub fn json_rewrite_test() {
   should_derive(example_dir_name: "json_rewrite")
 }
 
+pub fn json_opts_test() {
+  should_derive(example_dir_name: "json_opts")
+}
+
 pub fn json_encoded_value_decodes_to_identical_test() {
   let foo = json_example.zero_foo()
   foo

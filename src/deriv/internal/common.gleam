@@ -256,10 +256,9 @@ pub fn get_field_opt(
   variant variant: String,
   field field: String,
   err_msg err: String,
-  matching matching: fn(List(String)) -> Result(t, Nil),
+  matching matching: fn(DerivFieldOpt) -> Result(t, Nil),
 ) -> Result(t, Nil) {
   get_field_opts_(opts:, type_:, variant:, field:)
-  |> list.map(fn(opt) { opt.strs })
   |> list.filter_map(matching)
   |> fn(xs) {
     case xs {
@@ -476,6 +475,16 @@ pub fn are_any_fields_options(
       }
     })
   })
+}
+
+pub fn any_raw_field_options_match(
+  opts opts: DerivFieldOpts,
+  re re: regexp.Regexp,
+) -> Bool {
+  opts
+  |> dict.values
+  |> list.flatten
+  |> list.any(fn(opt) { opt.raw |> regexp.check(re, _) })
 }
 
 pub fn are_any_fields_non_string_basic_type_dict_keys(
