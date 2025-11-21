@@ -11,7 +11,7 @@ import gleam/result
 import gleam/list
 import gleam/string
 import glance as g
-import deriv/internal/glance.{x, string, list, term, call, call_, dot, tuple, pipe, identity_func} as _
+import deriv/internal/glance.{x, string, list, term, call, call_, dot, dot_, tuple, pipe, identity_func} as _
 import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader, type Context, Context} as deriv
 import deriv/internal/common.{gtype}
 
@@ -345,7 +345,7 @@ fn gen_json_decoders(
           }),
         ])),
         body: [
-          decoder_call(type_: to_t(t.type_), field: None, opts: ctx.opts, inner: dict.new(), top_level: True) |> g.Expression,
+          decoder_call(type_: to_t(t.type_), field: None, ctx:, inner: dict.new(), top_level: True) |> g.Expression,
         ],
       )
       |> list.wrap
@@ -361,7 +361,7 @@ fn gen_json_decoders(
         type_decoder_func(type_:),
         ..{
           type_.variants
-          |> list.map(variant_decoder_func(type_:, variant: _, opts: ctx.opts, is_multi_variant:))
+          |> list.map(variant_decoder_func(type_:, variant: _, ctx:, is_multi_variant:))
         }
       ]
       |> list.map(g.Definition([], _))
@@ -404,7 +404,7 @@ fn gen_json_encoders(
         ],
         return: Some(g.NamedType(x, module: None, name: "Json", parameters: [])),
         body: [
-          encode_call(type_:, field: None, opts: ctx.opts, discard_value: False, inner: dict.new()) |> g.Expression,
+          encode_call(type_:, field: None, ctx:, discard_value: False, inner: dict.new()) |> g.Expression,
         ],
       )
       |> list.wrap
@@ -417,7 +417,7 @@ fn gen_json_encoders(
       let type_ = to_type(type_:, opts: ctx.opts)
 
       [
-        type_encode_func(type_:, opts: ctx.opts, is_multi_variant:),
+        type_encode_func(type_:, ctx:, is_multi_variant:),
       ]
       |> list.map(g.Definition([], _))
     }
@@ -858,12 +858,12 @@ fn decoder_return_type(
 fn variant_decoder_func(
   type_ type_: Type,
   variant variant: Variant,
-  opts opts: DerivFieldOpts,
+  ctx ctx: Context,
   is_multi_variant is_multi_variant: Bool,
 ) -> g.Function {
   let use_lines =
     variant.fields
-    |> list.map(use_decode_field_line(field: _, opts:))
+    |> list.map(use_decode_field_line(field: _, ctx:))
 
   let use_lines =
     // pass from above
@@ -899,7 +899,7 @@ fn variant_decoder_func(
 
 fn use_decode_field_line(
   field field: Field,
-  opts opts: DerivFieldOpts,
+  ctx ctx: Context,
 ) -> g.Statement {
   let field_gleam_name =
     g.UsePattern(
@@ -908,7 +908,7 @@ fn use_decode_field_line(
     )
 
   let decode_field_call =
-    decode_field_call(field:, opts:)
+    decode_field_call(field:, ctx:)
 
   g.Use(x,
     patterns: [field_gleam_name],
@@ -916,13 +916,47 @@ fn use_decode_field_line(
   )
 }
 
+fn build_newtype(
+  type_ type_: T,
+  field field: Option(Field),
+  ctx ctx: Context,
+) -> Result(deriv.Newtype, Nil) {
+  let is_newtype =
+    case field {
+      None ->
+        Error(Nil)
+
+      Some(field) ->
+        get_field_opt(field:, opts: ctx.opts, desc: "json newtype", matching: fn(opt) {
+          case opt.strs {
+            ["newtype"] -> Ok(Nil)
+            _ -> Error(Nil)
+          }
+        })
+    }
+    |> result.is_ok
+
+  let ident = ctx.file.module <> "." <> type_.name
+
+  case is_newtype {
+    False -> Error(Nil)
+    True ->
+      common.fetch_newtype(ident, ctx.module_reader)
+      |> result.map_error(fn(err) {
+        panic as { "`json` failed to look up newtype " <> ident <> " " <> string.inspect(err) }
+      })
+  }
+}
+
 fn decoder_call(
   type_ type_: T,
   field field: Option(Field),
-  opts opts: DerivFieldOpts,
+  ctx ctx: Context,
   inner inner: Dict(Int, String),
   top_level top_level: Bool,
 ) -> g.Expression {
+  let opts = ctx.opts
+
   let type_name =
     type_.name |> common.snake_case
 
@@ -1043,105 +1077,134 @@ fn decoder_call(
         })
     }
 
-  let decoder_call = fn(type_) {
-    decoder_call(field:, opts:, type_:, inner:, top_level: False)
-  }
-
-  decoder_override
-  |> result.map(fn(decoder_name) {
-    decoder_name |> term |> call([])
-  })
-  |> result.lazy_unwrap(fn() {
-    case type_.name, type_.params {
-      "Dict", [key, val] -> {
-        let key_decoder =
-          case key.name, key.params {
-            "String", [] ->
-              "decode" |> dot("string")
-
-            "Int" as type_name, [] |
-            "Float" as type_name, [] |
-            "Bool" as type_name, [] -> {
-              let func_name =
-                type_name
-                |> common.snake_case
-                |> string.append(to: "decoder_", suffix: _)
-                |> string.append(to: _, suffix: "_string")
-
-              "deriv" |> dot(func_name) |> call([])
+  case build_newtype(type_:, field:, ctx:) {
+    Ok(newtype) -> {
+      case newtype.wrapping {
+        g.NamedType(name: wrapped_type, parameters: [], ..) -> {
+          let decoder =
+            case wrapped_type {
+              "String" -> "decode" |> dot("string")
+              "Int" -> "decode" |> dot("int")
+              "Float" -> "decode" |> dot("float")
+              "Bool" -> "decode" |> dot("bool")
+               _ -> panic as {
+                "`json` currently only supports basic type `newtype`s"
+              }
             }
 
-            type_name , [] ->
-              { "decoder_" <> type_name } |> term |> call([])
-
-            _ , _ ->
-              panic as {
-                "`json` doesn't know how to handle parameterized `Dict` keys, got: " <> t_to_str(key)
-              }
+            decoder |> pipe("decode" |> dot("map") |> call([newtype.constr |> term]))
           }
 
-        "decode" |> dot("dict")
-        |> call([
-          key_decoder,
-          decoder_call(val),
-        ])
-      }
 
-      "List", [T(name: "Option", params:[_]) as option_type] ->
-        "decode" |> dot("list")
-        |> call([
-          decoder_call(option_type),
-        ])
-
-      "Option", [T(name: "List", params:[_]) as list_type] ->
-        "decode" |> dot("optional")
-        |> call([
-          decoder_call(list_type),
-        ])
-
-      "Option", [inner_type] ->
-        "decode" |> dot("optional") |> call([decoder_call(inner_type)])
-
-      "List", [inner_type] ->
-        "decode" |> dot("list") |> call([decoder_call(inner_type)])
-
-      "String", [] |
-      "Int", [] |
-      "Float", [] |
-      "Bool", [] -> {
-        let decode = "decode" |> dot(type_name |> common.snake_case)
-
-        case decoder_guard {
-          Error(Nil) -> decode
-          Ok(check) -> decode |> pipe("deriv" |> dot("decoder_guard") |> call([check]))
-        }
-      }
-
-      type_name, params -> {
-        let decoder = { "decoder_" <> type_name |> common.snake_case } |> term
-        let is_variable_type = string.lowercase(type_name) == type_name
-
-        case is_variable_type {
-          True ->
-            decoder
-
-          False -> {
-            let params =
-              case params, dict.get(inner, 0) {
-                [_param], Ok(decoder_name) -> [
-                  decoder_name |> term |> call([]),
-                ]
-
-                _, _ ->
-                  params |> list.map(decoder_call)
-              }
-
-            decoder |> call(params)
-          }
+        _ -> panic as {
+          "`json` currently only supports `NamedType`s"
         }
       }
     }
-  })
+
+    Error(Nil) -> {
+      let decoder_call = fn(type_) {
+        decoder_call(field:, ctx:, type_:, inner:, top_level: False)
+      }
+
+      decoder_override
+      |> result.map(fn(decoder_name) {
+        decoder_name |> term |> call([])
+      })
+      |> result.lazy_unwrap(fn() {
+        case type_.name, type_.params {
+          "Dict", [key, val] -> {
+            let key_decoder =
+              case key.name, key.params {
+                "String", [] ->
+                  "decode" |> dot("string")
+
+                "Int" as type_name, [] |
+                "Float" as type_name, [] |
+                "Bool" as type_name, [] -> {
+                  let func_name =
+                    type_name
+                    |> common.snake_case
+                    |> string.append(to: "decoder_", suffix: _)
+                    |> string.append(to: _, suffix: "_string")
+
+                  "deriv" |> dot(func_name) |> call([])
+                }
+
+                type_name , [] ->
+                  { "decoder_" <> type_name } |> term |> call([])
+
+                _ , _ ->
+                  panic as {
+                    "`json` doesn't know how to handle parameterized `Dict` keys, got: " <> t_to_str(key)
+                  }
+              }
+
+            "decode" |> dot("dict")
+            |> call([
+              key_decoder,
+              decoder_call(val),
+            ])
+          }
+
+          "List", [T(name: "Option", params:[_]) as option_type] ->
+            "decode" |> dot("list")
+            |> call([
+              decoder_call(option_type),
+            ])
+
+          "Option", [T(name: "List", params:[_]) as list_type] ->
+            "decode" |> dot("optional")
+            |> call([
+              decoder_call(list_type),
+            ])
+
+          "Option", [inner_type] ->
+            "decode" |> dot("optional") |> call([decoder_call(inner_type)])
+
+          "List", [inner_type] ->
+            "decode" |> dot("list") |> call([decoder_call(inner_type)])
+
+          "String", [] |
+          "Int", [] |
+          "Float", [] |
+          "Bool", [] -> {
+            let decode = "decode" |> dot(type_name |> common.snake_case)
+
+            case decoder_guard {
+              Error(Nil) -> decode
+              Ok(check) -> decode |> pipe("deriv" |> dot("decoder_guard") |> call([check]))
+            }
+          }
+
+          type_name, params -> {
+            let decoder = { "decoder_" <> type_name |> common.snake_case } |> term
+            let is_variable_type = string.lowercase(type_name) == type_name
+
+            case is_variable_type {
+              True ->
+                decoder
+
+              False -> {
+                let params =
+                  case params, dict.get(inner, 0) {
+                    [_param], Ok(decoder_name) -> [
+                      decoder_name |> term |> call([]),
+                    ]
+
+                    _, _ ->
+                      params |> list.map(decoder_call)
+                  }
+
+                decoder |> call(params)
+              }
+            }
+          }
+        }
+      })
+    }
+  }
+
 }
 
 type EncDec {
@@ -1181,13 +1244,13 @@ fn get_inner(
 
 fn decode_field_call(
   field f: Field,
-  opts opts: DerivFieldOpts,
+  ctx ctx: Context,
 ) -> g.Expression {
   let inner =
-    get_inner(field: f, opts:, kind: Dec)
+    get_inner(field: f, opts: ctx.opts, kind: Dec)
 
   let decoder_call = fn(type_) {
-    decoder_call(type_:, field: Some(f), opts:, inner:, top_level: True)
+    decoder_call(type_:, field: Some(f), ctx:, inner:, top_level: True)
   }
 
   case f.json, f.type_.name, f.type_.params {
@@ -1315,7 +1378,7 @@ fn variant_decoder_constructor(
 
 fn type_encode_func(
   type_ type_: Type,
-  opts opts: DerivFieldOpts,
+  ctx ctx: Context,
   is_multi_variant is_multi_variant: Bool,
 ) -> g.Function {
   let encode_func_params =
@@ -1353,7 +1416,7 @@ fn type_encode_func(
     body: {
       g.Case(x, subjects: ["value" |> term], clauses: {
         type_.variants
-        |> list.map(variant_encode_case_clause(variant: _, type_:, opts:, is_multi_variant:))
+        |> list.map(variant_encode_case_clause(variant: _, type_:, ctx:, is_multi_variant:))
       })
       |> g.Expression
       |> list.wrap
@@ -1388,7 +1451,7 @@ fn to_json_object_tuples(
 fn variant_encode_case_clause(
   type_ _type_: Type,
   variant variant: Variant,
-  opts opts: DerivFieldOpts,
+  ctx ctx: Context,
   is_multi_variant is_multi_variant: Bool,
 ) -> g.Clause {
   let field_tuples =
@@ -1398,8 +1461,8 @@ fn variant_encode_case_clause(
       |> add_encode(
         path: field.json,
         encode: {
-          let inner = get_inner(field:, opts:, kind: Enc)
-          encode_call(type_: field.type_, field: Some(field), opts:, discard_value: False, inner:)
+          let inner = get_inner(field:, opts: ctx.opts, kind: Enc)
+          encode_call(type_: field.type_, field: Some(field), ctx:, discard_value: False, inner:)
         },
       )
     })
@@ -1513,26 +1576,9 @@ fn encode_call(
   type_ type_: T,
   discard_value discard_value: Bool,
   field field: Option(Field),
-  opts opts: DerivFieldOpts,
+  ctx ctx: Context,
   inner inner: Dict(Int, String),
 ) -> g.Expression {
-  let encode_override =
-    case field {
-      None ->
-        Error(Nil)
-
-      Some(field) ->
-        get_field_opt(field:, opts:, desc: "json encode", matching: fn(opt) {
-          case opt.strs {
-            ["json", "encode", encode] ->
-              Ok(encode)
-
-            _ ->
-              Error(Nil)
-          }
-        })
-    }
-
   let value =
     case discard_value, field {
       True , _ ->
@@ -1545,13 +1591,60 @@ fn encode_call(
         "value" |> term
     }
 
-  encode_override
-  |> result.map(fn(encode_name) {
-    encode_name |> term |> call([value])
-  })
-  |> result.lazy_unwrap(fn() {
-    encode_call_(type_:, field:, value_arg: True, inner:)
-  })
+  case build_newtype(type_:, field:, ctx:) {
+    Ok(newtype) -> {
+      case newtype.wrapping {
+        g.NamedType(name: wrapped_type, parameters: [], ..) -> {
+          let encode_func =
+            case wrapped_type {
+              "String" -> "json" |> dot("string")
+              "Int" -> "json" |> dot("int")
+              "Float" -> "json" |> dot("float")
+              "Bool" -> "json" |> dot("bool")
+               _ -> panic as {
+                "`json` currently only supports basic type `newtype`s"
+              }
+            }
+
+            encode_func |> call([
+              value |> dot_(newtype.field_access)
+            ])
+          }
+
+
+        _ -> panic as {
+          "`json` currently only supports `NamedType`s"
+        }
+      }
+    }
+
+    Error(Nil) -> {
+      let encode_override =
+        case field {
+          None ->
+            Error(Nil)
+
+          Some(field) ->
+            get_field_opt(field:, opts: ctx.opts, desc: "json encode", matching: fn(opt) {
+              case opt.strs {
+                ["json", "encode", encode] ->
+                  Ok(encode)
+
+                _ ->
+                  Error(Nil)
+              }
+            })
+        }
+
+      encode_override
+      |> result.map(fn(encode_name) {
+        encode_name |> term |> call([value])
+      })
+      |> result.lazy_unwrap(fn() {
+        encode_call_(type_:, field:, value_arg: True, inner:)
+      })
+    }
+  }
 }
 
 fn encode_call_(

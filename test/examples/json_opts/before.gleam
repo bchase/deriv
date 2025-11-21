@@ -11,3 +11,17 @@ pub type MessageEvent {
     text: String,
   )
 }
+
+pub type Foo {
+  //$ derive json decode encode
+  Foo(
+    id: FooId,
+    //$ newtype
+  )
+}
+
+pub type FooId {
+  FooId(
+    id: Int,
+  )
+}

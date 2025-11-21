@@ -17,6 +17,16 @@ pub type Type {
   TypeAlias(type_alias: glance.TypeAlias)
 }
 
+pub type Newtype {
+  Newtype(
+    module: String,
+    type_: glance.CustomType,
+    wrapping: glance.Type,
+    constr: String,
+    field_access: String,
+  )
+}
+
 pub type GenFunc = fn(Type, Context) -> Gen
 
 pub type ModuleReaderErr {

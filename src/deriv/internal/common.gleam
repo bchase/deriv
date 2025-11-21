@@ -1,3 +1,4 @@
+import gleam/pair
 import gleam/bool
 import gleam/option.{type Option, Some, None}
 import gleam/dict.{type Dict}
@@ -7,7 +8,7 @@ import gleam/result.{try}
 import gleam/regexp.{type Regexp}
 import glance.{type Module, type Definition, type Function, Module, Definition, Function, type CustomType, type Variant}
 import glance_printer
-import deriv/internal/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField, type ModuleReader, type ModuleReaderErr}
+import deriv/internal/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField, type ModuleReader, type ModuleReaderErr, type Newtype, Newtype}
 import gleam/io
 import shellout
 import simplifile
@@ -362,6 +363,37 @@ pub fn fetch_custom_type(
   |> result.lazy_or(fn() {
     fetch_custom_type_in_dependencies(ident:, read_module:)
   })
+}
+
+pub fn fetch_newtype(
+  ident ident: String,
+  read_module read_module: ModuleReader,
+) -> Result(Newtype, ModuleReaderErr) {
+  fetch_custom_type(ident:, read_module:)
+  |> result.map(fn(type_) {
+    case type_ |> pair.map_second(fn(def) { def.definition }) {
+      #(module, glance.CustomType(variants: [variant], ..) as type_)->
+        case variant.fields {
+          [field] ->
+            case field {
+              glance.LabelledVariantField(label: field_access, item: wrapping) ->
+                Newtype(module:, type_:, wrapping:, constr: variant.name, field_access:)
+
+              _ -> panic as {
+                "`newtype` currently only supports `LabelledVariantField` -- " <> string.inspect(variant)
+              }
+            }
+
+          _ -> panic as {
+            "`newtype` indicated, but variant has more than one field: " <> string.inspect(variant)
+          }
+        }
+      _ -> panic as {
+        "`newtype` indicated, but custom type is not monovariant: " <> string.inspect(type_)
+      }
+    }
+  })
+  // |> result.map
 }
 
 fn fetch_custom_type_in_project(
