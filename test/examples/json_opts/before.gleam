@@ -22,6 +22,9 @@ pub type Foo {
     //$ newtype
     list_id: List(FooId),
     //$ newtype
+    option_id_named: Option(FooId),
+    //$ json named foo.id
+    //$ newtype
   )
 }
 

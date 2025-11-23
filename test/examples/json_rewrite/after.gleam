@@ -95,10 +95,11 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
   use nested <- decode.subfield(["some", "nested", "prop"], decode.float)
   use decoder <- decode.field("decoder", decoder_custom_string())
   use encode <- decode.field("encode", decode.string)
-  use nested_option <- decode.then(decode.at(
+  use nested_option <- deriv.decode_optional_subfield(
     ["nested", "option"],
+    deriv.none,
     decode.optional(decode.string),
-  ))
+  )
   use nested_option_list <- deriv.decode_optional_subfield(
     ["option", "list"],
     deriv.none,

@@ -1346,11 +1346,10 @@ fn decode_field_call(
       ])
     }
     [_prop1, _prop2, ..] as props, "Option", [_] -> {
-      "decode" |> dot("then") |> call([
-        "decode" |> dot("at") |> call([
-          list(props |> list.map(string)),
-          decoder_call(f.type_),
-        ]),
+      "deriv" |> dot("decode_optional_subfield") |> call([
+        list(props |> list.map(string)),
+        "deriv" |> dot("none"),
+        decoder_call(f.type_),
       ])
     }
 
