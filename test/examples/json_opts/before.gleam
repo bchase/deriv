@@ -20,6 +20,8 @@ pub type Foo {
     //$ newtype
     option_id: Option(FooId),
     //$ newtype
+    list_id: List(FooId),
+    //$ newtype
   )
 }
 

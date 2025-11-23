@@ -22,6 +22,8 @@ pub type Foo {
     //$ newtype
     option_id: Option(FooId),
     //$ newtype
+    list_id: List(FooId),
+    //$ newtype
   )
 }
 
@@ -55,7 +57,12 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     deriv.none,
     decode.int |> decode.map(FooId) |> decode.optional,
   )
-  decode.success(Foo(id:, option_id:))
+  use list_id <- decode.optional_field(
+    "list_id",
+    [],
+    decode.int |> decode.map(FooId) |> decode.list,
+  )
+  decode.success(Foo(id:, option_id:, list_id:))
 }
 
 pub fn encode_foo(value: Foo) -> Json {
@@ -63,6 +70,10 @@ pub fn encode_foo(value: Foo) -> Json {
     Foo(..) as value ->
       json.object([
         #("id", json.int(value.id.id)),
+        #(
+          "list_id",
+          json.array(value.list_id |> deriv.list_map(fn(x) { x.id }), json.int),
+        ),
         #(
           "option_id",
           json.nullable(value.option_id |> option.map(fn(x) { x.id }), json.int),

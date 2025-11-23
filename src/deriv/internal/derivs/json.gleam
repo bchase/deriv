@@ -1120,7 +1120,7 @@ fn decoder_call(
                 decoder |> pipe("decode" |> dot("optional"))
 
               Some(opts.List) ->
-                panic as "unimplemented"
+                decoder |> pipe("decode" |> dot("list"))
             }
           }
 
@@ -1654,8 +1654,19 @@ fn encode_call(
                 ])
               }
 
-              Some(opts.List) ->
-                panic as "unimplemented"
+              Some(opts.List) -> {
+                let map_newtype =
+                  "deriv" |> dot("list_map") |> call([
+                    fn_(["x"], [
+                      "x" |> dot(newtype.field_access) |> g.Expression,
+                    ]),
+                  ])
+
+                "json" |> dot("array") |> call([
+                  value |> pipe(map_newtype),
+                  encode_func,
+                ])
+              }
             }
           }
 
