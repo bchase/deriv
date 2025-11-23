@@ -1,3 +1,4 @@
+import gleam/option.{type Option}
 import gleam/dynamic/decode.{type Decoder}
 
 pub fn suppress_warnings() -> Decoder(String) { decode.string }
@@ -16,6 +17,8 @@ pub type Foo {
   //$ derive json decode encode
   Foo(
     id: FooId,
+    //$ newtype
+    option_id: Option(FooId),
     //$ newtype
   )
 }

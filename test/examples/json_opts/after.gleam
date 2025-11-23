@@ -1,6 +1,7 @@
 import deriv/util as deriv
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
+import gleam/option.{type Option}
 
 pub fn suppress_warnings() -> Decoder(String) { decode.string }
 
@@ -18,6 +19,8 @@ pub type Foo {
   //$ derive json decode encode
   Foo(
     id: FooId,
+    //$ newtype
+    option_id: Option(FooId),
     //$ newtype
   )
 }
@@ -47,11 +50,23 @@ pub fn decoder_foo() -> Decoder(Foo) {
 
 pub fn decoder_foo_foo() -> Decoder(Foo) {
   use id <- decode.field("id", decode.int |> decode.map(FooId))
-  decode.success(Foo(id:))
+  use option_id <- decode.optional_field(
+    "option_id",
+    deriv.none,
+    decode.int |> decode.map(FooId) |> decode.optional,
+  )
+  decode.success(Foo(id:, option_id:))
 }
 
 pub fn encode_foo(value: Foo) -> Json {
   case value {
-    Foo(..) as value -> json.object([#("id", json.int(value.id.id))])
+    Foo(..) as value ->
+      json.object([
+        #("id", json.int(value.id.id)),
+        #(
+          "option_id",
+          json.nullable(value.option_id |> option.map(fn(x) { x.id }), json.int),
+        ),
+      ])
   }
 }

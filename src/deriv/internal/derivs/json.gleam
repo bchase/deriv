@@ -11,8 +11,9 @@ import gleam/result
 import gleam/list
 import gleam/string
 import glance as g
-import deriv/internal/glance.{x, string, list, term, call, call_, dot, dot_, tuple, pipe, identity_func} as _
+import deriv/internal/glance.{x, string, list, term, call, call_, dot, dot_, tuple, pipe, fn_, identity_func} as _
 import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader, type Context, Context} as deriv
+import deriv/internal/opts
 import deriv/internal/common.{gtype}
 
 const deriv_variant_json_key = "_var"
@@ -920,6 +921,22 @@ fn build_newtype(
   type_ type_: T,
   field field: Option(Field),
   ctx ctx: Context,
+) -> Result(#(deriv.Newtype, Option(opts.Inner)), Nil) {
+  let #(type_, inner) =
+    case type_.name, type_.params {
+      "Option", [type_] -> #(type_, Some(opts.Option))
+      "List", [type_] -> #(type_, Some(opts.List))
+      _, _ -> #(type_, None)
+    }
+
+  build_newtype_(type_:, field:, ctx:)
+  |> result.map(pair.new(_, inner))
+}
+
+fn build_newtype_(
+  type_ type_: T,
+  field field: Option(Field),
+  ctx ctx: Context,
 ) -> Result(deriv.Newtype, Nil) {
   let is_newtype =
     case field {
@@ -1078,7 +1095,7 @@ fn decoder_call(
     }
 
   case build_newtype(type_:, field:, ctx:) {
-    Ok(newtype) -> {
+    Ok(#(newtype, inner)) -> {
       case newtype.wrapping {
         g.NamedType(name: wrapped_type, parameters: [], ..) -> {
           let decoder =
@@ -1092,7 +1109,19 @@ fn decoder_call(
               }
             }
 
-            decoder |> pipe("decode" |> dot("map") |> call([newtype.constr |> term]))
+            let decoder =
+              decoder |> pipe("decode" |> dot("map") |> call([newtype.constr |> term]))
+
+            case inner {
+              None ->
+                decoder
+
+              Some(opts.Option) ->
+                decoder |> pipe("decode" |> dot("optional"))
+
+              Some(opts.List) ->
+                panic as "unimplemented"
+            }
           }
 
 
@@ -1204,7 +1233,6 @@ fn decoder_call(
       })
     }
   }
-
 }
 
 type EncDec {
@@ -1592,7 +1620,7 @@ fn encode_call(
     }
 
   case build_newtype(type_:, field:, ctx:) {
-    Ok(newtype) -> {
+    Ok(#(newtype, inner)) -> {
       case newtype.wrapping {
         g.NamedType(name: wrapped_type, parameters: [], ..) -> {
           let encode_func =
@@ -1606,9 +1634,29 @@ fn encode_call(
               }
             }
 
-            encode_func |> call([
-              value |> dot_(newtype.field_access)
-            ])
+            case inner {
+              None ->
+                encode_func |> call([
+                  value |> dot_(newtype.field_access)
+                ])
+
+              Some(opts.Option) -> {
+                let map_newtype =
+                  "option" |> dot("map") |> call([
+                    fn_(["x"], [
+                      "x" |> dot(newtype.field_access) |> g.Expression,
+                    ]),
+                  ])
+
+                "json" |> dot("nullable") |> call([
+                  value |> pipe(map_newtype),
+                  encode_func,
+                ])
+              }
+
+              Some(opts.List) ->
+                panic as "unimplemented"
+            }
           }
 
 
