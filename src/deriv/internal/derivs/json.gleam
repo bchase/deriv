@@ -1273,14 +1273,19 @@ fn decoder_call(
                     ]
 
                     _, _ ->
-                      case params |> list.all(is_type_without_constructors(type_: _, ctx:)) {
-                        True ->
-                          []
+                      params
+                      |> list.filter(fn(param) {
+                        ! is_type_without_constructors(type_: param, ctx:)
+                      })
+                      |> list.map(decoder_call)
+                      // case params |> list.all(is_type_without_constructors(type_: _, ctx:)) {
+                      //   True ->
+                      //     []
 
-                        False ->
-                          params
-                          |> list.map(decoder_call)
-                      }
+                      //   False ->
+                      //     params
+                      //     |> list.map(decoder_call)
+                      // }
                   }
 
                 decoder |> call(params)
@@ -1471,6 +1476,7 @@ fn type_encode_func(
     |> list.filter(fn(param) {
       string.lowercase(param) == param
     })
+    |> reject_phantom_types(type_:)
     |> list.map(fn(param) {
       g.FunctionParameter(
         label: None,
@@ -1757,7 +1763,7 @@ fn encode_call(
         encode_name |> term |> call([value])
       })
       |> result.lazy_unwrap(fn() {
-        encode_call_(type_:, field:, value_arg: True, inner:)
+        encode_call_(type_:, field:, value_arg: True, inner:, ctx:)
       })
     }
   }
@@ -1768,6 +1774,7 @@ fn encode_call_(
   field field: Option(Field),
   value_arg value_arg: Bool,
   inner inner: Dict(Int, String),
+  ctx ctx: Context,
 ) -> g.Expression {
   let value =
     case value_arg, field {
@@ -1777,7 +1784,7 @@ fn encode_call_(
     }
 
   let encode_call_ = fn(type_) {
-    encode_call_(type_:, field:, value_arg: False, inner:)
+    encode_call_(type_:, field:, value_arg: False, inner:, ctx:)
   }
 
   case type_.name, type_.params {
@@ -1842,6 +1849,9 @@ fn encode_call_(
         value,
         ..{
           params
+          |> list.filter(fn(param) {
+            ! is_type_without_constructors(type_: param, ctx:)
+          })
           |> list.index_map(fn(param, idx) {
             case dict.get(inner, idx), param.params {
               Ok(encode_func_name), _ -> encode_func_name |> term
