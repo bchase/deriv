@@ -140,430 +140,429 @@ pub fn main() {
   gleeunit.main()
 }
 
+// START TESTS
+
+// TEST DERIV JSON REWRITE
+pub fn json_rewrite_test() {
+  should_derive(example_dir_name: "json_rewrite")
+}
+
+pub fn json_opts_test() {
+  should_derive(example_dir_name: "json_opts")
+}
+
 pub fn json_misc_test() {
   should_derive(example_dir_name: "json_misc")
 }
 
-//// START TESTS
+pub fn json_encoded_value_decodes_to_identical_test() {
+  let foo = json_example.zero_foo()
+  foo
+  |> json_example.encode_foo
+  |> json.to_string
+  // |> fn(str) {
+  //   io.println(str)
+  //   str
+  // }
+  |> json.parse(json_example.decoder_foo())
+  |> should.be_ok
+  |> should.equal(foo)
+}
 
-//// TEST DERIV JSON REWRITE
-//pub fn json_rewrite_test() {
-//  should_derive(example_dir_name: "json_rewrite")
+pub fn json_properties_test() {
+  should_derive(example_dir_name: "json_properties")
+}
+
+// TEST DERIVE ENUM
+
+pub fn enum_test() {
+  should_derive(example_dir_name: "enum")
+}
+
+// TEST DERIVE FORM (`formal/form`)
+
+pub fn formal_form_test() {
+  should_derive(example_dir_name: "formal")
+}
+
+pub fn formal_lustre_form_test() {
+  // glance_read_and_write(from: "test/examples/formal_lustre/after.gleam", to: "expr.gleam")
+  should_derive(example_dir_name: "formal_lustre")
+}
+
+// TEST DERIVE ZERO
+
+pub fn zero_test() {
+  should_derive(example_dir_name: "zero")
+}
+
+// TEST DERIV JSON
+
+pub fn json_test() {
+  should_derive(example_dir_name: "json")
+}
+
+pub fn json_multi_variant_type_test() {
+  should_derive(example_dir_name: "json_multi_variant_type")
+}
+
+pub fn json_multi_variant_nullary_type_test() {
+  should_derive(example_dir_name: "json_multi_variant_nullary_type")
+}
+
+pub fn json_optional_field_test() {
+  should_derive(example_dir_name: "json_optional_field")
+}
+
+pub fn json_nested_type_test() {
+  should_derive(example_dir_name: "json_nested_type")
+}
+
+//pub fn birl_json_test() {
+//  should_derive(example_dir_name: "json_birl")
 //}
 
-//pub fn json_opts_test() {
-//  should_derive(example_dir_name: "json_opts")
-//}
-
-//pub fn json_encoded_value_decodes_to_identical_test() {
-//  let foo = json_example.zero_foo()
-//  foo
-//  |> json_example.encode_foo
-//  |> json.to_string
-//  // |> fn(str) {
-//  //   io.println(str)
-//  //   str
-//  // }
-//  |> json.parse(json_example.decoder_foo())
-//  |> should.be_ok
-//  |> should.equal(foo)
-//}
-
-//pub fn json_properties_test() {
-//  should_derive(example_dir_name: "json_properties")
-//}
-
-//// TEST DERIVE ENUM
-
-//pub fn enum_test() {
-//  should_derive(example_dir_name: "enum")
-//}
-
-//// TEST DERIVE FORM (`formal/form`)
-
-//pub fn formal_form_test() {
-//  should_derive(example_dir_name: "formal")
-//}
-
-//pub fn formal_lustre_form_test() {
-//  // glance_read_and_write(from: "test/examples/formal_lustre/after.gleam", to: "expr.gleam")
-//  should_derive(example_dir_name: "formal_lustre")
-//}
-
-//// TEST DERIVE ZERO
-
-//pub fn zero_test() {
-//  should_derive(example_dir_name: "zero")
-//}
+pub fn unnested_json_test() {
+  should_derive(example_dir_name: "json_named_to_deeply_nested")
+}
 
-//// TEST DERIV JSON
-
-//pub fn json_test() {
-//  should_derive(example_dir_name: "json")
-//}
+pub fn json_dict_string_keys_test() {
+  should_derive(example_dir_name: "json_dict_string_keys")
+}
 
-//pub fn json_multi_variant_type_test() {
-//  should_derive(example_dir_name: "json_multi_variant_type")
-//}
+pub fn json_dict_non_string_keys_test() {
+  should_derive(example_dir_name: "json_dict_non_string_keys")
+}
 
-//pub fn json_multi_variant_nullary_type_test() {
-//  should_derive(example_dir_name: "json_multi_variant_nullary_type")
-//}
+pub fn json_decoder_local_type_alias_test() {
+  should_derive(example_dir_name: "json_decoder_local_type_alias")
+}
 
-//pub fn json_optional_field_test() {
-//  should_derive(example_dir_name: "json_optional_field")
-//}
-
-//pub fn json_nested_type_test() {
-//  should_derive(example_dir_name: "json_nested_type")
-//}
-
-////pub fn birl_json_test() {
-////  should_derive(example_dir_name: "json_birl")
-////}
-
-//pub fn unnested_json_test() {
-//  should_derive(example_dir_name: "json_named_to_deeply_nested")
-//}
-
-//pub fn json_dict_string_keys_test() {
-//  should_derive(example_dir_name: "json_dict_string_keys")
-//}
-
-//pub fn json_dict_non_string_keys_test() {
-//  should_derive(example_dir_name: "json_dict_non_string_keys")
-//}
-
-//pub fn json_decoder_local_type_alias_test() {
-//  should_derive(example_dir_name: "json_decoder_local_type_alias")
-//}
-
-//pub fn json_specify_decoder_and_encode_test() {
-//  should_derive(example_dir_name: "json_specify_decoder_and_encode")
-//}
-
-//pub fn json_decoder_parameterized_type_test() {
-//  should_derive(example_dir_name: "json_decoder_parameterized_type")
-//}
-//pub fn json_encode_parameterized_type_test() {
-//  should_derive(example_dir_name: "json_encode_parameterized_type")
-//}
-
-//pub fn json_encode_nested_parameterized_type_alias_test() {
-//  should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias")
-//}
-//// // TODO started reworking, but not sure the types even make sense...
-//// pub fn json_encode_nested_parameterized_type_alias_list_test() {
-////   should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias_list")
-//// }
-
-//// DERIVE TEST INTO & FROM
-
-//pub fn from_test() {
-//  should_derive(example_dir_name: "from")
-//}
-
-//pub fn into_test() {
-//  should_derive(example_dir_name: "into")
-//}
-
-//pub fn into_simple_test() {
-//  should_derive(example_dir_name: "into_simple")
-//}
-
-//// TEST GENERAL
-
-//pub fn multiple_run_and_filepath_test() {
-//  let Example(before: input, after: output) = example_dir_path(example_dir_name: "json")
-
-//  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
-
-//  let assert [write] =
-//    files
-//    |> deriv.gen_derivs(dummy_module_reader)
-//    |> deriv.build_writes
-
-//  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
-
-//  let writes =
-//    files
-//    |> deriv.gen_derivs(dummy_module_reader)
-//    |> deriv.build_writes
-
-//  let assert [write] =
-//    writes
-
-//  let input = write.src
-
-//  write.filepath
-//  |> should.equal("src/deriv/example/foo.gleam")
-
-//  run_and_expect_equal(input:, output:, example_dir_name: "deriv/example/foo")
-//}
-
-//fn dummy_module_reader(_) {
-//  panic as "`dummy_module_reader`"
-//}
-
-//// TEST HELPERS
-
-//pub fn snake_case_test() {
-//  common.snake_case("FooBar")
-//  |> should.equal("foo_bar")
-
-//  common.snake_case("Foo")
-//  |> should.equal("foo")
-
-//  common.snake_case("FooBarX")
-//  |> should.equal("foo_bar_x")
-
-//  common.snake_case("Foo123Bar")
-//  |> should.equal("foo123_bar")
-
-//  common.snake_case("FooBar1")
-//  |> should.equal("foo_bar1")
-
-//  common.snake_case("FooBar12")
-//  |> should.equal("foo_bar12")
-
-//  common.snake_case("FooBar123")
-//  |> should.equal("foo_bar123")
-//}
-
-//pub fn gleam_format_magic_comment_parsing_test() {
-//  let src = "
-//pub type T {
-//  //$ derive json decode
-//  A(
-//    foo: String,
-//    //$ json foo bar
-//    //$ json baz boo
-//  )
-//}
-//  "
-//  |> string.trim
-
-//  let assert Ok(glance.Module(custom_types: [type_], ..)) = glance.module(src)
-
-//  let assert Ok(#(_type, [deriv], field_opts)) = parser.parse_type_with_derivations(type_.definition, src)
-
-//  deriv.name
-//  |> should.equal("json")
-//  deriv.opts
-//  |> should.equal(["decode"])
-
-//  let expected =
-//    [
-//      #(DerivField(type_: "T", variant: "A", field: "foo"), [
-//        DerivFieldOpt(strs: ["json", "foo", "bar"], raw: "json foo bar"),
-//        DerivFieldOpt(strs: ["json", "baz", "boo"], raw: "json baz boo"),
-//      ]),
-//    ]
-//    |> dict.from_list
-
-//  field_opts
-//  |> should.equal(expected)
-//}
-
-//pub fn replace_function_test() {
-//  let src = string.trim("
-//import gleam/string
-
-//fn foo(str: String) -> String {
-//  str
-//}
-
-//type Bar {
-//  Baz(
-//    boo: String,
-//  )
-//}")
-
-//  let new = string.trim("
-//fn other(changed: Int) -> Bool {
-//  True
-//}")
-
-//  let expected = string.trim("
-//import gleam/string
-
-//fn other(changed: Int) -> Bool {
-//  True
-//}
-
-//type Bar {
-//  Baz(
-//    boo: String,
-//  )
-//}")
-
-//  common.replace_function(src, func_name: "foo", func_src: new)
-//  |> should.equal(expected)
-//}
-
-//pub fn replace_type_test() {
-//  let src = string.trim("
-//import gleam/string
-
-//type Bar {
-//  Baz(
-//    boo: String,
-//  )
-//}
-
-//fn foo(str: String) -> String {
-//  str
-//}")
-
-//  let new = string.trim("
-//type Foo {
-//  Hoge(
-//    asdf: Int,
-//  )
-//}
-//")
-
-//  let expected = string.trim("
-//import gleam/string
-
-//type Foo {
-//  Hoge(
-//    asdf: Int,
-//  )
-//}
-
-//fn foo(str: String) -> String {
-//  str
-//}")
-
-//  common.replace_type(src, type_name: "Bar", type_src: new)
-//  |> string.trim
-//  |> should.equal(expected)
-//}
-
-//// // test broken by glance 5.0.0 `Span` addition...
-//// pub fn consolidate_imports_test() {
-////   let src = string.trim("
-//// import foo/bar.{type Orig, Orig, orig, type Foo}
-//// import baz
-//// import deriv/util
-
-//// fn foo(str: String) -> String {
-////   str
-//// }
-
-//// type Bar {
-////   Baz(
-////     boo: String,
-////   )
-//// }")
-
-////   let expected_src = string.trim("
-//// import baz
-//// import deriv/foo
-//// import deriv/util
-//// import foo/bar.{type ABC as DEF, type Foo, type Orig, Bar, Boo as BOO, Orig, bar as xxx, foo, orig} as foobar
-
-//// fn foo(str: String) -> String {
-////   str
-//// }
-
-//// type Bar {
-////   Baz(
-////     boo: String,
-////   )
-//// }")
-
-////   let assert Ok(module) = glance.module(src)
-
-////   let curr_imports = [
-////     Import(common.dummy_location(), "deriv/common", None, [], []),
-////     Import(common.dummy_location(), "baz", None, [], []),
-////     Import(
-////       location: common.dummy_location(),
-////       module: "foo/bar",
-////       alias: None,
-////       unqualified_types: [
-////         UnqualifiedImport("Orig", None),
-////         UnqualifiedImport("Foo", None),
-////       ],
-////       unqualified_values: [
-////         UnqualifiedImport("Orig", None),
-////         UnqualifiedImport("orig", None),
-////       ],
-////     ),
-////   ]
-
-////   curr_imports
-////   |> should.equal(module.imports |> list.map(fn(d) { d.definition }))
-
-////   let add_imports = [
-////     Import(
-////       location: common.dummy_location(),
-////       module: "deriv/foo",
-////       alias: None,
-////       unqualified_types: [],
-////       unqualified_values: [],
-////     ),
-////     Import(
-////       location: common.dummy_location(),
-////       module: "foo/bar",
-////       alias: Some(Named("foobar")),
-////       unqualified_types: [
-////         UnqualifiedImport(name: "Foo", alias: None),
-////         UnqualifiedImport(name: "ABC", alias: Some("DEF")),
-////       ],
-////       unqualified_values: [
-////         UnqualifiedImport(name: "Bar", alias: None),
-////         UnqualifiedImport(name: "Boo", alias: Some("BOO")),
-////         UnqualifiedImport(name: "foo", alias: None),
-////         UnqualifiedImport(name: "bar", alias: Some("xxx")),
-////       ],
-////     ),
-////   ]
-
-////   let expected_new_imports = [
-////     Import(common.dummy_location(), "baz", None, [], []),
-////     Import(
-////       location: common.dummy_location(),
-////       module: "deriv/foo",
-////       alias: None,
-////       unqualified_types: [],
-////       unqualified_values: [],
-////     ),
-////     Import(common.dummy_location(), "deriv/common", None, [], []),
-////     Import(
-////       location: common.dummy_location(),
-////       module: "foo/bar",
-////       alias: Some(Named("foobar")),
-////       unqualified_types: [
-////         UnqualifiedImport(name: "Foo", alias: None),
-////         UnqualifiedImport(name: "ABC", alias: Some("DEF")),
-////         UnqualifiedImport(name: "Orig", alias: None),
-////       ],
-////       unqualified_values: [
-////         UnqualifiedImport(name: "Bar", alias: None),
-////         UnqualifiedImport(name: "Boo", alias: Some("BOO")),
-////         UnqualifiedImport(name: "foo", alias: None),
-////         UnqualifiedImport(name: "bar", alias: Some("xxx")),
-////         UnqualifiedImport(name: "Orig", alias: None),
-////         UnqualifiedImport(name: "orig", alias: None),
-////       ],
-////     ),
-////   ]
-
-////   deriv.consolidate_imports(list.flatten([curr_imports, add_imports]))
-////   |> should.equal(expected_new_imports)
-
-////   io.println("")
-////   io.println("")
-////   io.println("///// EXPECTED /////")
-////   io.println(expected_src)
-////   io.println("")
-////   io.println("")
-////   io.println("///// DERIV /////")
-////   io.println(deriv.consolidate_imports_for(src, add: add_imports))
-
-////   deriv.consolidate_imports_for(src, add: add_imports)
-////   |> should.equal(expected_src)
-//// }
+pub fn json_specify_decoder_and_encode_test() {
+  should_derive(example_dir_name: "json_specify_decoder_and_encode")
+}
+
+pub fn json_decoder_parameterized_type_test() {
+  should_derive(example_dir_name: "json_decoder_parameterized_type")
+}
+pub fn json_encode_parameterized_type_test() {
+  should_derive(example_dir_name: "json_encode_parameterized_type")
+}
+pub fn json_encode_nested_parameterized_type_alias_test() {
+  should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias")
+}
+// // TODO started reworking, but not sure the types even make sense...
+// pub fn json_encode_nested_parameterized_type_alias_list_test() {
+//   should_derive(example_dir_name: "json_encode_nested_parameterized_type_alias_list")
+// }
+
+// DERIVE TEST INTO & FROM
+
+pub fn from_test() {
+  should_derive(example_dir_name: "from")
+}
+
+pub fn into_test() {
+  should_derive(example_dir_name: "into")
+}
+
+pub fn into_simple_test() {
+  should_derive(example_dir_name: "into_simple")
+}
+
+// TEST GENERAL
+
+pub fn multiple_run_and_filepath_test() {
+  let Example(before: input, after: output) = example_dir_path(example_dir_name: "json")
+
+  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+
+  let assert [write] =
+    files
+    |> deriv.gen_derivs(dummy_module_reader)
+    |> deriv.build_writes
+
+  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+
+  let writes =
+    files
+    |> deriv.gen_derivs(dummy_module_reader)
+    |> deriv.build_writes
+
+  let assert [write] =
+    writes
+
+  let input = write.src
+
+  write.filepath
+  |> should.equal("src/deriv/example/foo.gleam")
+
+  run_and_expect_equal(input:, output:, example_dir_name: "deriv/example/foo")
+}
+
+fn dummy_module_reader(_) {
+  panic as "`dummy_module_reader`"
+}
+
+// TEST HELPERS
+
+pub fn snake_case_test() {
+  common.snake_case("FooBar")
+  |> should.equal("foo_bar")
+
+  common.snake_case("Foo")
+  |> should.equal("foo")
+
+  common.snake_case("FooBarX")
+  |> should.equal("foo_bar_x")
+
+  common.snake_case("Foo123Bar")
+  |> should.equal("foo123_bar")
+
+  common.snake_case("FooBar1")
+  |> should.equal("foo_bar1")
+
+  common.snake_case("FooBar12")
+  |> should.equal("foo_bar12")
+
+  common.snake_case("FooBar123")
+  |> should.equal("foo_bar123")
+}
+
+pub fn gleam_format_magic_comment_parsing_test() {
+  let src = "
+pub type T {
+  //$ derive json decode
+  A(
+    foo: String,
+    //$ json foo bar
+    //$ json baz boo
+  )
+}
+  "
+  |> string.trim
+
+  let assert Ok(glance.Module(custom_types: [type_], ..)) = glance.module(src)
+
+  let assert Ok(#(_type, [deriv], field_opts)) = parser.parse_type_with_derivations(type_.definition, src)
+
+  deriv.name
+  |> should.equal("json")
+  deriv.opts
+  |> should.equal(["decode"])
+
+  let expected =
+    [
+      #(DerivField(type_: "T", variant: "A", field: "foo"), [
+        DerivFieldOpt(strs: ["json", "foo", "bar"], raw: "json foo bar"),
+        DerivFieldOpt(strs: ["json", "baz", "boo"], raw: "json baz boo"),
+      ]),
+    ]
+    |> dict.from_list
+
+  field_opts
+  |> should.equal(expected)
+}
+
+pub fn replace_function_test() {
+  let src = string.trim("
+import gleam/string
+
+fn foo(str: String) -> String {
+  str
+}
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}")
+
+  let new = string.trim("
+fn other(changed: Int) -> Bool {
+  True
+}")
+
+  let expected = string.trim("
+import gleam/string
+
+fn other(changed: Int) -> Bool {
+  True
+}
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}")
+
+  common.replace_function(src, func_name: "foo", func_src: new)
+  |> should.equal(expected)
+}
+
+pub fn replace_type_test() {
+  let src = string.trim("
+import gleam/string
+
+type Bar {
+  Baz(
+    boo: String,
+  )
+}
+
+fn foo(str: String) -> String {
+  str
+}")
+
+  let new = string.trim("
+type Foo {
+  Hoge(
+    asdf: Int,
+  )
+}
+")
+
+  let expected = string.trim("
+import gleam/string
+
+type Foo {
+  Hoge(
+    asdf: Int,
+  )
+}
+
+fn foo(str: String) -> String {
+  str
+}")
+
+  common.replace_type(src, type_name: "Bar", type_src: new)
+  |> string.trim
+  |> should.equal(expected)
+}
+
+// // test broken by glance 5.0.0 `Span` addition...
+// pub fn consolidate_imports_test() {
+//   let src = string.trim("
+// import foo/bar.{type Orig, Orig, orig, type Foo}
+// import baz
+// import deriv/util
+
+// fn foo(str: String) -> String {
+//   str
+// }
+
+// type Bar {
+//   Baz(
+//     boo: String,
+//   )
+// }")
+
+//   let expected_src = string.trim("
+// import baz
+// import deriv/foo
+// import deriv/util
+// import foo/bar.{type ABC as DEF, type Foo, type Orig, Bar, Boo as BOO, Orig, bar as xxx, foo, orig} as foobar
+
+// fn foo(str: String) -> String {
+//   str
+// }
+
+// type Bar {
+//   Baz(
+//     boo: String,
+//   )
+// }")
+
+//   let assert Ok(module) = glance.module(src)
+
+//   let curr_imports = [
+//     Import(common.dummy_location(), "deriv/common", None, [], []),
+//     Import(common.dummy_location(), "baz", None, [], []),
+//     Import(
+//       location: common.dummy_location(),
+//       module: "foo/bar",
+//       alias: None,
+//       unqualified_types: [
+//         UnqualifiedImport("Orig", None),
+//         UnqualifiedImport("Foo", None),
+//       ],
+//       unqualified_values: [
+//         UnqualifiedImport("Orig", None),
+//         UnqualifiedImport("orig", None),
+//       ],
+//     ),
+//   ]
+
+//   curr_imports
+//   |> should.equal(module.imports |> list.map(fn(d) { d.definition }))
+
+//   let add_imports = [
+//     Import(
+//       location: common.dummy_location(),
+//       module: "deriv/foo",
+//       alias: None,
+//       unqualified_types: [],
+//       unqualified_values: [],
+//     ),
+//     Import(
+//       location: common.dummy_location(),
+//       module: "foo/bar",
+//       alias: Some(Named("foobar")),
+//       unqualified_types: [
+//         UnqualifiedImport(name: "Foo", alias: None),
+//         UnqualifiedImport(name: "ABC", alias: Some("DEF")),
+//       ],
+//       unqualified_values: [
+//         UnqualifiedImport(name: "Bar", alias: None),
+//         UnqualifiedImport(name: "Boo", alias: Some("BOO")),
+//         UnqualifiedImport(name: "foo", alias: None),
+//         UnqualifiedImport(name: "bar", alias: Some("xxx")),
+//       ],
+//     ),
+//   ]
+
+//   let expected_new_imports = [
+//     Import(common.dummy_location(), "baz", None, [], []),
+//     Import(
+//       location: common.dummy_location(),
+//       module: "deriv/foo",
+//       alias: None,
+//       unqualified_types: [],
+//       unqualified_values: [],
+//     ),
+//     Import(common.dummy_location(), "deriv/common", None, [], []),
+//     Import(
+//       location: common.dummy_location(),
+//       module: "foo/bar",
+//       alias: Some(Named("foobar")),
+//       unqualified_types: [
+//         UnqualifiedImport(name: "Foo", alias: None),
+//         UnqualifiedImport(name: "ABC", alias: Some("DEF")),
+//         UnqualifiedImport(name: "Orig", alias: None),
+//       ],
+//       unqualified_values: [
+//         UnqualifiedImport(name: "Bar", alias: None),
+//         UnqualifiedImport(name: "Boo", alias: Some("BOO")),
+//         UnqualifiedImport(name: "foo", alias: None),
+//         UnqualifiedImport(name: "bar", alias: Some("xxx")),
+//         UnqualifiedImport(name: "Orig", alias: None),
+//         UnqualifiedImport(name: "orig", alias: None),
+//       ],
+//     ),
+//   ]
+
+//   deriv.consolidate_imports(list.flatten([curr_imports, add_imports]))
+//   |> should.equal(expected_new_imports)
+
+//   io.println("")
+//   io.println("")
+//   io.println("///// EXPECTED /////")
+//   io.println(expected_src)
+//   io.println("")
+//   io.println("")
+//   io.println("///// DERIV /////")
+//   io.println(deriv.consolidate_imports_for(src, add: add_imports))
+
+//   deriv.consolidate_imports_for(src, add: add_imports)
+//   |> should.equal(expected_src)
+// }

@@ -786,32 +786,37 @@ fn is_type_without_constructors(
   type_ type_: T,
   ctx ctx: Context,
 ) {
-  case type_ {
-    T(name: type_name, params: []) -> {
+  case common.starts_with_uppercase(type_.name), type_ {
+    True, T(name: type_name, params: []) -> {
       let ident = ctx.file.module <> "." <> type_name
       case common.fetch_custom_type(ident:, read_module: ctx.module_reader) {
-        Error(_err) -> False
+        Error(_err) ->
+          False
+
         Ok(#(_, g.Definition(definition: type_, ..))) ->
           type_.variants
           |> list.is_empty
       }
     }
 
-    _ ->
+    _, _ ->
       False
   }
-
 }
 
-fn is_phantom_type(
+fn is_not_phantom_type(
   type_name type_name: String,
   type_ type_: Type,
 ) -> Bool {
   use <- bool.guard(common.starts_with_uppercase(type_name), False)
+  use <- bool.guard(!{ type_.params |> list.contains(type_name) }, False)
+
   use variant <- list.any(type_.variants)
   use field <- list.any(variant.fields)
 
-  ! contains_type_var(type_name:, type_: field.type_)
+  use <- bool.guard(common.starts_with_uppercase(field.type_.name), False)
+
+  contains_type_var(type_name:, type_: field.type_)
 }
 
 fn contains_type_var(
@@ -826,9 +831,9 @@ fn reject_phantom_types(
   type_ type_: Type,
 ) -> List(String) {
   params
-  |> list.filter(fn(param) {
-    ! { is_phantom_type(type_name: param, type_:) }
-  })
+  |> list.filter(
+    is_not_phantom_type(type_name: _, type_:)
+  )
 }
 
 fn decoder_func_params_for_var_types(
