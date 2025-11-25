@@ -12,16 +12,53 @@ import gleam/list
 import gleam/string
 import glance as g
 import deriv/internal/glance.{x, string, list, term, call, call_, dot, dot_, tuple, pipe, fn_, identity_func} as _
-import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader, type Context, Context} as deriv
+import deriv/internal/types.{type File, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader} as deriv
 import deriv/internal/opts
 import deriv/internal/common.{gtype}
 
 const deriv_variant_json_key = "_var"
 
+type Context {
+  Context(
+    deriv: Derivation,
+    opts: DerivFieldOpts,
+    file: File,
+    module_reader: ModuleReader,
+    type_: Type,
+  )
+}
+
+fn conv(
+  ctx ctx: deriv.Context,
+  type_ type_: deriv.Type,
+) -> Context {
+  let type_ =
+    case type_ {
+      deriv.TypeAlias(type_alias:) -> alias_to_type(type_alias:)
+      deriv.Type(type_:) -> to_type(type_:, opts: ctx.opts)
+    }
+
+  let deriv.Context(
+    deriv:,
+    opts:,
+    file:,
+    module_reader:,
+  ) = ctx
+
+  Context(
+    deriv:,
+    opts:,
+    file:,
+    module_reader:,
+    type_:,
+  )
+}
+
 pub fn gen(
   type_: deriv.Type,
-  ctx: Context,
+  ctx: deriv.Context,
 ) -> Gen {
+  let ctx = conv(ctx:, type_:)
   let imports = gen_imports(type_, ctx)
 
   let gen_funcs_for_opts =
@@ -359,7 +396,7 @@ fn gen_json_decoders(
       let type_ = to_type(type_:, opts: ctx.opts)
 
       [
-        type_decoder_func(type_:),
+        type_decoder_func(type_:, ctx:),
         ..{
           type_.variants
           |> list.map(variant_decoder_func(type_:, variant: _, ctx:, is_multi_variant:))
@@ -772,36 +809,69 @@ fn get_field_opts(
 
 fn type_decoder_func(
   type_ type_: Type,
+  ctx ctx: Context,
 ) -> g.Function {
   case type_.variants {
     [variant, ..variants] ->
-      type_decoder_func_(type_:, variant:, variants:)
+      type_decoder_func_(type_:, variant:, variants:, ctx:)
 
     _ ->
       panic as { "`derive json decode` doesn't know what to do for types with no variants" }
   }
 }
 
-fn is_type_without_constructors(
-  type_ type_: T,
-  ctx ctx: Context,
-) {
-  case common.starts_with_uppercase(type_.name), type_ {
-    True, T(name: type_name, params: []) -> {
-      let ident = ctx.file.module <> "." <> type_name
-      case common.fetch_custom_type(ident:, read_module: ctx.module_reader) {
-        Error(_err) ->
-          False
-
-        Ok(#(_, g.Definition(definition: type_, ..))) ->
-          type_.variants
-          |> list.is_empty
-      }
+fn contains_type_var_(
+  type_ type_: g.Type,
+  var_name var_name: String,
+) -> Bool {
+  // TODO refactor out to recurse
+  case type_ {
+    g.HoleType(..) -> {
+      False
     }
 
-    _, _ ->
-      False
+    g.VariableType(name:, ..) -> {
+      name == var_name
+    }
+
+    g.NamedType(..) as nt -> {
+      nt.parameters |> list.any(contains_type_var_(type_: _, var_name:))
+    }
+
+    g.FunctionType(..) as ft -> {
+      [
+        ft.return,
+        ..ft.parameters,
+      ]
+      |> list.any(contains_type_var_(type_: _, var_name:))
+    }
+
+    g.TupleType(..) as tt ->  {
+      tt.elements |> list.any(contains_type_var_(type_: _, var_name:))
+    }
   }
+}
+
+fn is_phantom_type_(
+  type_ type_: g.CustomType,
+  param_at idx: Int,
+) -> Bool {
+  type_.parameters
+  |> list.index_map(fn(param, i) {
+    use <- bool.guard(i != idx, Error(Nil))
+    Ok(param)
+  })
+  |> result.values
+  |> list.first
+  |> result.map(fn(var_name) {
+    use <- bool.guard(var_name |> common.starts_with_uppercase, False)
+
+    use variant <- list.any(type_.variants)
+    use field <- list.any(variant.fields)
+
+    contains_type_var_(var_name:, type_: field.item)
+  })
+  |> result.unwrap(False)
 }
 
 fn is_not_phantom_type(
@@ -827,17 +897,62 @@ fn contains_type_var(
 }
 
 fn reject_phantom_types(
+  type_name type_name: String,
   params params: List(String),
-  type_ type_: Type,
+  ctx ctx: Context,
 ) -> List(String) {
-  params
-  |> list.filter(
-    is_not_phantom_type(type_name: _, type_:)
-  )
+  let ident = ctx.file.module <> "." <> type_name
+
+  case common.fetch_custom_type(ident:, read_module: ctx.module_reader) {
+    Error(_err) ->
+      params
+
+    Ok(#(_, g.Definition(definition: type_, ..))) -> {
+      params
+      // |> list.filter(fn(param) {
+      //   ! is_phantom_type_(type_name: param, param_at: idx, ctx:)
+      // })
+      |> list.index_map(fn(param, idx) {
+        case is_phantom_type_(type_:, param_at: idx) {
+          False -> Error(Nil)
+          True -> Ok(param)
+        }
+      })
+      |> result.values
+    }
+  }
+}
+
+fn reject_phantom_types_(
+  type_name type_name: String,
+  params params: List(T),
+  ctx ctx: Context,
+) -> List(T) {
+  let ident = ctx.file.module <> "." <> type_name
+
+  case common.fetch_custom_type(ident:, read_module: ctx.module_reader) {
+    Error(_err) ->
+      params
+
+    Ok(#(_, g.Definition(definition: type_, ..))) -> {
+      params
+      // |> list.filter(fn(param) {
+      //   ! is_phantom_type_(type_name: param, param_at: idx, ctx:)
+      // })
+      |> list.index_map(fn(param, idx) {
+        case is_phantom_type_(type_:, param_at: idx) {
+          False -> Error(Nil)
+          True -> Ok(param)
+        }
+      })
+      |> result.values
+    }
+  }
 }
 
 fn decoder_func_params_for_var_types(
   type_ type_: Type,
+  ctx ctx: Context,
 ) -> List(g.FunctionParameter) {
   type_.params
   |> list.filter(fn(param) {
@@ -848,7 +963,14 @@ fn decoder_func_params_for_var_types(
     })
     |> result.unwrap(False)
   })
-  |> reject_phantom_types(type_:)
+  |> reject_phantom_types(type_name: type_.pascal_case, ctx:)
+  // |> list.index_map(fn(param, idx) {
+  //   case is_phantom_type_(type_name: type_.pascal_case, param_at: idx, ctx:) {
+  //     False -> Error(Nil)
+  //     True -> Ok(param)
+  //   }
+  // })
+  // |> result.values
   |> list.map(fn(var_param) {
     g.FunctionParameter(
       name: { "decoder_" <> var_param } |> g.Named,
@@ -864,6 +986,7 @@ fn type_decoder_func_(
   type_ type_: Type,
   variant variant: Variant,
   variants variants: List(Variant),
+  ctx ctx: Context,
 ) -> g.Function {
   let call_decoder = fn(variant) {
     variant
@@ -871,7 +994,15 @@ fn type_decoder_func_(
     |> term
     |> call(
       type_.params
-      |> reject_phantom_types(type_:)
+      |> reject_phantom_types(type_name: type_.pascal_case, ctx:)
+      // |> reject_phantom_types(type_:)
+      // |> list.index_map(fn(param, idx) {
+      //   case is_phantom_type_(type_name: type_.pascal_case, param_at: idx, ctx:) {
+      //     False -> Error(Nil)
+      //     True -> Ok(param)
+      //   }
+      // })
+      // |> result.values
       |> list.map(fn(param) {
         term("decoder_" <> param)
       })
@@ -881,7 +1012,7 @@ fn type_decoder_func_(
   g.Function(x,
     name: "decoder_" <> type_.snake_case,
     publicity: type_.publicity,
-    parameters: decoder_func_params_for_var_types(type_:),
+    parameters: decoder_func_params_for_var_types(type_:, ctx:),
     return: Some(decoder_return_type(type_:)),
     body: {
       "decode"
@@ -945,7 +1076,7 @@ fn variant_decoder_func(
   g.Function(x,
     name: variant_decoder_name(type_:, variant:),
     publicity: type_.publicity,
-    parameters: decoder_func_params_for_var_types(type_:),
+    parameters: decoder_func_params_for_var_types(type_:, ctx:),
     return: Some(decoder_return_type(type_:)),
     body: {
       use_lines
@@ -1277,20 +1408,18 @@ fn decoder_call(
                       decoder_name |> term |> call([]),
                     ]
 
-                    _, _ ->
+                    _, _ -> {
                       params
-                      |> list.filter(fn(param) {
-                        ! is_type_without_constructors(type_: param, ctx:)
-                      })
+                      |> reject_phantom_types_(type_name: type_.name, ctx:)
+                      // |> list.index_map(fn(param, idx) {
+                      //   case is_phantom_type_(type_name: type_.name, param_at: idx, ctx:) {
+                      //     False -> Error(Nil)
+                      //     True -> Ok(param)
+                      //   }
+                      // })
+                      // |> result.values
                       |> list.map(decoder_call)
-                      // case params |> list.all(is_type_without_constructors(type_: _, ctx:)) {
-                      //   True ->
-                      //     []
-
-                      //   False ->
-                      //     params
-                      //     |> list.map(decoder_call)
-                      // }
+                    }
                   }
 
                 decoder |> call(params)
@@ -1481,7 +1610,14 @@ fn type_encode_func(
     |> list.filter(fn(param) {
       string.lowercase(param) == param
     })
-    |> reject_phantom_types(type_:)
+    |> reject_phantom_types(type_name: type_.pascal_case, ctx:)
+    // |> list.index_map(fn(param, idx) {
+    //   case is_phantom_type_(type_name: type_.pascal_case, param_at: idx, ctx:) {
+    //     False -> Error(Nil)
+    //     True -> Ok(param)
+    //   }
+    // })
+    // |> result.values
     |> list.map(fn(param) {
       g.FunctionParameter(
         label: None,
@@ -1853,10 +1989,17 @@ fn encode_call_(
       { "encode_" <> type_.name |> common.snake_case } |> term |> call([
         value,
         ..{
+          // use <- bool.guard({ !is_not_phantom_type(type_name: type_.name, type_: ctx.type_) }, [])
+
           params
-          |> list.filter(fn(param) {
-            ! is_type_without_constructors(type_: param, ctx:)
-          })
+          |> reject_phantom_types_(type_name: type_.name, ctx:)
+          // |> list.index_map(fn(param, idx) {
+          //   case is_phantom_type_(type_name: type_.name, param_at: idx, ctx:) {
+          //     False -> Error(Nil)
+          //     True -> Ok(param)
+          //   }
+          // })
+          // |> result.values
           |> list.index_map(fn(param, idx) {
             case dict.get(inner, idx), param.params {
               Ok(encode_func_name), _ -> encode_func_name |> term

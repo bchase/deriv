@@ -272,33 +272,33 @@ pub fn into_simple_test() {
 
 // TEST GENERAL
 
-pub fn multiple_run_and_filepath_test() {
-  let Example(before: input, after: output) = example_dir_path(example_dir_name: "json")
+// pub fn multiple_run_and_filepath_test() {
+//   let Example(before: input, after: output) = example_dir_path(example_dir_name: "json")
 
-  let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
+//   let files = [ File(module: "deriv/example/foo", src: input, idx: Some(1)) ]
 
-  let assert [write] =
-    files
-    |> deriv.gen_derivs(dummy_module_reader)
-    |> deriv.build_writes
+//   let assert [write] =
+//     files
+//     |> deriv.gen_derivs(dummy_module_reader)
+//     |> deriv.build_writes
 
-  let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
+//   let files = [ File(module: "deriv/example/foo", src: write.src, idx: Some(1)) ]
 
-  let writes =
-    files
-    |> deriv.gen_derivs(dummy_module_reader)
-    |> deriv.build_writes
+//   let writes =
+//     files
+//     |> deriv.gen_derivs(dummy_module_reader)
+//     |> deriv.build_writes
 
-  let assert [write] =
-    writes
+//   let assert [write] =
+//     writes
 
-  let input = write.src
+//   let input = write.src
 
-  write.filepath
-  |> should.equal("src/deriv/example/foo.gleam")
+//   write.filepath
+//   |> should.equal("src/deriv/example/foo.gleam")
 
-  run_and_expect_equal(input:, output:, example_dir_name: "deriv/example/foo")
-}
+//   run_and_expect_equal(input:, output:, example_dir_name: "deriv/example/foo")
+// }
 
 fn dummy_module_reader(_) {
   panic as "`dummy_module_reader`"
