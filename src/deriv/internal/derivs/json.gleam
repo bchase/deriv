@@ -782,10 +782,52 @@ fn type_decoder_func(
   }
 }
 
-fn decoder_func_params_for_var_types(
+// fn is_type_with_constructors(
+//   type_name type_name: String,
+//   ctx ctx: Context,
+// ) {
+//   let ident = ctx.file.module <> "." <> type_name
+//   case common.fetch_custom_type(ident:, read_module: ctx.module_reader) {
+//     Error(_err) -> True
+//     Ok(#(_, g.Definition(definition: type_, ..))) ->
+//       type_.variants
+//       |> list.is_empty
+//       |> bool.negate
+//   }
+// }
+
+fn is_phantom_type(
+  type_name type_name: String,
+  type_ type_: Type,
+) -> Bool {
+  use <- bool.guard(common.starts_with_uppercase(type_name), False)
+  use variant <- list.any(type_.variants)
+  use field <- list.any(variant.fields)
+
+  ! contains_type_var(type_name:, type_: field.type_)
+}
+
+fn contains_type_var(
+  type_name type_name: String,
+  type_ type_: T,
+) -> Bool {
+  type_.name == type_name || list.any(type_.params, contains_type_var(type_name:, type_: _))
+}
+
+fn reject_phantom_types(
   params params: List(String),
-) -> List(g.FunctionParameter) {
+  type_ type_: Type,
+) -> List(String) {
   params
+  |> list.filter(fn(param) {
+    ! { is_phantom_type(type_name: param, type_:) }
+  })
+}
+
+fn decoder_func_params_for_var_types(
+  type_ type_: Type,
+) -> List(g.FunctionParameter) {
+  type_.params
   |> list.filter(fn(param) {
     param
     |> string.first
@@ -794,6 +836,7 @@ fn decoder_func_params_for_var_types(
     })
     |> result.unwrap(False)
   })
+  |> reject_phantom_types(type_:)
   |> list.map(fn(var_param) {
     g.FunctionParameter(
       name: { "decoder_" <> var_param } |> g.Named,
@@ -816,6 +859,7 @@ fn type_decoder_func_(
     |> term
     |> call(
       type_.params
+      |> reject_phantom_types(type_:)
       |> list.map(fn(param) {
         term("decoder_" <> param)
       })
@@ -825,7 +869,7 @@ fn type_decoder_func_(
   g.Function(x,
     name: "decoder_" <> type_.snake_case,
     publicity: type_.publicity,
-    parameters: decoder_func_params_for_var_types(type_.params),
+    parameters: decoder_func_params_for_var_types(type_:),
     return: Some(decoder_return_type(type_:)),
     body: {
       "decode"
@@ -889,7 +933,7 @@ fn variant_decoder_func(
   g.Function(x,
     name: variant_decoder_name(type_:, variant:),
     publicity: type_.publicity,
-    parameters: decoder_func_params_for_var_types(type_.params),
+    parameters: decoder_func_params_for_var_types(type_:),
     return: Some(decoder_return_type(type_:)),
     body: {
       use_lines
