@@ -782,19 +782,26 @@ fn type_decoder_func(
   }
 }
 
-// fn is_type_with_constructors(
-//   type_name type_name: String,
-//   ctx ctx: Context,
-// ) {
-//   let ident = ctx.file.module <> "." <> type_name
-//   case common.fetch_custom_type(ident:, read_module: ctx.module_reader) {
-//     Error(_err) -> True
-//     Ok(#(_, g.Definition(definition: type_, ..))) ->
-//       type_.variants
-//       |> list.is_empty
-//       |> bool.negate
-//   }
-// }
+fn is_type_without_constructors(
+  type_ type_: T,
+  ctx ctx: Context,
+) {
+  case type_ {
+    T(name: type_name, params: []) -> {
+      let ident = ctx.file.module <> "." <> type_name
+      case common.fetch_custom_type(ident:, read_module: ctx.module_reader) {
+        Error(_err) -> False
+        Ok(#(_, g.Definition(definition: type_, ..))) ->
+          type_.variants
+          |> list.is_empty
+      }
+    }
+
+    _ ->
+      False
+  }
+
+}
 
 fn is_phantom_type(
   type_name type_name: String,
@@ -1266,7 +1273,14 @@ fn decoder_call(
                     ]
 
                     _, _ ->
-                      params |> list.map(decoder_call)
+                      case params |> list.all(is_type_without_constructors(type_: _, ctx:)) {
+                        True ->
+                          []
+
+                        False ->
+                          params
+                          |> list.map(decoder_call)
+                      }
                   }
 
                 decoder |> call(params)
