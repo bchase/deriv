@@ -44,5 +44,8 @@ pub type Foo {
     outer_option: Option(String),
     //$ json decoder decoder_custom_option_string
     //$ json encode encode_custom_option_string
+    inner_option: Option(String),
+    //$ json decoder inner decoder_custom_string
+    //$ json encode inner encode_custom_string
   )
 }

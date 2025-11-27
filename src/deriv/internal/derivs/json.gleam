@@ -1905,56 +1905,60 @@ fn encode_call(
             Error(Nil)
 
           Some(field) ->
-            get_field_opt(field:, opts: ctx.opts, desc: "json encode", matching: fn(opt) {
-              case opt.strs {
-                ["json", "encode", encode] ->
-                  Ok(encode)
+              get_field_opt(field:, opts: ctx.opts, desc: "json encode", matching: fn(opt) {
+                case opt.strs {
+                  ["json", "encode", encode] ->
+                    Ok(encode)
 
-                _ ->
-                  Error(Nil)
-              }
-            })
+                  _ ->
+                    Error(Nil)
+                }
+              })
+        }
+
+      let encode_override =
+        case encode_override, inner {
+          Ok(_), Some(_) -> panic as {
+            "inner & outer encode specified for :" <>
+            string.inspect(field) <> " " <> string.inspect(type_)
+          }
+
+          Error(Nil), Some(inner) ->
+            Ok(inner)
+
+          _, _ ->
+            encode_override
         }
 
       encode_override
       |> result.map(fn(encode_name) {
-        let encode_func =
-          encode_name |> term |> call([value])
+        case inner, type_ {
+          Some(func), T(name: "Option", params: [_]) -> {
+            "json" |> dot("nullable") |> call([
+              value,
+              func |> term,
+            ])
+          }
 
-        // TODO dup'd from above newtype logic
-        // TODO forgot why `inner` is a `Dict`...
-        // case inner |> dict.get(0) {
-        //   Error(Nil) ->
-        //     encode_func
+          Some(func), T(name: "List", params: [_]) -> {
+            "json" |> dot("array") |> call([
+              value,
+              func |> term,
+            ])
+          }
 
-        //   Ok(opts.Option) -> {
-        //     let map_newtype =
-        //       "option" |> dot("map") |> call([
-        //         fn_(["x"], [
-        //           "x" |> dot(newtype.field_access) |> g.Expression,
-        //         ]),
-        //       ])
+          Some(func), T(params: [_], ..) ->
+            { "encode_" <> type_.name |> common.snake_case } |> term |> call([
+              value,
+              func |> term,
+            ])
 
-        //     "json" |> dot("nullable") |> call([
-        //       value |> pipe(map_newtype),
-        //       encode_func,
-        //     ])
-        //   }
+          Some(_func), _ ->
+            panic as "unimplemented"
 
-        //   Some(opts.List) -> {
-        //     let map_newtype =
-        //       "deriv" |> dot("list_map") |> call([
-        //         fn_(["x"], [
-        //           "x" |> dot(newtype.field_access) |> g.Expression,
-        //         ]),
-        //       ])
-
-        //     "json" |> dot("array") |> call([
-        //       value |> pipe(map_newtype),
-        //       encode_func,
-        //     ])
-        //   }
-        // }
+          None, _ ->
+            encode_name |> term |> call([value])
+        }
       })
       |> result.lazy_unwrap(fn() {
         encode_call_(type_:, field:, value_arg: True, inner:, ctx:)

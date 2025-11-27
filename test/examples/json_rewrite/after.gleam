@@ -47,6 +47,9 @@ pub type Foo {
     outer_option: Option(String),
     //$ json decoder decoder_custom_option_string
     //$ json encode encode_custom_option_string
+    inner_option: Option(String),
+    //$ json decoder inner decoder_custom_string
+    //$ json encode inner encode_custom_string
   )
 }
 
@@ -68,6 +71,7 @@ pub fn zero_foo() -> Foo {
     None,
     None,
     [],
+    None,
     None,
   )
 }
@@ -120,6 +124,11 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     deriv.none,
     decoder_custom_option_string(),
   )
+  use inner_option <- decode.optional_field(
+    "inner_option",
+    deriv.none,
+    decode.optional(decoder_custom_string()),
+  )
   decode.success(Foo(
     int:,
     string:,
@@ -138,6 +147,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     nested_option_list:,
     nested_list:,
     outer_option:,
+    inner_option:,
   ))
 }
 
@@ -150,6 +160,10 @@ pub fn encode_foo(value: Foo) -> Json {
         #("decoder", json.string(value.decoder)),
         #("encode", encode_custom_string(value.encode)),
         #("float", json.float(value.float)),
+        #(
+          "inner_option",
+          json.nullable(value.inner_option, encode_custom_string),
+        ),
         #("int", json.int(value.int)),
         #("list_int", json.array(value.list_int, json.int)),
         #(
