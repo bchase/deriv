@@ -383,7 +383,7 @@ fn gen_json_decoders(
           }),
         ])),
         body: [
-          decoder_call(type_: to_t(t.type_), field: None, ctx:, inner: dict.new(), top_level: True) |> g.Expression,
+          decoder_call(type_: to_t(t.type_), field: None, ctx:, inner: None, top_level: True) |> g.Expression,
         ],
       )
       |> list.wrap
@@ -442,7 +442,7 @@ fn gen_json_encoders(
         ],
         return: Some(g.NamedType(x, module: None, name: "Json", parameters: [])),
         body: [
-          encode_call(type_:, field: None, ctx:, discard_value: False, inner: dict.new()) |> g.Expression,
+          encode_call(type_:, field: None, ctx:, discard_value: False, inner: None) |> g.Expression,
         ],
       )
       |> list.wrap
@@ -1156,7 +1156,7 @@ fn decoder_call(
   type_ type_: T,
   field field: Option(Field),
   ctx ctx: Context,
-  inner inner: Dict(Int, String),
+  inner inner: Option(String),
   top_level top_level: Bool,
 ) -> g.Expression {
   let opts = ctx.opts
@@ -1164,20 +1164,22 @@ fn decoder_call(
   let type_name =
     type_.name |> common.snake_case
 
-  let is_list_or_option =
+  let list_or_option =
     case top_level, field {
       True, Some(Field(type_:, ..)) ->
         case type_.name, type_.params {
-          "List", [_] |
-          "Option", [_] -> True
+          "List", [_] -> Some(opts.List)
+          "Option", [_] -> Some(opts.Option)
 
-          _, _ -> False
+          _, _ ->  None
         }
 
       _, _ ->
-        False
-
+        None
     }
+
+  let is_list_or_option =
+    list_or_option |> option.is_some
 
   let decoder_override =
     case field {
@@ -1188,10 +1190,10 @@ fn decoder_call(
         get_field_opt(field:, opts:, desc: "json decoder", matching: fn(opt) {
           case is_list_or_option, opt.strs {
             True, ["json", "decoder", "inner", decoder] ->
-              Ok(decoder)
+              Ok(#(decoder, True))
 
             _, ["json", "decoder", decoder] ->
-              Ok(decoder)
+              Ok(#(decoder, False))
 
             _, _ ->
               Error(Nil)
@@ -1324,8 +1326,22 @@ fn decoder_call(
       }
 
       decoder_override
-      |> result.map(fn(decoder_name) {
-        decoder_name |> term |> call([])
+      |> result.map(fn(t) {
+        let #(decoder_name, inner) = t
+
+        let decoder =
+            decoder_name |> term |> call([])
+
+        case inner, list_or_option {
+          True, Some(opts.Option) ->
+            "decode" |> dot("optional") |> call([decoder])
+
+          True, Some(opts.List) ->
+            "decode" |> dot("list") |> call([decoder])
+
+          _, _ ->
+            decoder
+        }
       })
       |> result.lazy_unwrap(fn() {
         case type_.name, type_.params {
@@ -1403,8 +1419,8 @@ fn decoder_call(
 
               False -> {
                 let params =
-                  case params, dict.get(inner, 0) {
-                    [_param], Ok(decoder_name) -> [
+                  case params, inner {
+                    [_param], Some(decoder_name) -> [
                       decoder_name |> term |> call([]),
                     ]
 
@@ -1448,7 +1464,7 @@ fn get_inner(
   field f: Field,
   kind kind: EncDec,
   opts opts: DerivFieldOpts,
-) -> Dict(Int, String) {
+) -> Option(String) {
   let kind = enc_dec_str(kind)
 
   let opts =
@@ -1461,9 +1477,10 @@ fn get_inner(
 
   let dict = opts |> dict.from_list
 
-  case dict.size(dict) < list.length(opts) {
-    True -> panic as { "`json " <> kind <> " inner` collisions for: " <> string.inspect(f)}
-    False -> dict
+  case dict |> dict.to_list {
+    [] -> None
+    [#(_, func)] -> Some(func)
+    _ -> panic as { "`json " <> kind <> " inner` collisions for: " <> string.inspect(f)}
   }
 }
 
@@ -1809,7 +1826,7 @@ fn encode_call(
   discard_value discard_value: Bool,
   field field: Option(Field),
   ctx ctx: Context,
-  inner inner: Dict(Int, String),
+  inner inner: Option(String),
 ) -> g.Expression {
   let value =
     case discard_value, field {
@@ -1901,7 +1918,43 @@ fn encode_call(
 
       encode_override
       |> result.map(fn(encode_name) {
-        encode_name |> term |> call([value])
+        let encode_func =
+          encode_name |> term |> call([value])
+
+        // TODO dup'd from above newtype logic
+        // TODO forgot why `inner` is a `Dict`...
+        // case inner |> dict.get(0) {
+        //   Error(Nil) ->
+        //     encode_func
+
+        //   Ok(opts.Option) -> {
+        //     let map_newtype =
+        //       "option" |> dot("map") |> call([
+        //         fn_(["x"], [
+        //           "x" |> dot(newtype.field_access) |> g.Expression,
+        //         ]),
+        //       ])
+
+        //     "json" |> dot("nullable") |> call([
+        //       value |> pipe(map_newtype),
+        //       encode_func,
+        //     ])
+        //   }
+
+        //   Some(opts.List) -> {
+        //     let map_newtype =
+        //       "deriv" |> dot("list_map") |> call([
+        //         fn_(["x"], [
+        //           "x" |> dot(newtype.field_access) |> g.Expression,
+        //         ]),
+        //       ])
+
+        //     "json" |> dot("array") |> call([
+        //       value |> pipe(map_newtype),
+        //       encode_func,
+        //     ])
+        //   }
+        // }
       })
       |> result.lazy_unwrap(fn() {
         encode_call_(type_:, field:, value_arg: True, inner:, ctx:)
@@ -1914,7 +1967,7 @@ fn encode_call_(
   type_ type_: T,
   field field: Option(Field),
   value_arg value_arg: Bool,
-  inner inner: Dict(Int, String),
+  inner inner: Option(String),
   ctx ctx: Context,
 ) -> g.Expression {
   let value =
@@ -2000,9 +2053,9 @@ fn encode_call_(
           //   }
           // })
           // |> result.values
-          |> list.index_map(fn(param, idx) {
-            case dict.get(inner, idx), param.params {
-              Ok(encode_func_name), _ -> encode_func_name |> term
+          |> list.map(fn(param) {
+            case inner, param.params {
+              Some(encode_func_name), _ -> encode_func_name |> term
               _, [] -> json_encode_func(param)
               _, _ -> encode_call_(param)
             }
