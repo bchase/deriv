@@ -300,9 +300,9 @@ pub fn into_simple_test() {
 //   run_and_expect_equal(input:, output:, example_dir_name: "deriv/example/foo")
 // }
 
-fn dummy_module_reader(_) {
-  panic as "`dummy_module_reader`"
-}
+// fn dummy_module_reader(_) {
+//   panic as "`dummy_module_reader`"
+// }
 
 // TEST HELPERS
 
