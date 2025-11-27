@@ -1,5 +1,5 @@
 import deriv/util as deriv
-import examples/json_rewrite/bar.{type Bar, Bar, decoder_bar, decoder_custom_string, encode_bar, encode_custom_string}
+import examples/json_rewrite/bar.{type Bar, Bar, decoder_bar, decoder_custom_option_string, decoder_custom_string, encode_bar, encode_custom_option_string, encode_custom_string}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json.{type Json}
 import gleam/option.{type Option, None}
@@ -7,8 +7,10 @@ import gleam/option.{type Option, None}
 pub const suppress_warnings_bar = Bar
 pub const suppress_warnings_decoder_bar = decoder_bar
 pub const suppress_warnings_decoder_custom_string = decoder_custom_string
+pub const suppress_warnings_decoder_custom_option_string = decoder_custom_option_string
 pub const suppress_warnings_encode_bar = encode_bar
 pub const suppress_warnings_encode_custom_string = encode_custom_string
+pub const suppress_warnings_encode_custom_option_string = encode_custom_option_string
 
 pub fn zero_bar() -> Bar {
   Bar
@@ -42,6 +44,9 @@ pub type Foo {
     //$ json named option.list
     nested_list: List(String),
     //$ json named nested.list
+    outer_option: Option(String),
+    //$ json decoder decoder_custom_option_string
+    //$ json encode encode_custom_option_string
   )
 }
 
@@ -63,6 +68,7 @@ pub fn zero_foo() -> Foo {
     None,
     None,
     [],
+    None,
   )
 }
 
@@ -109,6 +115,11 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     ["nested", "list"],
     decode.list(decode.string),
   )
+  use outer_option <- decode.optional_field(
+    "outer_option",
+    deriv.none,
+    decoder_custom_option_string(),
+  )
   decode.success(Foo(
     int:,
     string:,
@@ -126,6 +137,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     nested_option:,
     nested_option_list:,
     nested_list:,
+    outer_option:,
   ))
 }
 
@@ -168,6 +180,7 @@ pub fn encode_foo(value: Foo) -> Json {
           json.nullable(value.option_list_float, json.array(_, json.float)),
         ),
         #("option_string", json.nullable(value.option_string, json.string)),
+        #("outer_option", encode_custom_option_string(value.outer_option)),
         #("property", json.string(value.named)),
         #(
           "some",
