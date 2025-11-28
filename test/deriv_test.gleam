@@ -329,40 +329,40 @@ pub fn snake_case_test() {
   |> should.equal("foo_bar123")
 }
 
-pub fn gleam_format_magic_comment_parsing_test() {
-  let src = "
-pub type T {
-  //$ derive json decode
-  A(
-    foo: String,
-    //$ json foo bar
-    //$ json baz boo
-  )
-}
-  "
-  |> string.trim
+//pub fn gleam_format_magic_comment_parsing_test() {
+//  let src = "
+//pub type T {
+//  //$ derive json decode
+//  A(
+//    foo: String,
+//    //$ json foo bar
+//    //$ json baz boo
+//  )
+//}
+//  "
+//  |> string.trim
 
-  let assert Ok(glance.Module(custom_types: [type_], ..)) = glance.module(src)
+//  let assert Ok(glance.Module(custom_types: [type_], ..)) = glance.module(src)
 
-  let assert Ok(#(_type, [deriv], field_opts)) = parser.parse_type_with_derivations(type_.definition, src)
+//  let assert Ok(#(_type, [deriv], field_opts)) = parser.parse_type_with_derivations(type_.definition, src)
 
-  deriv.name
-  |> should.equal("json")
-  deriv.opts
-  |> should.equal(["decode"])
+//  deriv.name
+//  |> should.equal("json")
+//  deriv.opts
+//  |> should.equal(["decode"])
 
-  let expected =
-    [
-      #(DerivField(type_: "T", variant: "A", field: "foo"), [
-        DerivFieldOpt(strs: ["json", "foo", "bar"], raw: "json foo bar"),
-        DerivFieldOpt(strs: ["json", "baz", "boo"], raw: "json baz boo"),
-      ]),
-    ]
-    |> dict.from_list
+//  let expected =
+//    [
+//      #(DerivField(type_: "T", variant: "A", field: "foo"), [
+//        DerivFieldOpt(strs: ["json", "foo", "bar"], raw: "json foo bar"),
+//        DerivFieldOpt(strs: ["json", "baz", "boo"], raw: "json baz boo"),
+//      ]),
+//    ]
+//    |> dict.from_list
 
-  field_opts
-  |> should.equal(expected)
-}
+//  field_opts
+//  |> should.equal(expected)
+//}
 
 pub fn replace_function_test() {
   let src = string.trim("

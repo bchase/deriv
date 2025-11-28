@@ -21,6 +21,7 @@ const deriv_variant_json_key = "_var"
 type Context {
   Context(
     deriv: Derivation,
+    derivs: List(Derivation),
     opts: DerivFieldOpts,
     file: File,
     module_reader: ModuleReader,
@@ -46,6 +47,7 @@ fn conv(
   ) = ctx
 
   Context(
+    derivs: [],
     deriv:,
     opts:,
     file:,
@@ -1043,6 +1045,40 @@ fn decoder_return_type(
   )
 }
 
+fn variant_json_key(
+  opts opts: DerivFieldOpts,
+  type_ type_: Type
+) -> Option(String) {
+  opts
+  |> dict.get(deriv.DerivField(type_: type_.pascal_case, variant: "", field: ""))
+  |> result.try(fn(opts) {
+    opts
+    |> list.find_map(fn(opt) {
+      case opt.strs {
+        ["json", "variant", "key", "None"] ->
+          Ok(None)
+
+        ["json", "variant", "key", ..] -> {
+          let assert Ok(re) =
+            "Some[(]\"([^\"]+)\"[)]$" |> regexp.from_string
+
+          case opt.raw |> string.trim |> regexp.scan(re, _) {
+            [regexp.Match(_, [Some(key)])] ->
+              Ok(Some(key))
+
+            _ ->
+              Error(Nil)
+          }
+        }
+
+        _ ->
+          Error(Nil)
+      }
+    })
+  })
+  |> result.unwrap(Some(deriv_variant_json_key))
+}
+
 fn variant_decoder_func(
   type_ type_: Type,
   variant variant: Variant,
@@ -1057,20 +1093,27 @@ fn variant_decoder_func(
     // pass from above
     case is_multi_variant {
       False -> use_lines
-      True -> [
-        g.Use(x,
-          patterns: [g.PatternDiscard(x, name: "deriv_var_constr") |> g.UsePattern(pattern: _, annotation: None)],
-          function: {
-            "decode" |> dot("field") |> call([
-              string(deriv_variant_json_key),
-              "deriv" |> dot("is") |> call([
-                string(variant.pascal_case),
-              ]),
-            ])
-          },
-        ),
-        ..use_lines
-      ]
+      True ->
+        case variant_json_key(opts: ctx.opts, type_:) {
+          Some(variant_json_key) ->
+            [
+              g.Use(x,
+                patterns: [g.PatternDiscard(x, name: "deriv_var_constr") |> g.UsePattern(pattern: _, annotation: None)],
+                function: {
+                  "decode" |> dot("field") |> call([
+                    string(variant_json_key),
+                    "deriv" |> dot("is") |> call([
+                      string(variant.pascal_case),
+                    ]),
+                  ])
+                },
+              ),
+              ..use_lines
+            ]
+
+          _ ->
+            use_lines
+        }
     }
 
   g.Function(x,
@@ -1698,7 +1741,7 @@ fn to_json_object_tuples(
 }
 
 fn variant_encode_case_clause(
-  type_ _type_: Type,
+  type_ type_: Type,
   variant variant: Variant,
   ctx ctx: Context,
   is_multi_variant is_multi_variant: Bool,
@@ -1720,13 +1763,20 @@ fn variant_encode_case_clause(
   let field_tuples =
     case is_multi_variant {
       False -> field_tuples
-      True -> [
-        tuple([
-          string(deriv_variant_json_key),
-          "json" |> dot("string") |> call([string(variant.pascal_case)])
-        ]),
-        .. field_tuples
-      ]
+      True ->
+        case variant_json_key(opts: ctx.opts, type_:) {
+          Some(variant_json_key) ->
+            [
+              tuple([
+                string(variant_json_key),
+                "json" |> dot("string") |> call([string(variant.pascal_case)])
+              ]),
+              .. field_tuples
+            ]
+
+          _ ->
+            field_tuples
+        }
     }
 
   let pattern =
