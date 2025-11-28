@@ -33,3 +33,15 @@ pub type FooId {
     id: Int,
   )
 }
+
+pub type Row(resource) {
+  //$ derive json decode
+  Row(
+    id: Id(resource),
+    //$ newtype
+  )
+}
+
+pub type Id(resource) {
+  Id(id: String)
+}

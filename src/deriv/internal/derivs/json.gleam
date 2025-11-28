@@ -857,6 +857,7 @@ fn contains_type_var_(
 fn is_phantom_type_(
   type_ type_: g.CustomType,
   param_at idx: Int,
+  ctx ctx: Context,
 ) -> Bool {
   type_.parameters
   |> list.index_map(fn(param, i) {
@@ -871,32 +872,44 @@ fn is_phantom_type_(
     use variant <- list.any(type_.variants)
     use field <- list.any(variant.fields)
 
-    contains_type_var_(var_name:, type_: field.item)
+    let field_name =
+      case field {
+        g.LabelledVariantField(label:, ..) -> label
+        _ -> ""
+      }
+    let f = deriv.DerivField(type_: type_.name, variant: variant.name, field: field_name)
+
+    { ! is_newtype_field(field: f, ctx:) } && {
+      contains_type_var_(var_name:, type_: field.item)
+    }
   })
   |> result.unwrap(False)
 }
 
-fn is_not_phantom_type(
-  type_name type_name: String,
-  type_ type_: Type,
+fn is_newtype_field(
+  field field: deriv.DerivField,
+  ctx ctx: Context,
 ) -> Bool {
-  use <- bool.guard(common.starts_with_uppercase(type_name), False)
-  use <- bool.guard(!{ type_.params |> list.contains(type_name) }, False)
-
-  use variant <- list.any(type_.variants)
-  use field <- list.any(variant.fields)
-
-  use <- bool.guard(common.starts_with_uppercase(field.type_.name), False)
-
-  contains_type_var(type_name:, type_: field.type_)
+  ctx.opts
+  |> dict.get(field)
+  |> result.map(fn(opts) {
+    opts
+    |> list.any(fn(opt) {
+      case opt.strs {
+        ["newtype"] -> True
+        _ -> False
+      }
+    })
+  })
+  |> result.unwrap(False)
 }
 
-fn contains_type_var(
-  type_name type_name: String,
-  type_ type_: T,
-) -> Bool {
-  type_.name == type_name || list.any(type_.params, contains_type_var(type_name:, type_: _))
-}
+// fn contains_type_var(
+//   type_name type_name: String,
+//   type_ type_: T,
+// ) -> Bool {
+//   type_.name == type_name || list.any(type_.params, contains_type_var(type_name:, type_: _))
+// }
 
 fn reject_phantom_types(
   type_name type_name: String,
@@ -915,7 +928,7 @@ fn reject_phantom_types(
       //   ! is_phantom_type_(type_name: param, param_at: idx, ctx:)
       // })
       |> list.index_map(fn(param, idx) {
-        case is_phantom_type_(type_:, param_at: idx) {
+        case is_phantom_type_(type_:, param_at: idx, ctx:) {
           False -> Error(Nil)
           True -> Ok(param)
         }
@@ -942,7 +955,7 @@ fn reject_phantom_types_(
       //   ! is_phantom_type_(type_name: param, param_at: idx, ctx:)
       // })
       |> list.index_map(fn(param, idx) {
-        case is_phantom_type_(type_:, param_at: idx) {
+        case is_phantom_type_(type_:, param_at: idx, ctx:) {
           False -> Error(Nil)
           True -> Ok(param)
         }

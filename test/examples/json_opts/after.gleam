@@ -36,6 +36,18 @@ pub type FooId {
   )
 }
 
+pub type Row(resource) {
+  //$ derive json decode
+  Row(
+    id: Id(resource),
+    //$ newtype
+  )
+}
+
+pub type Id(resource) {
+  Id(id: String)
+}
+
 pub fn decoder_message_event() -> Decoder(MessageEvent) {
   decode.one_of(decoder_message_event_message_event(), [])
 }
@@ -99,4 +111,13 @@ pub fn encode_foo(value: Foo) -> Json {
         ),
       ])
   }
+}
+
+pub fn decoder_row() -> Decoder(Row(resource)) {
+  decode.one_of(decoder_row_row(), [])
+}
+
+pub fn decoder_row_row() -> Decoder(Row(resource)) {
+  use id <- decode.field("id", decode.string |> decode.map(Id))
+  decode.success(Row(id:))
 }
