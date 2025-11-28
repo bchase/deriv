@@ -48,8 +48,16 @@ pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(C
             |> list.flatten
 
           case parse_derivations_from_inside_type_def_lines(lines) {
-            derivs -> {
-              let deriv_field_opts = parse_all_deriv_field_opts(lines)
+            #(derivs, opts) -> {
+              let type_opts =
+                opts
+                |> list.map(fn(opt) { #(DerivField(type_: type_.name, variant: "", field: ""), [opt]) })
+                |> dict.from_list
+
+              let deriv_field_opts =
+                lines
+                |> parse_all_deriv_field_opts
+                |> dict.merge(type_opts)
 
               Ok(#(type_, derivs, deriv_field_opts))
             }
@@ -84,7 +92,7 @@ fn type_alias_and_derivs_from(
 ) -> Result(#(TypeAlias, List(Derivation), DerivFieldOpts), Nil) {
   use #(type_alias, src) <- result.try(type_alias_src_from(lines))
 
-  let derivs = parse_derivations_from_inside_type_def_lines(string.split(src, "\n"))
+  let #(derivs, _opts) = parse_derivations_from_inside_type_def_lines(string.split(src, "\n"))
 
   Ok(#(type_alias, derivs, dict.new()))
 }
@@ -107,20 +115,40 @@ pub fn parse_type_aliases_with_derivations(type_: TypeAlias, src: String) -> Res
   }
 }
 
-fn parse_derivations_from_inside_type_def_lines(lines: List(String)) -> List(Derivation) {
-  lines
-  |> list.map(fn(line) {
-    case string.split(line, "//$") {
-      [_, mc] ->
-        parse_derivations(mc)
-        |> result.unwrap([])
+fn parse_derivations_from_inside_type_def_lines(
+  lines: List(String),
+) -> #(List(Derivation), List(DerivFieldOpt)) {
+  let derivs =
+    lines
+    |> list.map(fn(line) {
+      case string.split(line, "//$") {
+        [_, mc] ->
+          parse_derivations(mc)
+          |> result.unwrap([])
 
-      _ ->
-        []
-    }
-  })
-  |> list.flatten
-  |> list.reverse
+        _ ->
+          []
+      }
+    })
+    |> list.flatten
+    |> list.reverse
+
+  let opts =
+    lines
+    |> list.map(fn(line) {
+      case string.split(line, "//$") {
+        [_, mc] ->
+          parse_type_opts(mc)
+          |> result.unwrap([])
+
+        _ ->
+          []
+      }
+    })
+    |> list.flatten
+    |> list.reverse
+
+  #(derivs, opts)
 }
 
 pub fn parse_import_with_derivations(import_: glance.Import, src: String) -> Result(#(glance.Import, List(Derivation)), Nil) {
@@ -144,7 +172,9 @@ pub fn parse_import_with_derivations(import_: glance.Import, src: String) -> Res
   }
 }
 
-fn parse_derivations(raw: String) -> Result(List(Derivation), Nil) {
+fn parse_derivations(
+  raw: String,
+) -> Result(List(Derivation), Nil) {
   raw
   |> string.trim
   |> string.split(" ")
@@ -152,6 +182,26 @@ fn parse_derivations(raw: String) -> Result(List(Derivation), Nil) {
     case tokens {
       ["derive", name, ..opts] ->
         Ok([Derivation(name:, opts:)])
+
+      _ ->
+        Error(Nil)
+    }
+  }
+}
+
+fn parse_type_opts(
+  raw: String,
+) -> Result(List(DerivFieldOpt), Nil) {
+  raw
+  |> string.trim
+  |> string.split(" ")
+  |> fn(tokens) {
+    case tokens {
+      ["derive", ..] ->
+        Error(Nil)
+
+      [_, ..] as strs ->
+        Ok([DerivFieldOpt(raw:, strs:)])
 
       _ ->
         Error(Nil)
