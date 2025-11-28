@@ -60,9 +60,8 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     deriv.none,
     decode.int |> decode.map(FooId) |> decode.optional,
   )
-  use list_id <- decode.optional_field(
+  use list_id <- decode.field(
     "list_id",
-    [],
     decode.int |> decode.map(FooId) |> decode.list,
   )
   use option_id_named <- deriv.decode_optional_subfield(

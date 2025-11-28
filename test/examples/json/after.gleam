@@ -42,7 +42,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
   use name <- decode.field("name", decode.string)
   use active <- decode.field("active", decode.bool)
   use ratio <- decode.field("ratio", decode.float)
-  use words <- decode.optional_field("words", [], decode.list(decode.string))
+  use words <- decode.field("words", decode.list(decode.string))
   use maybe_list <- decode.optional_field(
     "maybe_list",
     deriv.none,

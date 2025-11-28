@@ -90,7 +90,7 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     deriv.none,
     decode.optional(decode.string),
   )
-  use list_int <- decode.optional_field("list_int", [], decode.list(decode.int))
+  use list_int <- decode.field("list_int", decode.list(decode.int))
   use option_list_float <- decode.optional_field(
     "option_list_float",
     deriv.none,

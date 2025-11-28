@@ -1566,9 +1566,8 @@ fn decode_field_call(
       ])
     }
     [prop], "List", [_] -> {
-      "decode" |> dot("optional_field") |> call([
+      "decode" |> dot("field") |> call([
         string(prop),
-        list([]),
         decoder_call(f.type_),
       ])
     }

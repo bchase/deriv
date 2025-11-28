@@ -45,9 +45,8 @@ pub fn decoder_foo_foo() -> Decoder(Foo) {
     "scalar",
     decoder_field(decode.string, decode.string),
   )
-  use list <- decode.optional_field(
+  use list <- decode.field(
     "list",
-    [],
     decode.list(decoder_field(decode.string, decode.string)),
   )
   use option <- decode.optional_field(
