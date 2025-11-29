@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/result
 import gleam/option.{Some, None}
 import gleam/dict.{type Dict}
@@ -26,15 +27,53 @@ fn to_string_func(
 
 fn parse_func(
   type_ type_: CustomType,
+  ctx ctx: Context,
 ) -> Definition(Function) {
   let x = common.dummy_location()
 
   let func_name =
     "parse_enum_" <> { type_.name |> common.snake_case }
 
+  let fail =
+    ctx.opts
+    |> dict.to_list
+    |> list.filter_map(fn(t) {
+      let #(field, opts) = t
+
+      let has_enum_fail =
+        opts
+        |> list.any(fn(opt) {
+          opt.strs == ["enum", "fail"] &&
+            !string.is_empty(field.variant)
+        })
+
+      use <- bool.guard(!has_enum_fail, Error(Nil))
+      Ok(field)
+    })
+
+  let fail =
+    case fail {
+      [] -> Error(Nil)
+      [field] -> Ok(field)
+      _ -> panic as {
+        "multiple fields specified as `enum fail` for type:\n" <>
+          string.inspect(type_) <> "\n" <>
+          string.inspect(fail)
+      }
+    }
+
+  let return_type =
+    case fail {
+      Error(Nil) ->
+        NamedType(x, "Result", None, [NamedType(x, type_.name, None, []), NamedType(x, "Nil", None, [])])
+
+      Ok(_) ->
+        NamedType(x, type_.name, None, [])
+    }
+
   Function(x, func_name, Public,
     [FunctionParameter(None, Named("str"), Some(NamedType(x, "String", None, [])))],
-    Some(NamedType(x, "Result", None, [NamedType(x, type_.name, None, []), NamedType(x, "Nil", None, [])])),
+    Some(return_type),
     [
       Expression(Case(x, [Variable(x, "str")], {
         type_.variants
@@ -44,20 +83,37 @@ fn parse_func(
               Clause(
                 [[PatternString(x, name)]],
                 None,
-                Call(x, Variable(x, "Ok"), [UnlabelledField(Variable(x, name))]),
+                {
+                  case fail {
+                    Ok(_) ->
+                      Variable(x, name)
+
+                    Error(Nil) ->
+                      Call(x, Variable(x, "Ok"), [UnlabelledField(Variable(x, name))])
+                  }
+                },
               )
             }
+            |> Ok
 
-            Variant(fields: _, ..) -> {
-              panic as { "`derive enum` doesn't support variants with fields, but got: " <> string.inspect(variant) }
-            }
+            Variant(fields: _, ..) ->
+              Error(Nil)
           }
         })
+        |> result.values
         |> list.append([
           Clause(
             [[PatternDiscard(x, "")]],
             None,
-            Call(x, Variable(x, "Error"), [UnlabelledField(Variable(x, "Nil"))]),
+            {
+              case fail {
+                Ok(field) ->
+                  Call(x, Variable(x, field.variant), [UnlabelledField(Variable(x, "str"))])
+
+                Error(Nil) ->
+                  Call(x, Variable(x, "Error"), [UnlabelledField(Variable(x, "Nil"))])
+              }
+            },
           )
         ])
       })),
@@ -164,7 +220,7 @@ pub fn gen(
 
   let funcs =
     [
-      parse_func(type_:),
+      parse_func(type_:, ctx:),
       to_string_func(type_:),
     ]
     |> list.append(optional_funcs(type_:, opts: ctx.opts))

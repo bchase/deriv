@@ -5,3 +5,12 @@ pub type T {
   Bar
   Baz
 }
+
+pub type ABC {
+  //$ derive enum
+  A
+  B
+  C
+  Other(str: String)
+  //$ enum fail
+}
