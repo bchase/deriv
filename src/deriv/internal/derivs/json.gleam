@@ -1100,45 +1100,57 @@ fn path_segments(
   |> list.drop_while(string.is_empty)
 }
 
+// TODO better type x variant opt lookup (... and parsing)
+fn opts_for_variant(
+  type_ type_: Type,
+  variant variant: Variant,
+  ctx ctx: Context,
+) -> List(DerivFieldOpt) {
+  ctx.opts
+  |> dict.to_list
+  |> list.flat_map(fn(t) {
+    let #(field, opts) = t
+
+    opts
+    |> list.map(fn(opt) {
+      #(#(field.type_, field.variant), opt)
+    })
+  })
+  |> list.group(pair.first)
+  |> dict.map_values(fn(_field, opts) {
+    opts |> list.map(pair.second)
+  })
+  |> dict.get(#(type_.pascal_case, variant.pascal_case))
+  |> result.unwrap([])
+}
+
 fn variant_guards(
   type_ type_: Type,
   variant variant: Variant,
   ctx ctx: Context,
 ) -> List(#(List(String), String)) {
-  ctx.opts
-  // TODO better type x variant opt lookup (... and parsing)
-  |> dict.to_list
-  |> list.map(fn(t) {
-    let #(field, opt) = t
-    #(#(field.type_, field.variant), opt)
-  })
-  |> dict.from_list
-  |> dict.get(#(type_.pascal_case, variant.pascal_case))
-  |> result.map(fn(opts) {
-    opts
-    |> list.filter_map(fn(opt) {
-      case opt.strs {
-        ["json", "guard", path, ..] -> {
-          let assert Ok(str_re) =
-            "\"([^\"]+)\"\\s*$"
-            |> regexp.from_string
+  opts_for_variant(type_:, variant:, ctx:)
+  |> list.filter_map(fn(opt) {
+    case opt.strs {
+      ["json", "guard", path, ..] -> {
+        let assert Ok(str_re) =
+          "\"([^\"]+)\"\\s*$"
+          |> regexp.from_string
 
-          case opt.raw |> regexp.scan(str_re, _) {
-            [regexp.Match(_, [Some(val)])] -> {
-              Ok(#(path_segments(path), val))
-            }
-
-            _ ->
-              Error(Nil)
+        case opt.raw |> regexp.scan(str_re, _) {
+          [regexp.Match(_, [Some(val)])] -> {
+            Ok(#(path_segments(path), val))
           }
-        }
 
-        _ ->
-          Error(Nil)
+          _ ->
+            Error(Nil)
+        }
       }
-    })
+
+      _ ->
+        Error(Nil)
+    }
   })
-  |> result.unwrap([])
 }
 
 fn variant_decoder_func(
