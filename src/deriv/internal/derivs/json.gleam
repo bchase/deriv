@@ -1092,6 +1092,55 @@ fn variant_json_key(
   |> result.unwrap(Some(deriv_variant_json_key))
 }
 
+fn path_segments(
+  path path: String,
+) -> List(String) {
+  path
+  |> string.split(".")
+  |> list.drop_while(string.is_empty)
+}
+
+fn variant_guards(
+  type_ type_: Type,
+  variant variant: Variant,
+  ctx ctx: Context,
+) -> List(#(List(String), String)) {
+  ctx.opts
+  // TODO better type x variant opt lookup (... and parsing)
+  |> dict.to_list
+  |> list.map(fn(t) {
+    let #(field, opt) = t
+    #(#(field.type_, field.variant), opt)
+  })
+  |> dict.from_list
+  |> dict.get(#(type_.pascal_case, variant.pascal_case))
+  |> result.map(fn(opts) {
+    opts
+    |> list.filter_map(fn(opt) {
+      case opt.strs {
+        ["json", "guard", path, ..] -> {
+          let assert Ok(str_re) =
+            "\"([^\"]+)\"\\s*$"
+            |> regexp.from_string
+
+          case opt.raw |> regexp.scan(str_re, _) {
+            [regexp.Match(_, [Some(val)])] -> {
+              Ok(#(path_segments(path), val))
+            }
+
+            _ ->
+              Error(Nil)
+          }
+        }
+
+        _ ->
+          Error(Nil)
+      }
+    })
+  })
+  |> result.unwrap([])
+}
+
 fn variant_decoder_func(
   type_ type_: Type,
   variant variant: Variant,
@@ -1106,27 +1155,54 @@ fn variant_decoder_func(
     // pass from above
     case is_multi_variant {
       False -> use_lines
-      True ->
-        case variant_json_key(opts: ctx.opts, type_:) {
-          Some(variant_json_key) ->
-            [
-              g.Use(x,
-                patterns: [g.PatternDiscard(x, name: "deriv_var_constr") |> g.UsePattern(pattern: _, annotation: None)],
-                function: {
-                  "decode" |> dot("field") |> call([
-                    string(variant_json_key),
-                    "deriv" |> dot("is") |> call([
-                      string(variant.pascal_case),
-                    ]),
-                  ])
-                },
-              ),
-              ..use_lines
-            ]
+      True -> {
+        let use_variant_guards =
+          variant_guards(type_:, variant:, ctx:)
+          |> list.map(fn(t) {
+            let #(path, val) = t
 
-          _ ->
-            use_lines
-        }
+            g.Use(x,
+              patterns: [g.PatternDiscard(x, name: "") |> g.UsePattern(pattern: _, annotation: None)],
+              function: {
+                "decode" |> dot("subfield") |> call([
+                  list(path |> list.map(string)),
+                  "deriv" |> dot("is") |> call([
+                    string(val),
+                  ]),
+                ])
+              },
+            )
+          })
+
+        let use_lines =
+          use_variant_guards
+          |> list.append(use_lines)
+
+        let use_lines =
+          case variant_json_key(opts: ctx.opts, type_:) {
+            Some(variant_json_key) ->
+              [
+                g.Use(x,
+                  patterns: [g.PatternDiscard(x, name: "deriv_var_constr") |> g.UsePattern(pattern: _, annotation: None)],
+                  function: {
+                    "decode" |> dot("field") |> call([
+                      string(variant_json_key),
+                      // TODO if this isn't used, don't need `deriv/util` import
+                      "deriv" |> dot("is") |> call([
+                        string(variant.pascal_case),
+                      ]),
+                    ])
+                  },
+                ),
+                ..use_lines
+              ]
+
+            _ ->
+              use_lines
+          }
+
+        use_lines
+      }
     }
 
   g.Function(x,

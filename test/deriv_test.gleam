@@ -155,6 +155,10 @@ pub fn json_misc_test() {
   should_derive(example_dir_name: "json_misc")
 }
 
+pub fn json_guard_test() {
+  should_derive(example_dir_name: "json_guard")
+}
+
 pub fn json_encoded_value_decodes_to_identical_test() {
   let foo = json_example.zero_foo()
   foo
