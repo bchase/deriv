@@ -50,3 +50,12 @@ pub fn parse_enum_a_b_c(str: String) -> ABC {
 pub fn enum_a_b_c_str(x: ABC) -> String {
   string.inspect(x)
 }
+
+pub fn display_enum_a_b_c(x: ABC) -> String {
+  case x {
+    A -> "A"
+    B -> "B"
+    C -> "C"
+    Other(str) -> str
+  }
+}

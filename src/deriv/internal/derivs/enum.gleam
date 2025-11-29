@@ -4,7 +4,7 @@ import gleam/option.{Some, None}
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/string
-import glance.{type CustomType, type Definition, type Function, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, UnlabelledField, FunctionParameter, Named, Case, Variant, Clause, PatternString, PatternDiscard, PatternVariant, String}
+import glance.{type CustomType, type Definition, type Function, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, UnlabelledField, FunctionParameter, Named, Case, Variant, Clause, PatternVariable, PatternString, PatternDiscard, PatternVariant, String}
 import deriv/internal/types.{type Context, type Gen, Gen, type DerivFieldOpts} as deriv
 import deriv/internal/common
 
@@ -25,42 +25,46 @@ fn to_string_func(
   ))
 }
 
-fn parse_func(
+fn fail_variant(
   type_ type_: CustomType,
   ctx ctx: Context,
+) -> Result(String, Nil) {
+  ctx.opts
+  |> dict.to_list
+  |> list.filter_map(fn(t) {
+    let #(field, opts) = t
+
+    let has_enum_fail =
+      opts
+      |> list.any(fn(opt) {
+        opt.strs == ["enum", "fail"] &&
+          !string.is_empty(field.variant)
+      })
+
+    use <- bool.guard(!has_enum_fail, Error(Nil))
+    Ok(field.variant)
+  })
+  |> fn(fields) {
+    case fields {
+      [] -> Error(Nil)
+      [constr] -> Ok(constr)
+      _ -> panic as {
+        "multiple fields specified as `enum fail` for type:\n" <>
+          string.inspect(type_) <> "\n" <>
+          string.inspect(fields)
+      }
+    }
+  }
+}
+
+fn parse_func(
+  type_ type_: CustomType,
+  fail fail: Result(String, Nil),
 ) -> Definition(Function) {
   let x = common.dummy_location()
 
   let func_name =
     "parse_enum_" <> { type_.name |> common.snake_case }
-
-  let fail =
-    ctx.opts
-    |> dict.to_list
-    |> list.filter_map(fn(t) {
-      let #(field, opts) = t
-
-      let has_enum_fail =
-        opts
-        |> list.any(fn(opt) {
-          opt.strs == ["enum", "fail"] &&
-            !string.is_empty(field.variant)
-        })
-
-      use <- bool.guard(!has_enum_fail, Error(Nil))
-      Ok(field)
-    })
-
-  let fail =
-    case fail {
-      [] -> Error(Nil)
-      [field] -> Ok(field)
-      _ -> panic as {
-        "multiple fields specified as `enum fail` for type:\n" <>
-          string.inspect(type_) <> "\n" <>
-          string.inspect(fail)
-      }
-    }
 
   let return_type =
     case fail {
@@ -107,8 +111,8 @@ fn parse_func(
             None,
             {
               case fail {
-                Ok(field) ->
-                  Call(x, Variable(x, field.variant), [UnlabelledField(Variable(x, "str"))])
+                Ok(constr) ->
+                  Call(x, Variable(x, constr), [UnlabelledField(Variable(x, "str"))])
 
                 Error(Nil) ->
                   Call(x, Variable(x, "Error"), [UnlabelledField(Variable(x, "Nil"))])
@@ -124,6 +128,7 @@ fn parse_func(
 
 fn display_func(
   type_ type_: CustomType,
+  fail fail: Result(String, Nil),
   opts opts: DerivFieldOpts,
 ) -> Result(Definition(Function), Nil) {
   let display_lookups =
@@ -167,19 +172,22 @@ fn display_func(
     })
     |> dict.from_list
 
-  case display_lookups |> dict.size {
-    0 -> {
-      Error(Nil)
+  let has_display_lookups = { display_lookups |> dict.size } > 0
+
+  case has_display_lookups || { fail |> result.is_ok } {
+    True -> {
+      Ok(display_func_(type_:, fail:, display_lookups:))
     }
 
-    _ -> {
-      Ok(display_func_(type_:, display_lookups:))
+    False -> {
+      Error(Nil)
     }
   }
 }
 
 fn display_func_(
   type_ type_: CustomType,
+  fail fail: Result(String, Nil),
   display_lookups display_lookups: Dict(String, String)
 ) -> Definition(Function) {
   let x = common.dummy_location()
@@ -202,7 +210,14 @@ fn display_func_(
             |> result.unwrap(variant.name)
             |> string.replace(double_quote, backslash <> backslash <> backslash <> backslash <> double_quote)
 
-          Clause([[PatternVariant(x, None, variant.name, [], False)]], None, String(x, display_str))
+          case Ok(variant.name) == fail {
+            True -> {
+              Clause([[PatternVariant(x, None, variant.name, [UnlabelledField(PatternVariable(x, "str"))], False)]], None, Variable(x, "str"))
+            }
+
+            False ->
+              Clause([[PatternVariant(x, None, variant.name, [], False)]], None, String(x, display_str))
+          }
         }),
       )
     )]
@@ -218,12 +233,14 @@ pub fn gen(
 
   let imports = gen_imports(type_)
 
+  let fail = fail_variant(type_:, ctx:)
+
   let funcs =
     [
-      parse_func(type_:, ctx:),
+      parse_func(type_:, fail:),
       to_string_func(type_:),
     ]
-    |> list.append(optional_funcs(type_:, opts: ctx.opts))
+    |> list.append(optional_funcs(type_:, fail:, opts: ctx.opts))
 
   let src = ""
     funcs
@@ -235,9 +252,10 @@ pub fn gen(
 
 fn optional_funcs(
   type_ type_: CustomType,
+  fail fail: Result(String, Nil),
   opts opts: DerivFieldOpts,
 ) -> List(Definition(Function)) {
-  display_func(type_:, opts:)
+  display_func(type_:, fail:, opts:)
   |> result.map(list.wrap)
   |> result.unwrap([])
 }
