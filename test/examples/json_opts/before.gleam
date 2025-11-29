@@ -1,5 +1,6 @@
-import gleam/option.{type Option}
 import gleam/dynamic/decode.{type Decoder}
+import gleam/json.{type Json}
+import gleam/option.{type Option}
 
 pub fn suppress_warnings() -> Decoder(String) { decode.string }
 
@@ -44,4 +45,23 @@ pub type Row(resource) {
 
 pub type Id(resource) {
   Id(id: String)
+}
+
+pub type R(resource) {
+  //$ derive json decode encode
+  R(
+    id: Id(resource),
+    //$ newtype
+    //$ json decoder decoder_id_custom
+    //$ json encode encode_id_custom
+  )
+}
+
+pub fn decoder_id_custom() -> Decoder(Id(resource)) {
+  decode.string |> decode.map(Id)
+}
+pub fn encode_id_custom(
+  value value: Id(resource),
+) -> Json {
+  json.string(value.id)
 }

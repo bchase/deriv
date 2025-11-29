@@ -48,6 +48,25 @@ pub type Id(resource) {
   Id(id: String)
 }
 
+pub type R(resource) {
+  //$ derive json decode encode
+  R(
+    id: Id(resource),
+    //$ newtype
+    //$ json decoder decoder_id_custom
+    //$ json encode encode_id_custom
+  )
+}
+
+pub fn decoder_id_custom() -> Decoder(Id(resource)) {
+  decode.string |> decode.map(Id)
+}
+pub fn encode_id_custom(
+  value value: Id(resource),
+) -> Json {
+  json.string(value.id)
+}
+
 pub fn decoder_message_event() -> Decoder(MessageEvent) {
   decode.one_of(decoder_message_event_message_event(), [])
 }
@@ -120,4 +139,19 @@ pub fn decoder_row() -> Decoder(Row(resource)) {
 pub fn decoder_row_row() -> Decoder(Row(resource)) {
   use id <- decode.field("id", decode.string |> decode.map(Id))
   decode.success(Row(id:))
+}
+
+pub fn decoder_r() -> Decoder(R(resource)) {
+  decode.one_of(decoder_r_r(), [])
+}
+
+pub fn decoder_r_r() -> Decoder(R(resource)) {
+  use id <- decode.field("id", decoder_id_custom())
+  decode.success(R(id:))
+}
+
+pub fn encode_r(value: R(resource)) -> Json {
+  case value {
+    R(..) as value -> json.object([#("id", encode_id_custom(value.id))])
+  }
 }

@@ -1339,48 +1339,7 @@ fn decoder_call(
         })
     }
 
-  case build_newtype(type_:, field:, ctx:) {
-    Ok(#(newtype, inner)) -> {
-      case newtype.wrapping {
-        g.NamedType(name: wrapped_type, parameters: [], ..) -> {
-          let decoder =
-            case wrapped_type {
-              "String" -> "decode" |> dot("string")
-              "Int" -> "decode" |> dot("int")
-              "Float" -> "decode" |> dot("float")
-              "Bool" -> "decode" |> dot("bool")
-               _ -> panic as {
-                "`json` currently only supports basic type `newtype`s"
-              }
-            }
-
-            let decoder =
-              decoder |> pipe("decode" |> dot("map") |> call([newtype.constr |> term]))
-
-            case inner {
-              None ->
-                decoder
-
-              Some(opts.Option) ->
-                decoder |> pipe("decode" |> dot("optional"))
-
-              Some(opts.List) ->
-                decoder |> pipe("decode" |> dot("list"))
-            }
-          }
-
-
-        _ -> panic as {
-          "`json` currently only supports `NamedType`s"
-        }
-      }
-    }
-
-    Error(Nil) -> {
-      let decoder_call = fn(type_) {
-        decoder_call(field:, ctx:, type_:, inner:, top_level: False)
-      }
-
+  let decoder_override =
       decoder_override
       |> result.map(fn(t) {
         let #(decoder_name, inner) = t
@@ -1399,6 +1358,53 @@ fn decoder_call(
             decoder
         }
       })
+
+  case build_newtype(type_:, field:, ctx:) {
+    Ok(#(newtype, inner)) -> {
+      decoder_override
+      |> result.lazy_unwrap(fn() {
+        case newtype.wrapping {
+          g.NamedType(name: wrapped_type, parameters: [], ..) -> {
+            let decoder =
+              case wrapped_type {
+                "String" -> "decode" |> dot("string")
+                "Int" -> "decode" |> dot("int")
+                "Float" -> "decode" |> dot("float")
+                "Bool" -> "decode" |> dot("bool")
+                 _ -> panic as {
+                  "`json` currently only supports basic type `newtype`s"
+                }
+              }
+
+              let decoder =
+                decoder |> pipe("decode" |> dot("map") |> call([newtype.constr |> term]))
+
+              case inner {
+                None ->
+                  decoder
+
+                Some(opts.Option) ->
+                  decoder |> pipe("decode" |> dot("optional"))
+
+                Some(opts.List) ->
+                  decoder |> pipe("decode" |> dot("list"))
+              }
+            }
+
+
+          _ -> panic as {
+            "`json` currently only supports `NamedType`s"
+          }
+        }
+      })
+    }
+
+    Error(Nil) -> {
+      let decoder_call = fn(type_) {
+        decoder_call(field:, ctx:, type_:, inner:, top_level: False)
+      }
+
+      decoder_override
       |> result.lazy_unwrap(fn() {
         case type_.name, type_.params {
           "Dict", [key, val] -> {
@@ -1902,126 +1908,132 @@ fn encode_call(
         "value" |> term
     }
 
+  let encode_override =
+    case field {
+      None ->
+        Error(Nil)
+
+      Some(field) ->
+          get_field_opt(field:, opts: ctx.opts, desc: "json encode", matching: fn(opt) {
+            case opt.strs {
+              ["json", "encode", encode] ->
+                Ok(encode)
+
+              _ ->
+                Error(Nil)
+            }
+          })
+    }
+
+  let encode_override =
+    case encode_override, inner {
+      Ok(_), Some(_) -> panic as {
+        "inner & outer encode specified for :" <>
+        string.inspect(field) <> " " <> string.inspect(type_)
+      }
+
+      Error(Nil), Some(inner) ->
+        Ok(inner)
+
+      _, _ ->
+        encode_override
+    }
+
+  let encode_override =
+    encode_override
+    |> result.map(fn(encode_name) {
+      case inner, type_ {
+        Some(func), T(name: "Option", params: [_]) -> {
+          "json" |> dot("nullable") |> call([
+            value,
+            func |> term,
+          ])
+        }
+
+        Some(func), T(name: "List", params: [_]) -> {
+          "json" |> dot("array") |> call([
+            value,
+            func |> term,
+          ])
+        }
+
+        Some(func), T(params: [_], ..) ->
+          { "encode_" <> type_.name |> common.snake_case } |> term |> call([
+            value,
+            func |> term,
+          ])
+
+        Some(_func), _ ->
+          panic as "unimplemented"
+
+        None, _ ->
+          encode_name |> term |> call([value])
+      }
+    })
+
   case build_newtype(type_:, field:, ctx:) {
     Ok(#(newtype, inner)) -> {
-      case newtype.wrapping {
-        g.NamedType(name: wrapped_type, parameters: [], ..) -> {
-          let encode_func =
-            case wrapped_type {
-              "String" -> "json" |> dot("string")
-              "Int" -> "json" |> dot("int")
-              "Float" -> "json" |> dot("float")
-              "Bool" -> "json" |> dot("bool")
-               _ -> panic as {
-                "`json` currently only supports basic type `newtype`s"
+      encode_override
+      |> result.lazy_unwrap(fn() {
+        case newtype.wrapping {
+          g.NamedType(name: wrapped_type, parameters: [], ..) -> {
+            let encode_func =
+              case wrapped_type {
+                "String" -> "json" |> dot("string")
+                "Int" -> "json" |> dot("int")
+                "Float" -> "json" |> dot("float")
+                "Bool" -> "json" |> dot("bool")
+                 _ -> panic as {
+                  "`json` currently only supports basic type `newtype`s"
+                }
+              }
+
+              case inner {
+                None ->
+                  encode_func |> call([
+                    value |> dot_(newtype.field_access)
+                  ])
+
+                Some(opts.Option) -> {
+                  let map_newtype =
+                    "option" |> dot("map") |> call([
+                      fn_(["x"], [
+                        "x" |> dot(newtype.field_access) |> g.Expression,
+                      ]),
+                    ])
+
+                  "json" |> dot("nullable") |> call([
+                    value |> pipe(map_newtype),
+                    encode_func,
+                  ])
+                }
+
+                Some(opts.List) -> {
+                  let map_newtype =
+                    "deriv" |> dot("list_map") |> call([
+                      fn_(["x"], [
+                        "x" |> dot(newtype.field_access) |> g.Expression,
+                      ]),
+                    ])
+
+                  "json" |> dot("array") |> call([
+                    value |> pipe(map_newtype),
+                    encode_func,
+                  ])
+                }
               }
             }
 
-            case inner {
-              None ->
-                encode_func |> call([
-                  value |> dot_(newtype.field_access)
-                ])
 
-              Some(opts.Option) -> {
-                let map_newtype =
-                  "option" |> dot("map") |> call([
-                    fn_(["x"], [
-                      "x" |> dot(newtype.field_access) |> g.Expression,
-                    ]),
-                  ])
-
-                "json" |> dot("nullable") |> call([
-                  value |> pipe(map_newtype),
-                  encode_func,
-                ])
-              }
-
-              Some(opts.List) -> {
-                let map_newtype =
-                  "deriv" |> dot("list_map") |> call([
-                    fn_(["x"], [
-                      "x" |> dot(newtype.field_access) |> g.Expression,
-                    ]),
-                  ])
-
-                "json" |> dot("array") |> call([
-                  value |> pipe(map_newtype),
-                  encode_func,
-                ])
-              }
-            }
+          _ -> panic as {
+            "`json` currently only supports `NamedType`s"
           }
-
-
-        _ -> panic as {
-          "`json` currently only supports `NamedType`s"
         }
-      }
+      })
     }
 
     Error(Nil) -> {
-      let encode_override =
-        case field {
-          None ->
-            Error(Nil)
-
-          Some(field) ->
-              get_field_opt(field:, opts: ctx.opts, desc: "json encode", matching: fn(opt) {
-                case opt.strs {
-                  ["json", "encode", encode] ->
-                    Ok(encode)
-
-                  _ ->
-                    Error(Nil)
-                }
-              })
-        }
-
-      let encode_override =
-        case encode_override, inner {
-          Ok(_), Some(_) -> panic as {
-            "inner & outer encode specified for :" <>
-            string.inspect(field) <> " " <> string.inspect(type_)
-          }
-
-          Error(Nil), Some(inner) ->
-            Ok(inner)
-
-          _, _ ->
-            encode_override
-        }
-
       encode_override
-      |> result.map(fn(encode_name) {
-        case inner, type_ {
-          Some(func), T(name: "Option", params: [_]) -> {
-            "json" |> dot("nullable") |> call([
-              value,
-              func |> term,
-            ])
-          }
-
-          Some(func), T(name: "List", params: [_]) -> {
-            "json" |> dot("array") |> call([
-              value,
-              func |> term,
-            ])
-          }
-
-          Some(func), T(params: [_], ..) ->
-            { "encode_" <> type_.name |> common.snake_case } |> term |> call([
-              value,
-              func |> term,
-            ])
-
-          Some(_func), _ ->
-            panic as "unimplemented"
-
-          None, _ ->
-            encode_name |> term |> call([value])
-        }
-      })
       |> result.lazy_unwrap(fn() {
         encode_call_(type_:, field:, value_arg: True, inner:, ctx:)
       })
