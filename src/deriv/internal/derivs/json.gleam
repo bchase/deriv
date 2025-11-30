@@ -1124,6 +1124,23 @@ fn opts_for_variant(
   |> result.unwrap([])
 }
 
+fn str_re() -> regexp.Regexp {
+  let assert Ok(str_re) =
+    "\"([^\"]+)\"\\s*$"
+    |> regexp.from_string
+
+  str_re
+}
+
+fn gleam_string_literal_at_end_of(
+  str str: String,
+) -> Result(String, Nil) {
+  case str |> regexp.scan(str_re(), _) {
+    [regexp.Match(_, [Some(val)])] -> Ok(val)
+    _ -> Error(Nil)
+  }
+}
+
 fn variant_guards(
   type_ type_: Type,
   variant variant: Variant,
@@ -1133,17 +1150,9 @@ fn variant_guards(
   |> list.filter_map(fn(opt) {
     case opt.strs {
       ["json", "guard", path, ..] -> {
-        let assert Ok(str_re) =
-          "\"([^\"]+)\"\\s*$"
-          |> regexp.from_string
-
-        case opt.raw |> regexp.scan(str_re, _) {
-          [regexp.Match(_, [Some(val)])] -> {
-            Ok(#(path_segments(path), val))
-          }
-
-          _ ->
-            Error(Nil)
+        case gleam_string_literal_at_end_of(opt.raw) {
+          Ok(val) -> Ok(#(path_segments(path), val))
+          _ -> Error(Nil)
         }
       }
 
@@ -1846,6 +1855,17 @@ fn to_json_object_tuples(
   })
 }
 
+fn tuple_nested_encode(
+  path path: List(String),
+  json json: g.Expression,
+) -> g.Expression {
+  case path {
+    [] -> panic as "`tuple_nested_encode` empty"
+    [prop] -> tuple([string(prop), json])
+    [prop, ..path] -> tuple([string(prop), tuple_nested_encode(path:, json:)])
+  }
+}
+
 fn variant_encode_case_clause(
   type_ type_: Type,
   variant variant: Variant,
@@ -1875,7 +1895,7 @@ fn variant_encode_case_clause(
             [
               tuple([
                 string(variant_json_key),
-                "json" |> dot("string") |> call([string(variant.pascal_case)])
+                "json" |> dot("string") |> call([string(variant.pascal_case)]),
               ]),
               .. field_tuples
             ]
@@ -1884,6 +1904,30 @@ fn variant_encode_case_clause(
             field_tuples
         }
     }
+
+  let field_tuples =
+    opts_for_variant(type_:, variant:, ctx:)
+    |> list.filter_map(fn(opt) {
+      case opt.strs {
+        ["json", "encode", "static", path, ..] -> {
+          case gleam_string_literal_at_end_of(opt.raw) {
+            Ok(val) -> Ok(#(path_segments(path), val))
+            _ -> Error(Nil)
+          }
+        }
+
+        _ ->
+          Error(Nil)
+      }
+    })
+    |> list.map(fn(t) {
+      let #(path, str) = t
+
+      tuple_nested_encode(path:, json: {
+        "json" |> dot("string") |> call([string(str)])
+      })
+    })
+    |> list.append(field_tuples)
 
   let pattern =
     case variant.fields {

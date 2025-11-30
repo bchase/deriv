@@ -7,11 +7,13 @@ pub type Field {
   //$ json variant key None
   Text(
     //$ json guard type "text"
+    //$ json encode static type "text"
     text: String,
   )
 
   Number(
     //$ json guard type "number"
+    //$ json encode static type "number"
     number: Float,
   )
 }
@@ -34,7 +36,15 @@ pub fn decoder_field_number() -> Decoder(Field) {
 
 pub fn encode_field(value: Field) -> Json {
   case value {
-    Text(..) as value -> json.object([#("text", json.string(value.text))])
-    Number(..) as value -> json.object([#("number", json.float(value.number))])
+    Text(..) as value ->
+      json.object([
+        #("type", json.string("text")),
+        #("text", json.string(value.text)),
+      ])
+    Number(..) as value ->
+      json.object([
+        #("type", json.string("number")),
+        #("number", json.float(value.number)),
+      ])
   }
 }
