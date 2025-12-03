@@ -54,6 +54,8 @@ pub type R(resource) {
     //$ newtype
     //$ json decoder decoder_id_custom
     //$ json encode encode_id_custom
+    option_id: Option(Id(resource)),
+    //$ newtype
   )
 }
 

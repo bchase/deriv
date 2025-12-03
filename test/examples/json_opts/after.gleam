@@ -55,6 +55,8 @@ pub type R(resource) {
     //$ newtype
     //$ json decoder decoder_id_custom
     //$ json encode encode_id_custom
+    option_id: Option(Id(resource)),
+    //$ newtype
   )
 }
 
@@ -147,11 +149,26 @@ pub fn decoder_r() -> Decoder(R(resource)) {
 
 pub fn decoder_r_r() -> Decoder(R(resource)) {
   use id <- decode.field("id", decoder_id_custom())
-  decode.success(R(id:))
+  use option_id <- decode.optional_field(
+    "option_id",
+    deriv.none,
+    decode.string |> decode.map(Id) |> decode.optional,
+  )
+  decode.success(R(id:, option_id:))
 }
 
 pub fn encode_r(value: R(resource)) -> Json {
   case value {
-    R(..) as value -> json.object([#("id", encode_id_custom(value.id))])
+    R(..) as value ->
+      json.object([
+        #("id", encode_id_custom(value.id)),
+        #(
+          "option_id",
+          json.nullable(
+            value.option_id |> option.map(fn(x) { x.id }),
+            json.string,
+          ),
+        ),
+      ])
   }
 }
