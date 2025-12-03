@@ -123,6 +123,33 @@ pub type Constr {
   )
 }
 
+pub type Id(resource) {
+  Id(id: String)
+}
+
+pub type ThingList {
+  ThingList(
+    id: Id(Thing),
+    name: String,
+  )
+}
+
+pub type ThingShow {
+  ThingShow(
+    id: Id(Thing),
+    name: String,
+  )
+}
+
+pub type Thing {
+  // derive from ThingList
+  // derive from ThingShow
+  Thing(
+    id: String,
+    name: String,
+  )
+}
+
 pub fn suppress_warning_authe_a() ->  AutheA {
   let uuid = uuid.v7_from_millisec(0)
   a.AutheA(uuid, "", "", uuid, uuid, "", None, None, "", "")
