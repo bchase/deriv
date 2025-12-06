@@ -80,6 +80,7 @@ pub type Gen {
     imports: List(Import),
     types: List(Definition(glance.CustomType)),
     funcs: List(Definition(glance.Function)),
+    consts: List(Definition(glance.Constant)),
     src: String,
     meta: Dict(String, String),
   )

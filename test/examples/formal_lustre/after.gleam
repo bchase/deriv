@@ -24,6 +24,15 @@ pub type FormField {
   FormListInt
 }
 
+pub const form_fields = [
+  FormStr,
+  FormInt,
+  FormOptionStr,
+  FormOptionInt,
+  FormListStr,
+  FormListInt
+]
+
 pub fn form_form() -> form.Form(Form) {
   form.new({
     use str <- form.field("str", { form.parse_string })

@@ -6,9 +6,10 @@ import gleam/list
 import gleam/string
 import gleam/result.{try}
 import gleam/regexp.{type Regexp}
-import glance.{type Module, type Definition, type Function, Module, Definition, Function, type CustomType, type Variant}
+import glance.{type Module, type Definition, type Function, Module, Definition, Function, type CustomType, type Variant, type Constant}
 import glance_printer
 import deriv/internal/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField, type ModuleReader, type ModuleReaderErr, type Newtype, Newtype}
+import deriv/internal/glance as dg
 import gleam/io
 import shellout
 import simplifile
@@ -70,6 +71,34 @@ pub fn replace_function(
 
   [ new_before, func_src, new_after ]
   |> string.join("\n\n")
+}
+
+pub fn replace_const(
+  full_src full_src: String,
+  const_name const_name: String,
+  const_src const_src: glance.Constant,
+) -> String {
+  let assert Ok(module) = glance.module(full_src)
+
+  let const_src =
+    const_src
+    |> glance.Definition([], _)
+    |> list.wrap
+    |> glance.Module([],[],[],_,[])
+    |> glance_printer.print
+
+  {
+    use const_def <- try(list.find(module.constants, fn(c) { c.definition.name == const_name }))
+    let const_def = const_def.definition
+
+    let #(before, after) = dg.splice_out_span(str: full_src, span: const_def.location)
+
+    Ok(before <> const_src <> after)
+  }
+  |> result.lazy_unwrap(fn() {
+    full_src
+    |> string.append("\n" <> const_src)
+  })
 }
 
 pub fn replace_type(
@@ -139,6 +168,14 @@ pub fn update_funcs(init_src: String, funcs: List(#(String, String))) -> String 
   })
 }
 
+pub fn update_consts(init_src: String, consts: List(#(String, glance.Constant))) -> String {
+  list.fold(consts, init_src, fn(src, const_) {
+    let #(const_name, const_src) = const_
+
+    replace_const(full_src: src, const_name:, const_src:)
+  })
+}
+
 fn type_start_re(type_name: String) -> Regexp {
   let assert Ok(re) =
     { "^(pub\\s*(opaque\\s*)?)?type " <> type_name <> "\\s*{\\s*$" }
@@ -203,6 +240,12 @@ pub fn func_str(func: Definition(Function)) -> String {
 
 pub fn type_str(type_: Definition(CustomType)) -> String {
   Module([], [type_], [], [], [])
+  |> glance_printer.print
+  |> gleam_format
+}
+
+pub fn const_str(const_: Definition(Constant)) -> String {
+  Module([], [], [], [const_], [])
   |> glance_printer.print
   |> gleam_format
 }

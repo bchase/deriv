@@ -10,7 +10,7 @@ import gleam/string
 import glance.{type CustomType, type Definition, type Function, type Variant, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, FnCapture}
 import deriv/internal/types.{type Context, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader} as deriv
 import deriv/internal/common
-import deriv/internal/glance.{dot, call, list, pipe} as _
+import deriv/internal/glance.{x, dot, call, list, pipe, term} as _
 
 
 // IMPROVE
@@ -801,22 +801,30 @@ pub fn gen(
           }
         }
 
-      let #(types, lookups_funcs) =
+      let #(types, lookups_funcs, consts) =
         case ctx.deriv.opts |> list.contains("lookups") {
           True -> {
+            let ct = form_field_type(type_:, fields:)
+
             let types = [
-              form_field_type(type_:, fields:),
+              ct
             ]
 
             let funcs = [
               form_field_lookups_func(type_:, fields:)
             ]
 
-            #(types, funcs)
+            let consts =
+              [
+                form_fields_const(type_: ct.definition),
+              ]
+              |> list.map(glance.Definition([], _))
+
+            #(types, funcs, consts)
           }
 
           False -> {
-            #([], [])
+            #([], [], [])
           }
         }
 
@@ -843,7 +851,7 @@ pub fn gen(
         |> list.map(common.func_str)
         |> string.join("\n\n")
 
-      Gen(file: ctx.file, deriv: ctx.deriv, imports:, funcs:, types:, src:, meta: dict.new())
+      Gen(file: ctx.file, deriv: ctx.deriv, imports:, funcs:, consts:, types:, src:, meta: dict.new())
     }
   }
 }
@@ -1299,5 +1307,31 @@ fn to_values_(
     util.String ->
       "deriv" |> dot("list_wrap")
       |> Some
+  }
+}
+
+fn form_fields_const(
+  type_ type_: glance.CustomType,
+) -> glance.Constant {
+  type_.variants
+  |> list.map(fn(variant) {
+    case variant {
+      Variant(name:, fields: [], ..) -> {
+        term(name)
+      }
+
+      Variant(fields: _, ..) -> panic as {
+        "`form` doesn't know what to do with field type variant with fields :" <> string.inspect(type_)
+      }
+    }
+  })
+  |> list
+  |> fn(fields_list) {
+    glance.Constant(x,
+      name: type_.name |> common.snake_case |> string.append(suffix: "s"),
+      publicity: glance.Public,
+      annotation: None,
+      value: fields_list,
+    )
   }
 }
