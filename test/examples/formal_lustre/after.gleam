@@ -10,6 +10,7 @@ pub type Form {
     int: Int,
     option_str: Option(String),
     list_str: List(String),
+    list_int: List(Int),
   )
 }
 
@@ -18,6 +19,7 @@ pub type FormField {
   FormInt
   FormOptionStr
   FormListStr
+  FormListInt
 }
 
 pub fn form_form() -> form.Form(Form) {
@@ -30,7 +32,8 @@ pub fn form_form() -> form.Form(Form) {
     use list_str <- form.field("list_str", {
       form.parse_string |> form.parse_list
     })
-    form.success(Form(str:, int:, option_str:, list_str:))
+    use list_int <- form.field("list_int", { form.parse_int |> form.parse_list })
+    form.success(Form(str:, int:, option_str:, list_str:, list_int:))
   })
 }
 
@@ -41,6 +44,7 @@ pub fn form_field_lookups() -> deriv.DerivedFormLookups(FormField, Form) {
       FormInt -> "int"
       FormOptionStr -> "option_str"
       FormListStr -> "list_str"
+      FormListInt -> "list_int"
     }
   }
   let name_to_field = fn(name) {
@@ -49,6 +53,7 @@ pub fn form_field_lookups() -> deriv.DerivedFormLookups(FormField, Form) {
       "int" -> Ok(FormInt)
       "option_str" -> Ok(FormOptionStr)
       "list_str" -> Ok(FormListStr)
+      "list_int" -> Ok(FormListInt)
       _ -> Error(Nil)
     }
   }
@@ -58,6 +63,7 @@ pub fn form_field_lookups() -> deriv.DerivedFormLookups(FormField, Form) {
       FormInt -> deriv.Int
       FormOptionStr -> deriv.Option(deriv.String)
       FormListStr -> deriv.List(deriv.String)
+      FormListInt -> deriv.List(deriv.Int)
     }
   }
   let field_values = fn(form: Form, field) {
@@ -69,6 +75,7 @@ pub fn form_field_lookups() -> deriv.DerivedFormLookups(FormField, Form) {
         |> option.map(deriv.list_wrap)
         |> option.unwrap([])
       FormListStr -> form.list_str
+      FormListInt -> form.list_int |> deriv.list_map(deriv.int_to_string)
     }
   }
   deriv.DerivedFormLookups(
@@ -109,6 +116,7 @@ pub fn example_lustre_html_form_for_form(
     input(FormInt, "Int"),
     input(FormOptionStr, "Option Str"),
     input(FormListStr, "List Str"),
+    input(FormListInt, "List Int"),
     f.p([], [f.button([f.type_("submit")], [f.text("Submit")])]),
   ])
 }

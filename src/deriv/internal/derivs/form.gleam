@@ -1190,7 +1190,7 @@ fn to_values(
 ) -> glance.Expression {
   let field_access = form_param_name |> dot(field.input_name)
 
-  case to_values_(type_: field.type_) {
+  case to_values_(type_: field.type_, wrap: True) {
     Some(expr) ->
       field_access
       |> pipe(
@@ -1204,6 +1204,7 @@ fn to_values(
 
 fn to_values_(
   type_ type_: util.GleamType,
+  wrap wrap: Bool
 ) -> Option(glance.Expression) {
   case type_ {
     util.Date |
@@ -1215,43 +1216,69 @@ fn to_values_(
       None
 
     util.List(inner) ->
-      None
-
-    util.Option(inner) -> {
-      let assert Some(expr) = to_values_(type_: inner)
-
-      Some(
-        "option" |> dot("map") |> call([
-          expr
-        ])
-        |> pipe(
-          "option" |> dot("unwrap") |> call([
-            list([]),
+      case to_values_(type_: inner, wrap: False) {
+        Some(expr) ->
+          "deriv" |> dot("list_map") |> call([
+            expr,
           ])
-        )
+          |> Some
+
+        None ->
+          panic as { "not yet implemented: `List` wrapping " <> string.inspect(inner) }
+      }
+
+    util.Option(inner) ->
+      case to_values_(type_: inner, wrap: True) {
+        Some(expr) ->
+          "option" |> dot("map") |> call([
+            expr,
+          ])
+          |> pipe(
+            "option" |> dot("unwrap") |> call([
+              list([]),
+            ])
+          )
+          |> Some
+
+        None ->
+          panic as { "not yet implemented: `Option` wrapping " <> string.inspect(inner) }
+      }
+
+    util.Bool -> {
+      let func = "deriv" |> dot("bool_to_string")
+
+      use <- bool.guard(wrap == False, Some(func))
+
+      func
+      |> pipe(
+        "deriv" |> dot("list_wrap")
       )
+      |> Some
     }
 
-    util.Bool ->
-      "deriv" |> dot("bool_to_string")
-      |> pipe(
-        "deriv" |> dot("list_wrap")
-      )
-      |> Some
+    util.Float -> {
+      let func = "deriv" |> dot("float_to_string")
 
-    util.Float ->
-      "deriv" |> dot("float_to_string")
-      |> pipe(
-        "deriv" |> dot("list_wrap")
-      )
-      |> Some
+      use <- bool.guard(wrap == False, Some(func))
 
-    util.Int ->
-      "deriv" |> dot("int_to_string")
+      func
       |> pipe(
         "deriv" |> dot("list_wrap")
       )
       |> Some
+    }
+
+    util.Int -> {
+      let func = "deriv" |> dot("int_to_string")
+
+      use <- bool.guard(wrap == False, Some(func))
+
+      func
+      |> pipe(
+        "deriv" |> dot("list_wrap")
+      )
+      |> Some
+    }
 
     util.String ->
       "deriv" |> dot("list_wrap")
