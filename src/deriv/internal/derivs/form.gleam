@@ -1,3 +1,4 @@
+import gleam/bool
 import deriv/util
 import gleam/int
 import gleam/float
@@ -9,7 +10,7 @@ import gleam/string
 import glance.{type CustomType, type Definition, type Function, type Variant, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, FnCapture}
 import deriv/internal/types.{type Context, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader} as deriv
 import deriv/internal/common
-import deriv/internal/glance.{dot, call, term} as _
+import deriv/internal/glance.{dot, call, list, pipe} as _
 
 
 // IMPROVE
@@ -1122,13 +1123,25 @@ fn form_field_lookups_func(
       })))
     ]))
 
+  let form_param_name = "form"
+  let field_values =
+    Assignment(x, Let, PatternVariable(x, "field_values"), None, Fn(x, [
+      FnParameter(Named(form_param_name), Some(NamedType(x, form_type_name, None, []))),
+      FnParameter(Named("field"), None),
+    ], None, [
+      Expression(Case(x, [Variable(x, "field")], list.map(fields, fn(field) {
+        Clause([[PatternVariant(x, None, field.variant, [], False)]], None, field |> to_values(form_param_name:))
+      })))
+    ]))
+
   let lookups_return =
     Expression(Call(x, FieldAccess(x, Variable(x, "deriv"), "DerivedFormLookups"), [
       ShorthandField("name_to_field"),
       ShorthandField("field_to_name"),
       ShorthandField("field_to_type"),
       LabelledField("field_to_dom_id", FieldAccess(x, Variable(x, "deriv"), "inspect")),
-      LabelledField("field_to_default_label", FnCapture(x, None, FieldAccess(x, Variable(x, "deriv"), "field_to_default_label"), [], [ShorthandField("field_to_name")]))
+      LabelledField("field_to_default_label", FnCapture(x, None, FieldAccess(x, Variable(x, "deriv"), "field_to_default_label"), [], [ShorthandField("field_to_name")])),
+      ShorthandField("field_values"),
     ]))
 
   Function(x, lookups_func_name, Public, [],
@@ -1137,6 +1150,7 @@ fn form_field_lookups_func(
       field_to_name,
       name_to_field,
       field_to_type,
+      field_values,
 
       lookups_return,
     ],
@@ -1167,5 +1181,80 @@ fn qualified(
     util.TimeOfDay |
     util.Uri ->
       module |> dot(type_ |> string.inspect)
+  }
+}
+
+fn to_values(
+  field field: LookupField,
+  form_param_name form_param_name: String,
+) -> glance.Expression {
+  let field_access = form_param_name |> dot(field.input_name)
+
+  case to_values_(type_: field.type_) {
+    Some(expr) ->
+      field_access
+      |> pipe(
+        expr,
+      )
+
+    None ->
+      field_access
+  }
+}
+
+fn to_values_(
+  type_ type_: util.GleamType,
+) -> Option(glance.Expression) {
+  case type_ {
+    util.Date |
+    util.TimeOfDay |
+    util.Uri ->
+      panic as "unimplemented"
+
+    util.List(util.String) ->
+      None
+
+    util.List(inner) ->
+      None
+
+    util.Option(inner) -> {
+      let assert Some(expr) = to_values_(type_: inner)
+
+      Some(
+        "option" |> dot("map") |> call([
+          expr
+        ])
+        |> pipe(
+          "option" |> dot("unwrap") |> call([
+            list([]),
+          ])
+        )
+      )
+    }
+
+    util.Bool ->
+      "deriv" |> dot("bool_to_string")
+      |> pipe(
+        "deriv" |> dot("list_wrap")
+      )
+      |> Some
+
+    util.Float ->
+      "deriv" |> dot("float_to_string")
+      |> pipe(
+        "deriv" |> dot("list_wrap")
+      )
+      |> Some
+
+    util.Int ->
+      "deriv" |> dot("int_to_string")
+      |> pipe(
+        "deriv" |> dot("list_wrap")
+      )
+      |> Some
+
+    util.String ->
+      "deriv" |> dot("list_wrap")
+      |> Some
   }
 }

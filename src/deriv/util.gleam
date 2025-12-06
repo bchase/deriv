@@ -18,6 +18,10 @@ import gleam/option
 pub const none = option.None
 pub const some = option.Some
 pub const list_map = list.map
+pub const list_wrap = list.wrap
+pub const int_to_string = int.to_string
+pub const float_to_string = float.to_string
+pub const bool_to_string = bool.to_string
 
 // dep re-exports
 
@@ -32,6 +36,7 @@ pub type DerivedFormLookups(field, form) {
     field_to_type: fn(field) -> GleamType,
     field_to_dom_id: fn(field) -> String,
     field_to_default_label: fn(field) -> String,
+    field_values: fn(form, field) -> List(String),
   )
 }
 
@@ -336,7 +341,3 @@ pub fn field_to_dom_id(
 ) -> String {
   string.inspect(field)
 }
-
-pub const int_to_string = int.to_string
-pub const float_to_string = float.to_string
-pub const bool_to_string = bool.to_string
