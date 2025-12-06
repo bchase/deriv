@@ -6,6 +6,7 @@ pub type Form {
     str: String,
     int: Int,
     option_str: Option(String),
+    option_int: Option(Int),
     list_str: List(String),
     list_int: List(Int),
   )

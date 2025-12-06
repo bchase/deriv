@@ -9,6 +9,7 @@ pub type Form {
     str: String,
     int: Int,
     option_str: Option(String),
+    option_int: Option(Int),
     list_str: List(String),
     list_int: List(Int),
   )
@@ -18,6 +19,7 @@ pub type FormField {
   FormStr
   FormInt
   FormOptionStr
+  FormOptionInt
   FormListStr
   FormListInt
 }
@@ -29,11 +31,21 @@ pub fn form_form() -> form.Form(Form) {
     use option_str <- form.field("option_str", {
       form.parse_string |> form.parse_optional
     })
+    use option_int <- form.field("option_int", {
+      form.parse_int |> form.parse_optional
+    })
     use list_str <- form.field("list_str", {
       form.parse_string |> form.parse_list
     })
     use list_int <- form.field("list_int", { form.parse_int |> form.parse_list })
-    form.success(Form(str:, int:, option_str:, list_str:, list_int:))
+    form.success(Form(
+      str:,
+      int:,
+      option_str:,
+      option_int:,
+      list_str:,
+      list_int:,
+    ))
   })
 }
 
@@ -43,6 +55,7 @@ pub fn form_field_lookups() -> deriv.DerivedFormLookups(FormField, Form) {
       FormStr -> "str"
       FormInt -> "int"
       FormOptionStr -> "option_str"
+      FormOptionInt -> "option_int"
       FormListStr -> "list_str"
       FormListInt -> "list_int"
     }
@@ -52,6 +65,7 @@ pub fn form_field_lookups() -> deriv.DerivedFormLookups(FormField, Form) {
       "str" -> Ok(FormStr)
       "int" -> Ok(FormInt)
       "option_str" -> Ok(FormOptionStr)
+      "option_int" -> Ok(FormOptionInt)
       "list_str" -> Ok(FormListStr)
       "list_int" -> Ok(FormListInt)
       _ -> Error(Nil)
@@ -62,6 +76,7 @@ pub fn form_field_lookups() -> deriv.DerivedFormLookups(FormField, Form) {
       FormStr -> deriv.String
       FormInt -> deriv.Int
       FormOptionStr -> deriv.Option(deriv.String)
+      FormOptionInt -> deriv.Option(deriv.Int)
       FormListStr -> deriv.List(deriv.String)
       FormListInt -> deriv.List(deriv.Int)
     }
@@ -72,6 +87,11 @@ pub fn form_field_lookups() -> deriv.DerivedFormLookups(FormField, Form) {
       FormInt -> form.int |> deriv.int_to_string |> deriv.list_wrap
       FormOptionStr ->
         form.option_str
+        |> option.map(deriv.list_wrap)
+        |> option.unwrap([])
+      FormOptionInt ->
+        form.option_int
+        |> option.map(deriv.int_to_string)
         |> option.map(deriv.list_wrap)
         |> option.unwrap([])
       FormListStr -> form.list_str
@@ -115,6 +135,7 @@ pub fn example_lustre_html_form_for_form(
     input(FormStr, "Str"),
     input(FormInt, "Int"),
     input(FormOptionStr, "Option Str"),
+    input(FormOptionInt, "Option Int"),
     input(FormListStr, "List Str"),
     input(FormListInt, "List Int"),
     f.p([], [f.button([f.type_("submit")], [f.text("Submit")])]),

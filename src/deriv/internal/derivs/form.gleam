@@ -1227,12 +1227,28 @@ fn to_values_(
           panic as { "not yet implemented: `List` wrapping " <> string.inspect(inner) }
       }
 
+    util.Option(util.String) ->
+      "option" |> dot("map") |> call([
+        "deriv" |> dot("list_wrap"),
+      ])
+      |> pipe(
+        "option" |> dot("unwrap") |> call([
+          list([]),
+        ])
+      )
+      |> Some
+
     util.Option(inner) ->
-      case to_values_(type_: inner, wrap: True) {
+      case to_values_(type_: inner, wrap: False) {
         Some(expr) ->
           "option" |> dot("map") |> call([
             expr,
           ])
+          |> pipe(
+            "option" |> dot("map") |> call([
+              "deriv" |> dot("list_wrap"),
+            ])
+          )
           |> pipe(
             "option" |> dot("unwrap") |> call([
               list([]),
