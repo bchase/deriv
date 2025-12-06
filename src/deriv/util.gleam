@@ -11,7 +11,7 @@ import gleam/dynamic/decode.{type Decoder}
 import youid/uuid.{type Uuid}
 import birl
 import deriv/internal/common
-import gleam/option
+import gleam/option.{type Option}
 
 // stdlib re-exports
 
@@ -340,4 +340,31 @@ pub fn field_to_dom_id(
   field field: field,
 ) -> String {
   string.inspect(field)
+}
+
+pub fn build_form(
+  from data: Option(t),
+  using conv: fn(t) -> form,
+  default default: form.Form(form),
+  lookups lookups: DerivedFormLookups(field, form),
+  fields fields: List(field),
+) -> form.Form(form) {
+  data
+  |> option.map(fn(x) {
+    let form = conv(x)
+
+    fields
+    |> list.flat_map(fn(field) {
+      let name = lookups.field_to_name(field)
+
+      lookups.field_values(form, field)
+      |> list.map(fn(value) {
+        #(name, value)
+      })
+    })
+    |> form.set_values(default, _)
+  })
+  |> option.lazy_unwrap(fn() {
+    default
+  })
 }
