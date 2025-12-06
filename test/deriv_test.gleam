@@ -3,6 +3,7 @@ import deriv
 import deriv/internal/common
 import deriv/internal/parser
 import deriv/internal/types.{File, DerivFieldOpt, DerivField}
+import deriv/internal/glance as dg
 import glance
 import gleam/dict
 import gleam/option.{Some}
@@ -138,6 +139,14 @@ fn example_dir_path(
 
 pub fn main() {
   gleeunit.main()
+}
+
+pub fn splice_out_span_test() {
+  let span = glance.Span(start: 6, end: 10)
+
+  "hello world how are you"
+  |> dg.splice_out_span(span)
+  |> should.equal(#("hello ", " how are you"))
 }
 
 // START TESTS

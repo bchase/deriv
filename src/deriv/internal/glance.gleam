@@ -1,5 +1,6 @@
 import gleam/option.{None}
 import gleam/list
+import gleam/string
 import glance as g
 
 // HELPERS
@@ -101,4 +102,20 @@ pub fn identity_func(
     ],
     return_annotation: None,
   )
+}
+
+pub fn splice_out_span(
+  str str: String,
+  span span: g.Span,
+) -> #(String, String) {
+  let g.Span(start:, end:) = span
+  let len = end - start + 1
+
+  let ignore_end = string.length(str) - start
+  let ignore_start = start + len
+
+  let before = str |> string.drop_end(ignore_end)
+  let after = str |> string.drop_start(ignore_start)
+
+  #(before, after)
 }
