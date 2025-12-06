@@ -1,22 +1,28 @@
 import deriv/lustre as f
 import deriv/util as deriv
 import formal/form
+import gleam/option.{type Option}
 
 pub type Form {
   //$ derive form lookups lustre
   Form(
     str: String,
+    option_str: Option(String),
   )
 }
 
 pub type FormField {
   FormStr
+  FormOptionStr
 }
 
 pub fn form_form() -> form.Form(Form) {
   form.new({
     use str <- form.field("str", { form.parse_string })
-    form.success(Form(str:))
+    use option_str <- form.field("option_str", {
+      form.parse_string |> form.parse_optional
+    })
+    form.success(Form(str:, option_str:))
   })
 }
 
@@ -24,17 +30,20 @@ pub fn form_field_lookups() -> deriv.DerivedFormLookups(FormField, Form) {
   let field_to_name = fn(field) {
     case field {
       FormStr -> "str"
+      FormOptionStr -> "option_str"
     }
   }
   let name_to_field = fn(name) {
     case name {
       "str" -> Ok(FormStr)
+      "option_str" -> Ok(FormOptionStr)
       _ -> Error(Nil)
     }
   }
   let field_to_type = fn(field) {
     case field {
       FormStr -> deriv.String
+      FormOptionStr -> deriv.Option(deriv.String)
     }
   }
   deriv.DerivedFormLookups(
@@ -71,6 +80,7 @@ pub fn example_lustre_html_form_for_form(
   }
   f.form([f.on_submit(submit_msg)], [
     input(FormStr, "Str"),
+    input(FormOptionStr, "Option Str"),
     f.p([], [f.button([f.type_("submit")], [f.text("Submit")])]),
   ])
 }

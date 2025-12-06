@@ -9,6 +9,8 @@ import gleam/string
 import glance.{type CustomType, type Definition, type Function, type Variant, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, FnCapture}
 import deriv/internal/types.{type Context, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader} as deriv
 import deriv/internal/common
+import deriv/internal/glance.{dot, call, term} as _
+
 
 // IMPROVE
 //   - support nested forms (see `formal/scratch.gleam`; would need to parse nested opts)
@@ -1067,7 +1069,7 @@ fn lookup_field(
   LookupField(
     variant: field_variant_name(type_:, field:),
     input_name: common.snake_case(field.name),
-    type_: field.type_ |> to_type_simple |>  to_gleam_type,
+    type_: field.type_ |> to_type_simple |> to_gleam_type,
   )
 }
 
@@ -1116,7 +1118,7 @@ fn form_field_lookups_func(
   let field_to_type =
     Assignment(x, Let, PatternVariable(x, "field_to_type"), None, Fn(x, [FnParameter(Named("field"), None)], None, [
       Expression(Case(x, [Variable(x, "field")], list.map(fields, fn(field) {
-        Clause([[PatternVariant(x, None, field.variant, [], False)]], None, FieldAccess(x, Variable(x, gleam_type_module), string.inspect(field.type_)))
+        Clause([[PatternVariant(x, None, field.variant, [], False)]], None, field.type_ |> qualified(module: gleam_type_module))
       })))
     ]))
 
@@ -1140,4 +1142,30 @@ fn form_field_lookups_func(
     ],
   )
   |> Definition(attributes: [], definition: _)
+}
+
+fn qualified(
+  type_ type_: util.GleamType,
+  module module: String,
+) -> glance.Expression {
+  case type_ {
+    util.List(inner) ->
+      module |> dot("List") |> call([
+        inner |> qualified(module:),
+      ])
+
+    util.Option(inner) ->
+      module |> dot("Option") |> call([
+        inner |> qualified(module:),
+      ])
+
+    util.Bool |
+    util.Date |
+    util.Float |
+    util.Int |
+    util.String |
+    util.TimeOfDay |
+    util.Uri ->
+      module |> dot(type_ |> string.inspect)
+  }
 }
