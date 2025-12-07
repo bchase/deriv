@@ -1,4 +1,4 @@
-import gleam/option.{None}
+import gleam/option.{type Option, None}
 import gleam/list
 import gleam/string
 import glance as g
@@ -81,6 +81,27 @@ pub fn pipe(
   right right: g.Expression,
 ) -> g.Expression {
   g.BinaryOperator(x, name: g.Pipe, left:, right:)
+}
+
+//
+
+pub fn named_type(
+  name name: String,
+  params params: List(g.Type),
+) -> g.Type {
+  named_type_(module: None, name:, params:)
+}
+
+pub fn named_type_(
+  module module: Option(String),
+  name name: String,
+  params parameters: List(g.Type),
+) -> g.Type {
+  g.NamedType(x,
+    name:,
+    module:,
+    parameters:,
+  )
 }
 
 //

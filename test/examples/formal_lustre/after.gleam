@@ -58,6 +58,14 @@ pub fn form_form() -> form.Form(Form) {
   })
 }
 
+pub fn form_builder() -> deriv.FormBuilder(Form, FormField) {
+  deriv.FormBuilder(
+    form: form_form(),
+    fields: form_fields,
+    lookups: form_field_lookups(),
+  )
+}
+
 pub fn form_field_lookups() -> deriv.DerivedFormLookups(FormField, Form) {
   let field_to_name = fn(field) {
     case field {

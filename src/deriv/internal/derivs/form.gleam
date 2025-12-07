@@ -10,7 +10,7 @@ import gleam/string
 import glance.{type CustomType, type Definition, type Function, type Variant, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, List, UnlabelledField, String, Int, Float, ShorthandField, LabelledField, Block, CustomType, Variant, Named, FunctionType, TupleType, FunctionParameter, VariableType, Let, PatternVariable, Assignment, Fn, FnParameter, Clause, Case, PatternDiscard, PatternString, PatternVariant, FnCapture}
 import deriv/internal/types.{type Context, type Derivation, type Gen, Gen, type DerivFieldOpts, type DerivFieldOpt, type ModuleReader} as deriv
 import deriv/internal/common
-import deriv/internal/glance.{x, dot, call, list, pipe, term} as _
+import deriv/internal/glance.{x, dot, call, list, pipe, term} as dg
 
 
 // IMPROVE
@@ -811,7 +811,8 @@ pub fn gen(
             ]
 
             let funcs = [
-              form_field_lookups_func(type_:, fields:)
+              form_builder_func(type_:),
+              form_field_lookups_func(type_:, fields:),
             ]
 
             let consts =
@@ -1086,6 +1087,48 @@ fn lookups_func_name(
   type_ type_: CustomType,
 ) -> String {
   common.snake_case(type_.name) <> "_field_lookups"
+}
+
+fn form_builder_func(
+  type_ type_: CustomType,
+) -> Definition(Function) {
+  let deriv_util_module = "deriv"
+
+  let form_type_name = type_.name
+  let form_field_type_name = type_.name <> "Field"
+
+  let func_name =
+    form_type_name
+    |> common.snake_case
+    |> string.append(suffix: "_builder")
+
+  let form_func_name =
+    form_type_name |> common.snake_case |> string.append(suffix: "_form")
+  let form_fields_const_name =
+    form_type_name |> common.snake_case |> string.append(suffix: "_fields")
+  let form_field_lookups_func_name =
+    form_type_name |> common.snake_case |> string.append(suffix: "_field_lookups")
+
+  let body =
+    deriv_util_module |> dot("FormBuilder") |> dg.call_([
+      glance.LabelledField("form", form_func_name |> term |> call([])),
+      glance.LabelledField("fields", form_fields_const_name |> term),
+      glance.LabelledField("lookups", form_field_lookups_func_name |> term |> call([])),
+    ])
+    |> glance.Expression
+    |> list.wrap
+
+  glance.Function(x,
+    name: func_name,
+    publicity: glance.Public,
+    parameters: [],
+    return: Some(dg.named_type_(Some(deriv_util_module), "FormBuilder", [
+      dg.named_type(form_type_name, []),
+      dg.named_type(form_field_type_name, []),
+    ])),
+    body:,
+  )
+  |> glance.Definition([], _)
 }
 
 fn form_field_lookups_func(

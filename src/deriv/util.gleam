@@ -342,29 +342,35 @@ pub fn field_to_dom_id(
   string.inspect(field)
 }
 
+pub type FormBuilder(form, field) {
+  FormBuilder(
+    form: form.Form(form),
+    fields: List(field),
+    lookups: DerivedFormLookups(field, form),
+  )
+}
+
 pub fn build_form(
   from data: Option(t),
   using conv: fn(t) -> form,
-  default default: form.Form(form),
-  lookups lookups: DerivedFormLookups(field, form),
-  fields fields: List(field),
+  builder builder: FormBuilder(form, field),
 ) -> form.Form(form) {
   data
   |> option.map(fn(x) {
     let form = conv(x)
 
-    fields
+    builder.fields
     |> list.flat_map(fn(field) {
-      let name = lookups.field_to_name(field)
+      let name = builder.lookups.field_to_name(field)
 
-      lookups.field_values(form, field)
+      builder.lookups.field_values(form, field)
       |> list.map(fn(value) {
         #(name, value)
       })
     })
-    |> form.set_values(default, _)
+    |> form.set_values(builder.form, _)
   })
   |> option.lazy_unwrap(fn() {
-    default
+    builder.form
   })
 }
