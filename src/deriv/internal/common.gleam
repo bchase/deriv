@@ -10,10 +10,15 @@ import glance.{type Module, type Definition, type Function, Module, Definition, 
 import glance_printer
 import deriv/internal/types.{type DerivFieldOpts, type DerivFieldOpt, DerivField, type ModuleReader, type ModuleReaderErr, type Newtype, Newtype}
 import deriv/internal/glance as dg
+import deriv/internal/common/casing
 import gleam/io
 import shellout
 import simplifile
 import tom
+
+pub const snake_case_to_label = casing.snake_case_to_label
+pub const snake_case = casing.snake_case
+pub const pascal_case = casing.pascal_case
 
 pub const gleam_reserved_words = [
   "case", "const", "external", "fn", "import", "let", "opaque", "pub", "type", "use",
@@ -628,39 +633,6 @@ pub fn none_constr_import() -> glance.Import {
 
 pub fn dummy_location() -> glance.Span {
   x
-}
-
-// FORM
-
-pub fn snake_case_to_label(
-  str str: String,
-) -> String {
-  str
-  |> string.split("_")
-  |> list.map(string.capitalise)
-  |> string.join(" ")
-}
-
-// // // CASE HELPERS // // //
-
-pub fn pascal_case(str: String) -> String {
-  str
-  |> string.split("_")
-  |> list.map(string.capitalise)
-  |> string.join("")
-}
-
-pub fn snake_case(str: String) -> String {
-  let assert Ok(capital_re) = regexp.from_string("[A-Z]")
-  let assert Ok(initial_underscore_re) = regexp.from_string("^[_]")
-
-  str
-  |> regexp.match_map(each: capital_re, in: _, with: fn(match) {
-    match.content
-    |> string.lowercase
-    |> string.append(to: "_", suffix: _)
-  })
-  |> regexp.replace(each: initial_underscore_re, in: _, with: "")
 }
 
 //

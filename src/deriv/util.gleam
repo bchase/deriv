@@ -10,7 +10,7 @@ import gleam/json.{type Json}
 import gleam/dynamic/decode.{type Decoder}
 import youid/uuid.{type Uuid}
 import birl
-import deriv/internal/common
+import deriv/internal/common/casing
 import gleam/option.{type Option}
 
 // stdlib re-exports
@@ -248,7 +248,7 @@ fn decoder_birl_int_to_time(
 }
 
 pub fn snake_case(str: String) -> String {
-  common.snake_case(str)
+  casing.snake_case(str)
 }
 
 pub fn formal_scalar_parser(
@@ -333,7 +333,7 @@ pub fn field_to_default_label(
 ) -> String {
   field
   |> field_to_name
-  |> common.snake_case_to_label
+  |> casing.snake_case_to_label
 }
 
 pub fn field_to_dom_id(
