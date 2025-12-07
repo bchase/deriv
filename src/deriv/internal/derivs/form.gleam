@@ -1103,7 +1103,7 @@ fn form_builder_func(
     |> string.append(suffix: "_builder")
 
   let form_func_name =
-    form_type_name |> common.snake_case |> string.append(suffix: "_form")
+    form_type_name |> common.snake_case |> string.append("form_", suffix: _)
   let form_fields_const_name =
     form_type_name |> common.snake_case |> string.append(suffix: "_fields")
   let form_field_lookups_func_name =
