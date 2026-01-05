@@ -11,7 +11,7 @@ import gleam/dynamic/decode.{type Decoder}
 import youid/uuid.{type Uuid}
 import birl
 import deriv/internal/common/casing
-import gleam/option.{type Option}
+import gleam/option.{type Option, Some, None}
 
 // stdlib re-exports
 
@@ -158,6 +158,7 @@ pub fn decoder_birl_parse() -> Decoder(Time) {
   decoder_birl_string_to_result(
     func_name: "parse",
     func: birl.parse,
+    check: Some(fn(str) { string.contains(str, "T") }),
   )
 }
 
@@ -165,6 +166,7 @@ pub fn decoder_birl_from_naive() -> Decoder(Time) {
   decoder_birl_string_to_result(
     func_name: "from_naive",
     func: birl.from_naive,
+    check: None,
   )
 }
 
@@ -172,6 +174,7 @@ pub fn decoder_birl_from_http() -> Decoder(Time) {
   decoder_birl_string_to_result(
     func_name: "from_http",
     func: birl.from_http,
+    check: None,
   )
 }
 
@@ -226,12 +229,23 @@ pub fn encode_birl_to_unix_micro(time: Time) -> Json {
 fn decoder_birl_string_to_result(
   func func: fn(String) -> Result(Time, Nil),
   func_name func_name : String,
+  check check: Option(fn(String) -> Bool),
 ) -> Decoder(Time) {
   decode.string
   |> decode.then(fn(str) {
+    let err = "Failed to `" <> func_name <> "`: " <> str
+
+    let pass_check =
+      case check {
+        None -> True
+        Some(check) -> check(str)
+      }
+
+    use <- bool.guard(!pass_check, decode.failure(birl.unix_epoch, err <> " failed `check`"))
+
     case func(str) {
       Ok(time) -> decode.success(time)
-      Error(_) -> decode.failure(birl.from_unix(0), "Failed to `" <> func_name <> "`: " <> str)
+      Error(_) -> decode.failure(birl.unix_epoch, err)
     }
   })
 }
