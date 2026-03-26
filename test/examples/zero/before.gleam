@@ -13,6 +13,8 @@ pub type Player {
     kd: Float,
     hobbies: List(String),
     active: Bool,
+    last_active: Time,
+    //$ zero time_zero_override
   )
 }
 
@@ -20,3 +22,5 @@ pub type Foo {
   //$ derive zero
   Bar
 }
+
+pub fn time_zero_override() -> Time { birl.unix_epoch }

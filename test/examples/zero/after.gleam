@@ -14,6 +14,8 @@ pub type Player {
     kd: Float,
     hobbies: List(String),
     active: Bool,
+    last_active: Time,
+    //$ zero time_zero_override
   )
 }
 
@@ -22,8 +24,20 @@ pub type Foo {
   Bar
 }
 
+pub fn time_zero_override() -> Time { birl.unix_epoch }
+
 pub fn zero_player() -> Player {
-  Player(util.zero_uuid(), "", None, util.zero_time(), 0, 0.0, [], False)
+  Player(
+    util.zero_uuid(),
+    "",
+    None,
+    util.zero_time(),
+    0,
+    0.0,
+    [],
+    False,
+    time_zero_override(),
+  )
 }
 
 pub fn zero_foo() -> Foo {

@@ -6,6 +6,7 @@ import gleam/string
 import glance.{type Expression, type CustomType, type Definition, type Function, type Variant, type VariantField, type Import, Definition, Function, Public, NamedType, Expression, Call, Variable, FieldAccess, List, UnlabelledField, String, Int, Float}
 import deriv/internal/types.{type Context, type Gen, Gen} as deriv
 import deriv/internal/common
+import deriv/internal/glance.{term, dot, call} as _
 
 
 pub fn gen(
@@ -20,7 +21,7 @@ pub fn gen(
       let imports = gen_imports(type_)
 
       let funcs =
-        zero_func(type_)
+        zero_func(type_, ctx)
         |> list.wrap
 
       let src = ""
@@ -47,10 +48,11 @@ fn gen_imports(
 
 fn zero_func(
   type_: CustomType,
+  ctx: Context,
 ) -> Definition(Function) {
   type_.variants
   |> list.fold_until(None, fn(acc, variant) {
-    case zero_func_(variant, type_) {
+    case zero_func_(variant, type_, ctx) {
       Ok(func) -> list.Stop(Some(func))
       Error(_) -> list.Continue(acc)
     }
@@ -62,11 +64,12 @@ fn zero_func(
 
 fn zero_func_(
   variant: Variant,
-  type_: CustomType
+  type_: CustomType,
+  ctx: Context,
 ) -> Result(Definition(Function), Nil) {
   use field_zero_vals: List(glance.Field(Expression)) <- result.try(result.all(
     variant.fields
-    |> list.map(zero_call)
+    |> list.map(zero_call(_, variant, type_, ctx))
     |> list.map(result.map(_, UnlabelledField))
   ))
 
@@ -103,6 +106,57 @@ fn zero_func_(
 }
 
 fn zero_call(
+  field: VariantField,
+  variant: Variant,
+  type_: CustomType,
+  ctx: Context,
+) -> Result(Expression, Nil) {
+  case field {
+    glance.LabelledVariantField(label:, ..) -> {
+      case ctx.opts |> dict.get(deriv.DerivField(type_: type_.name, variant: variant.name, field: label)) {
+        Ok([]) | Error(Nil) ->
+          default_zero_call(field)
+
+        Ok(opts) ->
+          zero_call_override(opts, field)
+      }
+    }
+
+    glance.UnlabelledVariantField(..) ->
+      default_zero_call(field)
+  }
+}
+
+fn zero_call_override(
+  opts: List(deriv.DerivFieldOpt),
+  field: VariantField,
+) {
+  opts
+  |> list.filter_map(fn(opt) {
+    case opt.strs {
+      ["zero", ident] -> Ok(ident)
+      _ -> Error(Nil)
+    }
+  })
+  |> fn(overrides) {
+    case overrides {
+      [] ->
+        default_zero_call(field)
+
+      [override] ->
+        case override |> string.split(".") {
+          [override] -> Ok(override |> term |> call([]))
+          [module, func] -> Ok(module |> dot(func))
+          _ -> panic as { "can't make sense of `zero` override: " <> override }
+        }
+
+      [_opt1, _opt2, ..] ->
+        panic as "invalid or multiple `zero` overrides specified"
+    }
+  }
+}
+
+fn default_zero_call(
   field: VariantField
 ) -> Result(Expression, Nil) {
   case field.item {
