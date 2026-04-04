@@ -1,9 +1,11 @@
+import gleam/dynamic/decode
 import gleam/json
 import deriv
 import deriv/internal/common
 import deriv/internal/parser
 import deriv/internal/types.{File, DerivFieldOpt, DerivField}
 import deriv/internal/glance as dg
+import deriv/util
 import glance
 import gleam/dict
 import gleam/option.{Some}
@@ -149,7 +151,12 @@ pub fn splice_out_span_test() {
   |> should.equal(#("hello ", " how are you"))
 }
 
-// START TESTS
+pub fn deriv_decode_failure_test() {
+  json.parse("", util.decode_failure("Nil"))
+  |> should.be_error
+}
+
+// START DERIV EXAMPLE TESTS
 
 // TEST DERIV JSON REWRITE
 pub fn json_rewrite_test() {

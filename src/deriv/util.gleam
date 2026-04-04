@@ -12,6 +12,7 @@ import youid/uuid.{type Uuid}
 import birl
 import deriv/internal/common/casing
 import gleam/option.{type Option, Some, None}
+import deriv/unsafe
 
 // stdlib re-exports
 
@@ -387,4 +388,12 @@ pub fn build_form(
   |> option.lazy_unwrap(fn() {
     builder.form
   })
+}
+
+//
+
+pub fn decode_failure(
+  name name: String,
+) -> Decoder(t) {
+  decode.failure(unsafe.zero(), name)
 }
