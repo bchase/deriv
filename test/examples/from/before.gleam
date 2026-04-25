@@ -123,6 +123,15 @@ pub type Constr {
   )
 }
 
+pub type PetPlusMismatch {
+  //$ derive from PetPlus
+  PetPlusMismatch(
+    name: String,
+    missing: Int,
+    //$ from ignored
+  )
+}
+
 pub fn suppress_warning_authe_a() ->  AutheA {
   let uuid = uuid.v7_from_millisec(0)
   a.AutheA(uuid, "", "", uuid, uuid, "", None, None, "", "")

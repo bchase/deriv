@@ -123,6 +123,15 @@ pub type Constr {
   )
 }
 
+pub type PetPlusMismatch {
+  //$ derive from PetPlus
+  PetPlusMismatch(
+    name: String,
+    missing: Int,
+    //$ from ignored
+  )
+}
+
 pub fn suppress_warning_authe_a() ->  AutheA {
   let uuid = uuid.v7_from_millisec(0)
   a.AutheA(uuid, "", "", uuid, uuid, "", None, None, "", "")
@@ -192,4 +201,11 @@ pub fn from_pet_to_pet_plus(pet pet: p.Pet, missing missing: Float) -> PetPlus {
 
 pub fn from_named_to_constr(named named: Named) -> Constr {
   Constr(newtype: named.name |> Newtype)
+}
+
+pub fn from_pet_plus_to_pet_plus_mismatch(
+  pet_plus pet_plus: PetPlus,
+  missing missing: Int,
+) -> PetPlusMismatch {
+  PetPlusMismatch(name: pet_plus.name, missing:)
 }

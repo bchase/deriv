@@ -454,6 +454,7 @@ fn variant_func(
               //   Error(Nil)
 
               Error(Nil) |
+              Ok(opts.Ignored) |
               Ok(opts.ConvAllWith(..)) |
               Ok(opts.ConvTypeWith(ident: opts.IdentType(..), ..), ..) ->
                 Ok(field)
@@ -594,23 +595,26 @@ fn func_field(
       opts.match_general(field:, ident:, overrides:)
     })
 
-  let #(target_field, conv, inner) =
+  let #(ignored, target_field, conv, inner) =
     case override {
       Error(Nil) ->
-        #(None, None, None)
+        #(False, None, None, None)
+
+      Ok(opts.Ignored) ->
+        #(True, None, None, None)
 
       Ok(opts.SpecifyField(field:, ..)) ->
-        #(Some(field), None, None)
+        #(False, Some(field), None, None)
 
       Ok(opts.ConvAllWith(conv:, inner:)) ->
-        #(None, Some(conv), inner)
+        #(False, None, Some(conv), inner)
 
       Ok(opts.ConvTypeWith(ident:, conv:, inner:)) ->
         case ident {
           opts.IdentFieldForType(field:, ..) ->
-            #(Some(field), Some(conv), inner)
+            #(False, Some(field), Some(conv), inner)
           opts.IdentType(..) ->
-            #(None, Some(conv), inner)
+            #(False, None, Some(conv), inner)
         }
     }
 
@@ -626,6 +630,8 @@ fn func_field(
       opts.From, Some(target) -> #(field.field, target)
       opts.Into, Some(target) -> #(target, field.field)
     }
+
+  use <- bool.guard(ignored, Missing(field: param_field, type_:))
 
   let variant =
     case kind {

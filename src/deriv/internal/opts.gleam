@@ -12,6 +12,7 @@ pub type FromIntoOverride {
   SpecifyField(ident: Ident, field: String)
   ConvAllWith(conv: Conv, inner: Option(Inner))
   ConvTypeWith(ident: Ident, conv: Conv, inner: Option(Inner))
+  Ignored
 }
 
 pub type Ident {
@@ -74,6 +75,11 @@ pub fn build_from_into_field_override(
   case opt.strs {
     [kind, ..rest] if kind == from_into -> {
       case rest, not_inner {
+        ["ignore"], _ |
+        ["ignored"], _ -> {
+          Ok(Ignored)
+        }
+
         [ident], _ -> {
           result.try(parse_ident(ident:), fn(ident) {
             case ident {
@@ -346,6 +352,9 @@ pub fn match_specific(
   overrides
   |> list.filter(fn(override) {
     case override {
+      Ignored ->
+        True
+
       SpecifyField(ident:, ..) |
       ConvTypeWith(ident:, ..) ->
         generalize_field_ident(ident) == module_type
