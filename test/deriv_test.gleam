@@ -158,6 +158,10 @@ pub fn deriv_decode_failure_test() {
 
 // START DERIV EXAMPLE TESTS
 
+pub fn get_set_test() {
+  should_derive(example_dir_name: "get_set")
+}
+
 // TEST DERIV JSON REWRITE
 pub fn json_rewrite_test() {
   should_derive(example_dir_name: "json_rewrite")

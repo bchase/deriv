@@ -30,6 +30,15 @@ pub type Time = birl.Time
 
 //
 
+pub type GetSet(a, b) {
+  GetSet(
+    get: fn(a) -> b,
+    set: fn(a, b) -> a,
+  )
+}
+
+//
+
 pub type DerivedFormLookups(field, form) {
   DerivedFormLookups(
     name_to_field: fn(String) -> Result(field, Nil),
