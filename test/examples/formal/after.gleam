@@ -265,7 +265,10 @@ pub fn zero_dir() -> Dir {
 }
 
 pub fn enum_dir_str(x: Dir) -> String {
-  string.inspect(x)
+  case x {
+    Up -> "Up"
+    Down -> "Down"
+  }
 }
 
 pub fn display_enum_dir(x: Dir) -> String {
