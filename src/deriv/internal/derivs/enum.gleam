@@ -10,25 +10,76 @@ import deriv/internal/common
 
 fn to_string_func(
   type_ type_: CustomType,
+  ctx ctx: Context,
 ) -> Definition(Function) {
   let x = common.dummy_location()
 
   let func_name =
     "enum_" <> { type_.name |> common.snake_case } <> "_str"
 
+  let fail = fail_variant(type_:, ctx:)
+
   Definition([], Function(x, func_name, Public,
     [FunctionParameter(None, Named("x"), Some(NamedType(x, type_.name, None, [])))],
     Some(NamedType(x, "String", None, [])),
     [
-      Expression(Call(x, FieldAccess(x, Variable(x, "string"), "inspect"), [UnlabelledField(Variable(x, "x"))]))
+      Expression(Case(x, [Variable(x, "x")], {
+        type_.variants
+        |> list.map(fn(variant) {
+          case variant {
+            Variant(name:, fields: [], ..) -> {
+              Clause(
+                [[PatternVariable(x, name)]],
+                None,
+                {
+                  case fail {
+                    Ok(_) ->
+                      Variable(x, "\"" <> name <> "\"")
+
+                    Error(Nil) ->
+                      Variable(x, "\"" <> name <> "\"")
+                  }
+                },
+              )
+            }
+            |> Ok
+
+            Variant(fields: _, ..) ->
+              Error(Nil)
+          }
+        })
+        |> result.values
+        |> list.append(
+          case fail {
+            Error(Nil) ->
+              []
+
+            Ok(fail) -> {
+              Clause(
+                [[PatternVariant(x, None, fail.constr, [glance.UnlabelledField(PatternVariable(x, "str"))], False)]],
+                None,
+                Variable(x, "str"), // TODO
+              )
+              |> list.wrap
+            }
+          }
+        )
+      })),
     ]
   ))
+}
+
+type FailVariant {
+  FailVariant(
+    constr: String,
+    param: String,
+  )
 }
 
 fn fail_variant(
   type_ type_: CustomType,
   ctx ctx: Context,
-) -> Result(String, Nil) {
+) -> Result(FailVariant, Nil) {
   ctx.opts
   |> dict.to_list
   |> list.filter_map(fn(t) {
@@ -42,7 +93,7 @@ fn fail_variant(
       })
 
     use <- bool.guard(!has_enum_fail, Error(Nil))
-    Ok(field.variant)
+    Ok(FailVariant(constr: field.variant, param: field.field))
   })
   |> fn(fields) {
     case fields {
@@ -59,7 +110,7 @@ fn fail_variant(
 
 fn parse_func(
   type_ type_: CustomType,
-  fail fail: Result(String, Nil),
+  fail fail: Result(FailVariant, Nil),
 ) -> Definition(Function) {
   let x = common.dummy_location()
 
@@ -111,8 +162,8 @@ fn parse_func(
             None,
             {
               case fail {
-                Ok(constr) ->
-                  Call(x, Variable(x, constr), [UnlabelledField(Variable(x, "str"))])
+                Ok(fail) ->
+                  Call(x, Variable(x, fail.constr), [UnlabelledField(Variable(x, "str"))])
 
                 Error(Nil) ->
                   Call(x, Variable(x, "Error"), [UnlabelledField(Variable(x, "Nil"))])
@@ -128,7 +179,7 @@ fn parse_func(
 
 fn display_func(
   type_ type_: CustomType,
-  fail fail: Result(String, Nil),
+  fail fail: Result(FailVariant, Nil),
   opts opts: DerivFieldOpts,
 ) -> Result(Definition(Function), Nil) {
   let display_lookups =
@@ -187,7 +238,7 @@ fn display_func(
 
 fn display_func_(
   type_ type_: CustomType,
-  fail fail: Result(String, Nil),
+  fail fail: Result(FailVariant, Nil),
   display_lookups display_lookups: Dict(String, String)
 ) -> Definition(Function) {
   let x = common.dummy_location()
@@ -210,7 +261,7 @@ fn display_func_(
             |> result.unwrap(variant.name)
             |> string.replace(double_quote, backslash <> backslash <> backslash <> backslash <> double_quote)
 
-          case Ok(variant.name) == fail {
+          case Ok(variant.name) == fail |> result.map(fn(fail) { fail.constr }) {
             True -> {
               Clause([[PatternVariant(x, None, variant.name, [UnlabelledField(PatternVariable(x, "str"))], False)]], None, Variable(x, "str"))
             }
@@ -238,7 +289,7 @@ pub fn gen(
   let funcs =
     [
       parse_func(type_:, fail:),
-      to_string_func(type_:),
+      to_string_func(type_:, ctx:),
     ]
     |> list.append(optional_funcs(type_:, fail:, opts: ctx.opts))
 
@@ -252,7 +303,7 @@ pub fn gen(
 
 fn optional_funcs(
   type_ type_: CustomType,
-  fail fail: Result(String, Nil),
+  fail fail: Result(FailVariant, Nil),
   opts opts: DerivFieldOpts,
 ) -> List(Definition(Function)) {
   display_func(type_:, fail:, opts:)

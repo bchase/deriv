@@ -27,7 +27,11 @@ pub fn parse_enum_t(str: String) -> Result(T, Nil) {
 }
 
 pub fn enum_t_str(x: T) -> String {
-  string.inspect(x)
+  case x {
+    Foo -> "Foo"
+    Bar -> "Bar"
+    Baz -> "Baz"
+  }
 }
 
 pub fn display_enum_t(x: T) -> String {
@@ -48,7 +52,12 @@ pub fn parse_enum_a_b_c(str: String) -> ABC {
 }
 
 pub fn enum_a_b_c_str(x: ABC) -> String {
-  string.inspect(x)
+  case x {
+    A -> "A"
+    B -> "B"
+    C -> "C"
+    Other(str) -> str
+  }
 }
 
 pub fn display_enum_a_b_c(x: ABC) -> String {
