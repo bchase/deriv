@@ -30,6 +30,7 @@ pub type Ident {
 pub type Inner {
   Option
   List
+  Set
 }
 
 pub type Conv {

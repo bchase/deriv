@@ -6,6 +6,7 @@ import gleam/result
 import gleam/int
 import gleam/float
 import gleam/string
+import gleam/set.{type Set}
 import gleam/json.{type Json}
 import gleam/dynamic/decode.{type Decoder}
 import youid/uuid.{type Uuid}
@@ -388,6 +389,23 @@ pub fn build_form(
   |> option.lazy_unwrap(fn() {
     builder.form
   })
+}
+
+pub fn decoder_set(
+  decoder decoder: Decoder(t),
+) -> Decoder(Set(t)) {
+  decoder
+  |> decode.list
+  |> decode.map(set.from_list)
+}
+
+pub fn encode_set(
+  set set: Set(t),
+  encode encode: fn(t) -> Json,
+) -> Json {
+  set
+  |> set.to_list
+  |> json.array(encode)
 }
 
 //

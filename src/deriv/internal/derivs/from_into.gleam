@@ -221,6 +221,7 @@ fn build_glance_func(
                   case inner {
                     opts.Option -> "option"
                     opts.List -> "list"
+                    opts.Set -> "set"
                   }
 
                 let inner_map =
@@ -294,6 +295,7 @@ fn build_glance_func(
                         case inner {
                           opts.Option -> "option"
                           opts.List -> "list"
+                          opts.Set -> "set"
                         }
 
                       FieldAccess(x, Variable(x, mod), "map")

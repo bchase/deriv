@@ -509,6 +509,7 @@ fn decode_imports(
     case type_ {
       deriv.Type(type_:) -> [
         type_ |> common.are_any_fields_options,
+        type_ |> common.are_any_fields_sets,
         ctx.opts |> common.any_raw_field_options_match(json_guard_re),
       ]
 
@@ -554,6 +555,7 @@ fn encode_imports(
       deriv.Type(type_:) -> [
         type_ |> common.is_multi_variant,
         // type_ |> common.are_any_fields_options,
+        type_ |> common.are_any_fields_sets,
         type_ |> common.are_any_fields_non_string_basic_type_dict_keys,
       ]
 
@@ -1266,6 +1268,7 @@ fn build_newtype(
     case type_.name, type_.params {
       "Option", [type_] -> #(type_, Some(opts.Option))
       "List", [type_] -> #(type_, Some(opts.List))
+      "Set", [type_] -> #(type_, Some(opts.Set))
       _, _ -> #(type_, None)
     }
 
@@ -1322,6 +1325,7 @@ fn decoder_call(
       True, Some(Field(type_:, ..)) ->
         case type_.name, type_.params {
           "List", [_] -> Some(opts.List)
+          "Set", [_] -> Some(opts.Set)
           "Option", [_] -> Some(opts.Option)
 
           _, _ ->  None
@@ -1451,6 +1455,9 @@ fn decoder_call(
           True, Some(opts.List) ->
             "decode" |> dot("list") |> call([decoder])
 
+          True, Some(opts.Set) ->
+            "deriv" |> dot("decoder_set") |> call([decoder])
+
           _, _ ->
             decoder
         }
@@ -1485,6 +1492,9 @@ fn decoder_call(
 
                 Some(opts.List) ->
                   decoder |> pipe("decode" |> dot("list"))
+
+                Some(opts.Set) ->
+                  decoder |> pipe("deriv" |> dot("decoder_set"))
               }
             }
 
@@ -1544,10 +1554,22 @@ fn decoder_call(
               decoder_call(option_type),
             ])
 
+          "Set", [inner_type] ->
+            "deriv" |> dot("decoder_set")
+            |> call([
+              decoder_call(inner_type),
+            ])
+
           "Option", [T(name: "List", params:[_]) as list_type] ->
             "decode" |> dot("optional")
             |> call([
               decoder_call(list_type),
+            ])
+
+          "Option", [T(name: "set", params:[_]) as set_type] ->
+            "decode" |> dot("optional")
+            |> call([
+              decoder_call(set_type),
             ])
 
           "Option", [inner_type] ->
@@ -2089,6 +2111,13 @@ fn encode_call(
           ])
         }
 
+        Some(func), T(name: "Set", params: [_]) -> {
+          "deriv" |> dot("encode_set") |> call([
+            value,
+            func |> term,
+          ])
+        }
+
         Some(func), T(params: [_], ..) ->
           { "encode_" <> type_.name |> common.snake_case } |> term |> call([
             value,
@@ -2149,6 +2178,20 @@ fn encode_call(
                     ])
 
                   "json" |> dot("array") |> call([
+                    value |> pipe(map_newtype),
+                    encode_func,
+                  ])
+                }
+
+                Some(opts.Set) -> {
+                  let map_newtype =
+                    "deriv" |> dot("list_map") |> call([
+                      fn_(["x"], [
+                        "x" |> dot(newtype.field_access) |> g.Expression,
+                      ]),
+                    ])
+
+                  "deriv" |> dot("encode_set") |> call([
                     value |> pipe(map_newtype),
                     encode_func,
                   ])
@@ -2231,6 +2274,12 @@ fn encode_call_(
 
     "List", [inner_type] ->
       "json" |> dot("array") |> call([
+        value,
+        encode_call_(inner_type ),
+      ])
+
+    "Set", [inner_type] ->
+      "deriv" |> dot("encode_set") |> call([
         value,
         encode_call_(inner_type ),
       ])
