@@ -509,6 +509,7 @@ fn decode_imports(
     case type_ {
       deriv.Type(type_:) -> [
         type_ |> common.are_any_fields_options,
+        type_ |> common.are_any_fields_sets,
         ctx.opts |> common.any_raw_field_options_match(json_guard_re),
       ]
 
@@ -554,6 +555,7 @@ fn encode_imports(
       deriv.Type(type_:) -> [
         type_ |> common.is_multi_variant,
         // type_ |> common.are_any_fields_options,
+        type_ |> common.are_any_fields_sets,
         type_ |> common.are_any_fields_non_string_basic_type_dict_keys,
       ]
 
@@ -1544,6 +1546,12 @@ fn decoder_call(
               decoder_call(option_type),
             ])
 
+          "Set", [inner_type] ->
+            "deriv" |> dot("decoder_set")
+            |> call([
+              decoder_call(inner_type),
+            ])
+
           "Option", [T(name: "List", params:[_]) as list_type] ->
             "decode" |> dot("optional")
             |> call([
@@ -2231,6 +2239,12 @@ fn encode_call_(
 
     "List", [inner_type] ->
       "json" |> dot("array") |> call([
+        value,
+        encode_call_(inner_type ),
+      ])
+
+    "Set", [inner_type] ->
+      "deriv" |> dot("encode_set") |> call([
         value,
         encode_call_(inner_type ),
       ])

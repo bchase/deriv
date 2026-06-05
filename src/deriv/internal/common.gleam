@@ -557,6 +557,21 @@ pub fn are_any_fields_options(
   })
 }
 
+pub fn are_any_fields_sets(
+  type_: CustomType,
+) -> Bool {
+  type_.variants
+  |> list.any(fn(variant) {
+    variant.fields
+    |> list.any(fn(field) {
+      case field.item {
+        glance.NamedType(name: "Set", parameters:[_], ..) -> True
+        _ -> False
+      }
+    })
+  })
+}
+
 pub fn any_raw_field_options_match(
   opts opts: DerivFieldOpts,
   re re: regexp.Regexp,

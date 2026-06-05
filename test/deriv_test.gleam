@@ -193,6 +193,10 @@ pub fn json_properties_test() {
   should_derive(example_dir_name: "json_properties")
 }
 
+pub fn json_set_test() {
+ should_derive(example_dir_name: "json_set")
+}
+
 // TEST DERIVE ENUM
 
 pub fn enum_test() {
