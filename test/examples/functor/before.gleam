@@ -6,4 +6,12 @@ pub type Simple(t) {
   )
 }
 
+pub type Implicit(x, y) {
+  //$ derive functor
+  Implicit(
+    foo: y,
+    bar: x,
+  )
+}
+
 // DERIVED

@@ -1,3 +1,4 @@
+import gleam/int
 import deriv/internal/common/casing
 import simplifile
 import gleam/dict
@@ -39,17 +40,8 @@ pub fn gen(
 fn gen_imports(
   type_: CustomType,
 ) -> List(Import) {
-  // case common.are_any_fields_options(type_) {
-  //   True -> [common.none_constr_import()]
-  //   False -> []
-  // }
-  // |> list.append([
-  //   common.util_import(),
-  // ])
   []
 }
-
-// Module([], [Definition([], CustomType(Span(0, 80), "Foo", Public, False, ["t"], [Variant("Foo", [LabelledVariantField(NamedType(Span(55, 61), "String", None, []), "bar"), LabelledVariantField(VariableType(Span(72, 73), "t"), "baz")], [])]))], [], [], [Definition([], Function(Span(94, 193), "map_foo", Private, [FunctionParameter(Some("foo"), Named("foo"), Some(NamedType(Span(117, 123), "Foo", None, [VariableType(Span(121, 122), "a")]))), FunctionParameter(Some("apply"), Named("f"), Some(FunctionType(Span(136, 146), [VariableType(Span(139, 140), "a")], VariableType(Span(145, 146), "b"))))], Some(NamedType(Span(153, 159), "Foo", None, [VariableType(Span(157, 158), "b")])), [Expression(RecordUpdate(Span(164, 191), None, "Foo", Variable(Span(170, 173), "foo"), [RecordUpdateField("baz", Some(Call(Span(180, 190), Variable(Span(180, 181), "f"), [UnlabelledField(FieldAccess(Span(182, 189), Variable(Span(182, 185), "foo"), "baz"))])))]))]))])
 
 fn functor_prop(
   type_ type_: CustomType,
@@ -70,6 +62,7 @@ fn functor_prop(
     CustomType(location:, name:, publicity:, opaque_:, parameters:, variants: [_, _, ..]) ->
       todo as "multi-variant functor derive"
 
+
     CustomType(parameters: params, variants: [variant], ..) -> {
       variant
       |> simple_prop(params:)
@@ -77,11 +70,27 @@ fn functor_prop(
   }
 }
 
+fn build_params_list_(
+  params params: List(String),
+  prop prop: Prop,
+  var var: String,
+  generic generic: String,
+  idx idx: Int,
+) -> List(String) {
+  params
+  |> list.map(fn(param) {
+    case param == prop.type_name {
+      True -> var
+      False -> generic <> int.to_string(idx)
+    }
+  })
+}
+
 type Prop {
   Prop(
     variant_constr: String,
     name: String,
-    type_: g.Type,
+    type_name: String,
   )
 }
 
@@ -99,7 +108,7 @@ fn simple_prop(
           g.VariableType(name:, ..) ->
             case name == param {
               False -> Error(Nil)
-              True -> Ok(#(label, item))
+              True -> Ok(#(label, name))
             }
 
           _ -> Error(Nil)
@@ -111,7 +120,7 @@ fn simple_prop(
     }
   })
   |> list.map(fn(t) {
-    Prop(variant_constr: variant.name, name: t.0, type_: t.1)
+    Prop(variant_constr: variant.name, name: t.0, type_name: t.1)
   })
   |> list.first // TODO err/warn multiple?
 }
@@ -133,14 +142,23 @@ fn map_func(
       Ok(prop) -> prop
     }
 
+  let before_var = "a"
+  let after_var = "b"
+
+  let params = type_.parameters
+  let before_params = build_params_list_(params:, prop:, var: before_var, generic: "t", idx: 1)
+  let after_params = build_params_list_(params:, prop:, var: after_var, generic: "t", idx: 1)
+  let before_params = before_params |> list.map(fn(t) { g.VariableType(x, t) })
+  let after_params = after_params |> list.map(fn(t) { g.VariableType(x, t) })
+
   Definition([],
     Function(x, func_name, type_.publicity,
       [
-        g.FunctionParameter(Some(type_snake_case), g.Named(type_snake_case), Some(NamedType(x, type_pascal_case, None, [g.VariableType(x, "a")]))),
-        g.FunctionParameter(Some("apply"), g.Named("f"), Some(g.FunctionType(x, [g.VariableType(x, "a")], g.VariableType(x, "b"))))
+        g.FunctionParameter(Some(type_snake_case), g.Named(type_snake_case), Some(NamedType(x, type_pascal_case, None, before_params))),
+        g.FunctionParameter(Some("apply"), g.Named("f"), Some(g.FunctionType(x, [g.VariableType(x, before_var)], g.VariableType(x, after_var))))
       ],
 
-      Some(NamedType(x, type_pascal_case, None, [g.VariableType(x, "b")])),
+      Some(NamedType(x, type_pascal_case, None, after_params)),
 
       [
         Expression(g.RecordUpdate(x, None, prop.variant_constr, Variable(x, type_snake_case), [g.RecordUpdateField(prop.name, Some(Call(x, Variable(x, "f"), [UnlabelledField(FieldAccess(x, Variable(x, type_snake_case), prop.name))])))]))
