@@ -14,4 +14,13 @@ pub type Implicit(x, y) {
   )
 }
 
+pub type Explicit(x, y, z) {
+  //$ derive functor baz
+  Explicit(
+    foo: z,
+    bar: x,
+    baz: y,
+  )
+}
+
 // DERIVED
