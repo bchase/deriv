@@ -1,3 +1,4 @@
+import simplifile
 import gleam/int
 import deriv/internal/common/casing
 import gleam/dict
@@ -42,49 +43,40 @@ fn gen_imports(
   []
 }
 
-fn functor_prop(
-  type_ type_: CustomType,
-  override override: Result(Prop, Nil),
-) -> Result(Prop, Nil) {
-  case type_ {
-    CustomType(variants: [], ..) ->
-      panic as {
-        "`derive functor` needs at least one variant, but found none:\n" <>
-          string.inspect(type_)
-      }
+// fn functor_props(
+//   type_ type_: CustomType,
+//   override override: Result(Prop, Nil),
+// ) -> List(Prop) {
+//   case type_ {
+//     CustomType(variants: [], ..) ->
+//       panic as {
+//         "`derive functor` needs at least one variant, but found none:\n" <>
+//           string.inspect(type_)
+//       }
 
-    CustomType(parameters: [], ..) ->
-      panic as {
-        "`derive functor` needs at least one type parameter, but found none:\n" <>
-          string.inspect(type_)
-      }
-
-    CustomType(location:, name:, publicity:, opaque_:, parameters:, variants: [_, _, ..]) ->
-      todo as "multi-variant functor derive"
-
-
-    CustomType(parameters: params, variants: [variant], ..) -> {
-      variant
-      |> simple_prop(params:, override:)
-    }
-  }
-}
+//     CustomType(parameters: params, variants:, ..) -> {
+//       variants
+//       |> build_props(type_:, params:, override:)
+//       |> todo
+//     }
+//   }
+// }
 
 fn build_params_list(
   params params: List(String),
-  prop prop: Prop,
+  prop_type prop_type: String,
   var var: String,
   generic generic: String,
 ) -> List(String) {
   params
-  |> build_params_list_(prop:, var:, generic:, idx: 1, acc: [])
+  |> build_params_list_(prop_type:, var:, generic:, idx: 1, acc: [])
   |> list.reverse
 }
 
 
 fn build_params_list_(
   params params: List(String),
-  prop prop: Prop,
+  prop_type prop_type: String,
   var var: String,
   generic generic: String,
   idx idx: Int,
@@ -96,14 +88,14 @@ fn build_params_list_(
 
     [param, ..params] -> {
       let #(str, idx) =
-        case param == prop.type_name {
+        case param == prop_type {
           True -> #(var, idx)
           False -> #(generic <> int.to_string(idx), idx + 1)
         }
 
       let acc = [str, ..acc]
 
-      build_params_list_(params:, prop:, var:, generic:, idx:, acc:)
+      build_params_list_(params:, prop_type:, var:, generic:, idx:, acc:)
     }
   }
 }
@@ -116,42 +108,39 @@ type Prop {
   )
 }
 
-fn simple_prop(
-  variant variant: g.Variant,
-  params params: List(String),
+fn functor_props(
+  type_ type_: CustomType,
   override override: Result(Prop, Nil),
-) -> Result(Prop, Nil) {
-  use param <- try(override |> result.map(fn(o) { o.type_name}) |> result.or(list.first(params)))
-
-  variant.fields
-  |> list.filter_map(fn(field) {
-    case field {
-      g.LabelledVariantField(item:, label:) -> {
-        case item {
-          g.VariableType(name:, ..) ->
-            case name == param {
-              False -> Error(Nil)
-              True -> Ok(#(label, name))
-            }
-
-          _ -> Error(Nil)
-        }
+) -> List(Prop) {
+  let param =
+    case override |> result.map(fn(o) { o.type_name}) |> result.or(list.first(type_.parameters)) {
+      Ok(param) -> param
+      Error(Nil) -> panic as {
+        "`derive functor` needs at least one type parameter, but found none:\n" <>
+          string.inspect(type_)
       }
-
-      g.UnlabelledVariantField(..) ->
-        Error(Nil)
     }
-  })
-  |> list.map(fn(t) {
-    Prop(variant_constr: variant.name, name: t.0, type_name: t.1)
-  })
-  |> list.first // TODO err/warn multiple?
+
+  use variant <- list.flat_map(type_.variants)
+  use field <- list.filter_map(variant.fields)
+
+  case field {
+    g.LabelledVariantField(item: g.VariableType(name:, ..), label:) if name == param ->
+      Ok(Prop(variant_constr: variant.name, name: label, type_name: name))
+
+    _ ->
+      Error(Nil)
+  }
 }
 
 fn map_func(
   type_ type_: CustomType,
   ctx ctx: Context,
 ) -> Definition(Function) {
+  let before_var = "a"
+  let after_var = "b"
+  let generic = "t"
+
   let override = case ctx.deriv.opts {
     [] -> Error(Nil)
     [_, _, ..] as opts -> {
@@ -184,41 +173,53 @@ fn map_func(
     Ok(prop) -> func_name <> "_" <> prop.name
   }
 
-  let prop =
-    case functor_prop(type_:, override:) {
-      Error(Nil) -> panic as {
-        "`derive functor` couldn't find a property for: " <> string.inspect(type_)
-      }
+  let expr_for = fn(prop: Prop) -> g.Expression {
+    g.RecordUpdate(x, None, prop.variant_constr, Variable(x, type_snake_case), [g.RecordUpdateField(prop.name, Some(Call(x, Variable(x, "f"), [UnlabelledField(FieldAccess(x, Variable(x, type_snake_case), prop.name))])))])
+  }
 
-      Ok(prop) -> prop
+  let #(prop_type, func_body) =
+    case functor_props(type_:, override:) {
+      [] ->
+        panic as { "`derive functor` couldn't find a property for: " <> string.inspect(type_) }
+
+      [prop] ->
+        #(prop.type_name, g.Expression(expr_for(prop)))
+
+      [prop, ..] as props ->
+        #(prop.type_name, g.Expression(g.Case(x, subjects: [Variable(x, type_snake_case)], clauses: {
+          use prop <- list.map(props)
+          g.Clause(patterns: [[g.PatternVariant(x, None, constructor: prop.variant_constr, arguments: [], with_spread: True)]], guard: None, body: expr_for(prop))
+        })))
     }
 
-  let before_var = "a"
-  let after_var = "b"
-
-  let params = type_.parameters
-  let before_params = build_params_list(params:, prop:, var: before_var, generic: "t")
-  let after_params = build_params_list(params:, prop:, var: after_var, generic: "t")
-  let before_params = before_params |> list.map(fn(t) { g.VariableType(x, t) })
-  let after_params = after_params |> list.map(fn(t) { g.VariableType(x, t) })
-
-  // let assert Ok(variant_constr) =
-  //   type_.variants
-  //   |> list.first
-  //   |> result.map(fn(variant) { variant.name })
+  let params_with = fn(var) {
+    type_.parameters
+    |> build_params_list(prop_type:, var:, generic:)
+    |> list.map(fn(t) { g.VariableType(x, t) })
+  }
 
   Definition([],
     Function(x, func_name, type_.publicity,
       [
-        g.FunctionParameter(Some(type_snake_case), g.Named(type_snake_case), Some(NamedType(x, type_pascal_case, None, before_params))),
+        g.FunctionParameter(Some(type_snake_case), g.Named(type_snake_case), Some(NamedType(x, type_pascal_case, None, params_with(before_var)))),
         g.FunctionParameter(Some("apply"), g.Named("f"), Some(g.FunctionType(x, [g.VariableType(x, before_var)], g.VariableType(x, after_var))))
       ],
 
-      Some(NamedType(x, type_pascal_case, None, after_params)),
+      Some(NamedType(x, type_pascal_case, None, params_with(after_var))),
 
       [
-        Expression(g.RecordUpdate(x, None, prop.variant_constr, Variable(x, type_snake_case), [g.RecordUpdateField(prop.name, Some(Call(x, Variable(x, "f"), [UnlabelledField(FieldAccess(x, Variable(x, type_snake_case), prop.name))])))]))
+        func_body,
       ]
     )
   )
 }
+
+// pub fn main() {
+//   let assert Ok(src) = simplifile.read("/home/bosco/dev/gleam/deriv/test/examples/functor/after.gleam")
+//   let assert Ok(module) = g.module(src)
+
+//   use f <- list.each(module.functions)
+//   echo f
+
+//   Nil
+// }

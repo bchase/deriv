@@ -23,6 +23,18 @@ pub type Explicit(x, y, z) {
   )
 }
 
+pub type MultiVar(x, y, z) {
+  //$ derive functor
+  MultiVar1(
+    foo: z,
+    bar: x,
+  )
+  MultiVar2(
+    bar: x,
+    baz: y,
+  )
+}
+
 // DERIVED
 
 pub fn map_simple(simple simple: Simple(a), apply f: fn(a) -> b) -> Simple(b) {
@@ -41,4 +53,14 @@ pub fn map_explicit_baz(
   apply f: fn(a) -> b,
 ) -> Explicit(t1, b, t2) {
   Explicit(..explicit, baz: f(explicit.baz))
+}
+
+pub fn map_multi_var(
+  multi_var multi_var: MultiVar(a, t1, t2),
+  apply f: fn(a) -> b,
+) -> MultiVar(b, t1, t2) {
+  case multi_var {
+    MultiVar1(..) -> MultiVar1(..multi_var, bar: f(multi_var.bar))
+    MultiVar2(..) -> MultiVar2(..multi_var, bar: f(multi_var.bar))
+  }
 }

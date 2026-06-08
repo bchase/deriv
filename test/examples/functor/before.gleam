@@ -23,4 +23,16 @@ pub type Explicit(x, y, z) {
   )
 }
 
+pub type MultiVar(x, y, z) {
+  //$ derive functor
+  MultiVar1(
+    foo: z,
+    bar: x,
+  )
+  MultiVar2(
+    bar: x,
+    baz: y,
+  )
+}
+
 // DERIVED
