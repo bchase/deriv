@@ -1,3 +1,4 @@
+import gleam/pair
 import gleam/bool
 import simplifile
 import gleam/int
@@ -46,18 +47,18 @@ fn gen_imports(
 
 fn build_params_list(
   params params: List(String),
-  prop_type prop_type: String,
+  type_ type_: String,
   var var: String,
   generic generic: String,
 ) -> List(String) {
   params
-  |> build_params_list_(prop_type:, var:, generic:, idx: 1, acc: [])
+  |> build_params_list_(type_:, var:, generic:, idx: 1, acc: [])
   |> list.reverse
 }
 
 fn build_params_list_(
   params params: List(String),
-  prop_type prop_type: String,
+  type_ type_: String,
   var var: String,
   generic generic: String,
   idx idx: Int,
@@ -69,14 +70,14 @@ fn build_params_list_(
 
     [param, ..params] -> {
       let #(str, idx) =
-        case param == prop_type {
+        case param == type_ {
           True -> #(var, idx)
           False -> #(generic <> int.to_string(idx), idx + 1)
         }
 
       let acc = [str, ..acc]
 
-      build_params_list_(params:, prop_type:, var:, generic:, idx:, acc:)
+      build_params_list_(params:, type_:, var:, generic:, idx:, acc:)
     }
   }
 }
@@ -85,9 +86,11 @@ type Prop {
   Prop(
     variant_constr: String,
     variant_single_prop: Bool,
-    name: String,
+    name: Option(String),
     type_name: String,
     outer_type: Option(String),
+    total: Int,
+    idx: Int,
   )
 }
 
@@ -106,17 +109,22 @@ fn functor_props(
 
   let overridden = result.is_ok(override)
 
-  use variant <- list.flat_map(type_.variants)
-  use field <- list.filter_map(variant.fields)
 
+  use variant <- list.flat_map(type_.variants)
+  let total = list.length(variant.fields)
+  use #(field, idx) <- list.filter_map(variant.fields |> list.index_map(pair.new))
   let variant_single_prop = list.length(variant.fields) == 1
+  // TODO dup'd all of above
 
   case overridden, field {
     _, g.LabelledVariantField(item: g.VariableType(name: type_name, ..), label: name) if type_name == param ->
-      Ok(Prop(variant_constr: variant.name, variant_single_prop:, name:, type_name:, outer_type: None))
+      Ok(Prop(variant_constr: variant.name, variant_single_prop:, name: Some(name), type_name:, outer_type: None, total:, idx:))
+
+    False, g.UnlabelledVariantField(item: g.VariableType(name: type_name, ..)) if type_name == param ->
+      Ok(Prop(variant_constr: variant.name, variant_single_prop:, name: None, type_name:, outer_type: None, total:, idx:))
 
     True, g.LabelledVariantField(item: g.NamedType(name: outer, parameters: [g.VariableType(name: first_outer_param, ..), ..], ..), label: name) ->
-      Ok(Prop(variant_constr: variant.name, variant_single_prop:, name:, type_name: first_outer_param, outer_type: Some(outer)))
+      Ok(Prop(variant_constr: variant.name, variant_single_prop:, name: Some(name), type_name: first_outer_param, outer_type: Some(outer), total:, idx:))
 
     _, _ ->
       Error(Nil)
@@ -142,14 +150,17 @@ fn map_func(
     [opt] ->
       {
         use variant <- list.map(type_.variants)
-        use field <- list.find_map(variant.fields)
+        let total = list.length(variant.fields)
+        use #(field, idx) <- list.find_map(variant.fields |> list.index_map(pair.new))
         let variant_single_prop = list.length(variant.fields) == 1
+        // TODO dup'd all of above
+
         case field {
           g.LabelledVariantField(item: g.VariableType(name:, ..), label:) if label == opt ->
-            Ok(Prop(variant_constr: variant.name, variant_single_prop:, name: label, type_name: name, outer_type: None))
+            Ok(Prop(variant_constr: variant.name, variant_single_prop:, name: Some(label), type_name: name, outer_type: None, total:, idx:))
 
           g.LabelledVariantField(item: g.NamedType(name: outer, parameters: [g.VariableType(name: first_outer_param, ..), ..], ..), label:) if label == opt ->
-            Ok(Prop(variant_constr: variant.name, variant_single_prop:, name: label, type_name: first_outer_param, outer_type: Some(outer)))
+            Ok(Prop(variant_constr: variant.name, variant_single_prop:, name: Some(label), type_name: first_outer_param, outer_type: Some(outer), total:, idx:))
 
           _ ->
             Error(Nil)
@@ -164,26 +175,38 @@ fn map_func(
   let func_name = "map_" <> type_snake_case
   let func_name = case override {
     Error(Nil) -> func_name
-    Ok(prop) -> func_name <> "_" <> prop.name
+    Ok(Prop(name: Some(prop_name), ..)) -> func_name <> "_" <> prop_name
+    Ok(..) -> func_name
   }
 
   let expr_for = fn(prop: Prop) -> g.Expression {
-    let expr = case prop.outer_type {
-      Some(outer_type) -> {
-        let outer_module_name = outer_type |> casing.snake_case
-        outer_module_name |> dot("map") |> call([type_snake_case |> dot(prop.name), term("f")])
+    case prop.name {
+      None -> {
+        panic as {
+          "`derive functor` unlabelled fields not yet implemented. Please add a label to the functor property of: " <>
+          string.inspect(type_)
+        }
       }
 
-      None ->
-        term("f") |> call([type_snake_case |> dot(prop.name)])
-    }
+      Some(prop_name) -> {
+        let expr = case prop.outer_type {
+          Some(outer_type) -> {
+            let outer_module_name = outer_type |> casing.snake_case
+            outer_module_name |> dot("map") |> call([type_snake_case |> dot(prop_name), term("f")])
+          }
 
-    case prop.variant_single_prop {
-      True ->
-        prop.variant_constr |> term |> call_([g.LabelledField(prop.name, expr)])
+          None ->
+            term("f") |> call([type_snake_case |> dot(prop_name)])
+        }
 
-      False ->
-        g.RecordUpdate(x, None, prop.variant_constr, Variable(x, type_snake_case), [g.RecordUpdateField(prop.name, Some(expr))])
+        case prop.variant_single_prop {
+          True ->
+            prop.variant_constr |> term |> call_([g.LabelledField(prop_name, expr)])
+
+          False ->
+            g.RecordUpdate(x, None, prop.variant_constr, Variable(x, type_snake_case), [g.RecordUpdateField(prop_name, Some(expr))])
+        }
+      }
     }
   }
 
@@ -204,7 +227,7 @@ fn map_func(
 
   let params_with = fn(var) {
     type_.parameters
-    |> build_params_list(prop_type:, var:, generic:)
+    |> build_params_list(type_: prop_type, var:, generic:)
     |> list.map(fn(t) { g.VariableType(x, t) })
   }
 
@@ -219,8 +242,8 @@ fn map_func(
 
       [
         func_body,
-      ]
-    )
+      ],
+    ),
   )
 }
 
