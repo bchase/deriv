@@ -45,6 +45,13 @@ pub type Inner(t) {
   )
 }
 
+pub type Newtype(t) {
+  //$ derive functor
+  Newtype(
+    wrapped: t,
+  )
+}
+
 // DERIVED
 
 pub fn map_simple(simple simple: Simple(a), apply f: fn(a) -> b) -> Simple(b) {
@@ -77,4 +84,11 @@ pub fn map_multi_var(
 
 pub fn map_inner_inner(inner inner: Inner(a), apply f: fn(a) -> b) -> Inner(b) {
   Inner(..inner, inner: list.map(inner.inner, f))
+}
+
+pub fn map_newtype(
+  newtype newtype: Newtype(a),
+  apply f: fn(a) -> b,
+) -> Newtype(b) {
+  Newtype(wrapped: f(newtype.wrapped))
 }

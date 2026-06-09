@@ -45,4 +45,11 @@ pub type Inner(t) {
   )
 }
 
+pub type Newtype(t) {
+  //$ derive functor
+  Newtype(
+    wrapped: t,
+  )
+}
+
 // DERIVED
