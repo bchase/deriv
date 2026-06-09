@@ -1,3 +1,5 @@
+import gleam/list
+
 pub type Simple(t) {
   //$ derive functor
   Simple(
@@ -32,6 +34,14 @@ pub type MultiVar(x, y, z) {
   MultiVar2(
     bar: x,
     baz: y,
+  )
+}
+
+pub type Inner(t) {
+  //$ derive functor inner
+  Inner(
+    other: String,
+    inner: List(t),
   )
 }
 

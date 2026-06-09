@@ -1,3 +1,5 @@
+import gleam/list
+
 pub type Simple(t) {
   //$ derive functor
   Simple(
@@ -35,6 +37,14 @@ pub type MultiVar(x, y, z) {
   )
 }
 
+pub type Inner(t) {
+  //$ derive functor inner
+  Inner(
+    other: String,
+    inner: List(t),
+  )
+}
+
 // DERIVED
 
 pub fn map_simple(simple simple: Simple(a), apply f: fn(a) -> b) -> Simple(b) {
@@ -63,4 +73,8 @@ pub fn map_multi_var(
     MultiVar1(..) -> MultiVar1(..multi_var, bar: f(multi_var.bar))
     MultiVar2(..) -> MultiVar2(..multi_var, bar: f(multi_var.bar))
   }
+}
+
+pub fn map_inner_inner(inner inner: Inner(a), apply f: fn(a) -> b) -> Inner(b) {
+  Inner(..inner, inner: list.map(inner.inner, f))
 }

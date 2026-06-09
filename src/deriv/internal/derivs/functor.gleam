@@ -1,8 +1,9 @@
+import gleam/bool
 import simplifile
 import gleam/int
 import deriv/internal/common/casing
 import gleam/dict
-import gleam/option.{Some, None}
+import gleam/option.{Some, None, type Option}
 import gleam/list
 import gleam/result.{try}
 import gleam/string
@@ -43,25 +44,6 @@ fn gen_imports(
   []
 }
 
-// fn functor_props(
-//   type_ type_: CustomType,
-//   override override: Result(Prop, Nil),
-// ) -> List(Prop) {
-//   case type_ {
-//     CustomType(variants: [], ..) ->
-//       panic as {
-//         "`derive functor` needs at least one variant, but found none:\n" <>
-//           string.inspect(type_)
-//       }
-
-//     CustomType(parameters: params, variants:, ..) -> {
-//       variants
-//       |> build_props(type_:, params:, override:)
-//       |> todo
-//     }
-//   }
-// }
-
 fn build_params_list(
   params params: List(String),
   prop_type prop_type: String,
@@ -72,7 +54,6 @@ fn build_params_list(
   |> build_params_list_(prop_type:, var:, generic:, idx: 1, acc: [])
   |> list.reverse
 }
-
 
 fn build_params_list_(
   params params: List(String),
@@ -105,6 +86,7 @@ type Prop {
     variant_constr: String,
     name: String,
     type_name: String,
+    outer_type: Option(String),
   )
 }
 
@@ -121,14 +103,19 @@ fn functor_props(
       }
     }
 
+  let overridden = result.is_ok(override)
+
   use variant <- list.flat_map(type_.variants)
   use field <- list.filter_map(variant.fields)
 
-  case field {
-    g.LabelledVariantField(item: g.VariableType(name:, ..), label:) if name == param ->
-      Ok(Prop(variant_constr: variant.name, name: label, type_name: name))
+  case overridden, field {
+    _, g.LabelledVariantField(item: g.VariableType(name: type_name, ..), label: name) if type_name == param ->
+      Ok(Prop(variant_constr: variant.name, name:, type_name:, outer_type: None))
 
-    _ ->
+    True, g.LabelledVariantField(item: g.NamedType(name: outer, parameters: [g.VariableType(name: first_outer_param, ..), ..], ..), label: name) ->
+      Ok(Prop(variant_constr: variant.name, name:, type_name: first_outer_param, outer_type: Some(outer)))
+
+    _, _ ->
       Error(Nil)
   }
 }
@@ -155,7 +142,10 @@ fn map_func(
         use field <- list.find_map(variant.fields)
         case field {
           g.LabelledVariantField(item: g.VariableType(name:, ..), label:) if label == opt ->
-            Ok(Prop(variant_constr: variant.name, name: label, type_name: name))
+            Ok(Prop(variant_constr: variant.name, name: label, type_name: name, outer_type: None))
+
+          g.LabelledVariantField(item: g.NamedType(name: outer, parameters: [g.VariableType(name: first_outer_param, ..), ..], ..), label:) if label == opt ->
+            Ok(Prop(variant_constr: variant.name, name: label, type_name: first_outer_param, outer_type: Some(outer)))
 
           _ ->
             Error(Nil)
@@ -174,7 +164,17 @@ fn map_func(
   }
 
   let expr_for = fn(prop: Prop) -> g.Expression {
-    g.RecordUpdate(x, None, prop.variant_constr, Variable(x, type_snake_case), [g.RecordUpdateField(prop.name, Some(Call(x, Variable(x, "f"), [UnlabelledField(FieldAccess(x, Variable(x, type_snake_case), prop.name))])))])
+    let expr = case prop.outer_type {
+      Some(outer_type) -> {
+        let outer_module_name = outer_type |> casing.snake_case
+        outer_module_name |> dot("map") |> call([type_snake_case |> dot(prop.name), term("f")])
+      }
+
+      None ->
+        term("f") |> call([type_snake_case |> dot(prop.name)])
+    }
+
+    g.RecordUpdate(x, None, prop.variant_constr, Variable(x, type_snake_case), [g.RecordUpdateField(prop.name, Some(expr))])
   }
 
   let #(prop_type, func_body) =
