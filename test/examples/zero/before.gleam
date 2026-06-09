@@ -18,9 +18,17 @@ pub type Player {
   )
 }
 
-pub type Foo {
+pub type Unit {
   //$ derive zero
-  Bar
+  Unit
+}
+
+pub type Param(t) {
+  //$ derive zero
+  Param(
+    inferred: String,
+    passed: t,
+  )
 }
 
 pub fn time_zero_override() -> Time { birl.unix_epoch }

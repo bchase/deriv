@@ -1,3 +1,5 @@
+import gleam/pair
+import gleam/int
 import gleam/dict
 import gleam/option.{Some, None}
 import gleam/list
@@ -62,22 +64,52 @@ fn zero_func(
   })
 }
 
+fn build_params_and_zero_vals(
+  variant: Variant,
+  type_: CustomType,
+  ctx: Context,
+) -> #(List(glance.FunctionParameter), List(glance.Field(Expression))) {
+  let generic = "param"
+
+  variant.fields
+  |> list.map(zero_call(_, variant, type_, ctx))
+  |> list.index_map(fn(result, idx) {
+    case result {
+      Ok(expr) ->
+        #(None, expr)
+
+      Error(glance.LabelledVariantField(label:, item: glance.VariableType(..) as type_)) ->
+        #(Some(glance.FunctionParameter(label: Some(label), name: glance.Named(label), type_: Some(type_))), term(label))
+
+      Error(glance.UnlabelledVariantField(item: glance.VariableType(..) as type_)) -> {
+        let name = generic <> int.to_string(idx+1)
+        #(Some(glance.FunctionParameter(label: Some(name), name: glance.Named(name), type_: Some(type_))), term(name))
+      }
+
+      Error(_) ->
+        panic as {
+          "`derive zero`"
+        }
+    }
+  })
+  |> list.map(pair.map_second(_, UnlabelledField))
+  |> list.unzip
+  |> pair.map_first(option.values)
+}
+
 fn zero_func_(
   variant: Variant,
   type_: CustomType,
   ctx: Context,
-) -> Result(Definition(Function), Nil) {
-  use field_zero_vals: List(glance.Field(Expression)) <- result.try(result.all(
-    variant.fields
-    |> list.map(zero_call(_, variant, type_, ctx))
-    |> list.map(result.map(_, UnlabelledField))
-  ))
+) -> Result(Definition(Function), VariantField) {
+  let #(fn_params, field_zero_vals) = build_params_and_zero_vals(variant, type_, ctx)
+  let return_type_params = fn_params |> list.map(fn(t) { t.type_ }) |> option.values
 
   let constr_name = variant.name
   let func_name = "zero_" <> common.snake_case(type_.name)
   let func_return_type_name = type_.name
 
-  let func_return_type = Some(NamedType(common.dummy_location(), func_return_type_name, None, []))
+  let func_return_type = Some(NamedType(common.dummy_location(), func_return_type_name, None, return_type_params))
 
   let body =
     case variant.fields {
@@ -100,7 +132,7 @@ fn zero_func_(
     }
 
   let func =
-    Function(common.dummy_location(), func_name, Public, [], func_return_type, [body])
+    Function(common.dummy_location(), func_name, Public, fn_params, func_return_type, [body])
 
   Ok(Definition([], func))
 }
@@ -110,7 +142,7 @@ fn zero_call(
   variant: Variant,
   type_: CustomType,
   ctx: Context,
-) -> Result(Expression, Nil) {
+) -> Result(Expression, VariantField) {
   case field {
     glance.LabelledVariantField(label:, ..) -> {
       case ctx.opts |> dict.get(deriv.DerivField(type_: type_.name, variant: variant.name, field: label)) {
@@ -125,6 +157,7 @@ fn zero_call(
     glance.UnlabelledVariantField(..) ->
       default_zero_call(field)
   }
+  |> result.replace_error(field)
 }
 
 fn zero_call_override(
