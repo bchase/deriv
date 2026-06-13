@@ -438,18 +438,8 @@ fn variant_func(
 
             let f = deriv.DerivField(param.type_.name, param.variant.name, field)
 
-            let overrides =
-              ctx.opts
-              |> dict.get(f)
-              |> result.unwrap([] )
-              |> list.map(opts.build_from_into_field_override(kind:, opt: _, field: f, type_:))
-              |> result.values
-
-            let override =
-              opts.match_specific(field: f, ident:, overrides:)
-              |> result.lazy_or(fn() {
-                opts.match_general(field: f, ident:, overrides:)
-              })
+            let overrides = build_overrides(type_:, field: f, kind:, ctx:)
+            let override = find_override(ident:, field: f, overrides:)
 
             case override {
               // Ok(opts.ConvAllWith(..)) ->
@@ -477,6 +467,7 @@ fn variant_func(
                 Ok(field)
 
               Missing(field: f, ..) -> {
+                echo f
                 use <- bool.guard(return_fields |> list.contains(f), Ok(field))
                 Error(Nil)
               }
@@ -489,6 +480,7 @@ fn variant_func(
             case field {
               g.LabelledVariantField(label: field, item: type_) -> {
                 use <- bool.guard(field |> list.contains(param_fields, _), Error(Nil))
+                echo field
                 Ok(Missing(field:, type_:))
               }
 
@@ -575,6 +567,30 @@ type Field(kind) {
   )
 }
 
+fn build_overrides(
+  type_ type_: g.Type,
+  field field: DerivField,
+  kind kind: opts.FromInto,
+  ctx ctx: Context,
+) -> List(Override) {
+  ctx.opts
+  |> dict.get(field)
+  |> result.unwrap([])
+  |> list.map(opts.build_from_into_field_override(kind:, opt: _, field:, type_:))
+  |> result.values
+}
+
+fn find_override(
+  ident ident: opts.Ident,
+  field field: DerivField,
+  overrides overrides: List(Override),
+) -> Result(Override, Nil) {
+  opts.match_specific(field:, ident:, overrides:)
+  |> result.lazy_or(fn() {
+    opts.match_general(field:, ident:, overrides:)
+  })
+}
+
 fn func_field(
   kind kind: opts.FromInto,
   param param: TypeVariant,
@@ -584,18 +600,8 @@ fn func_field(
   ident ident: opts.Ident,
   ctx ctx: Context,
 ) -> Field(kind) {
-  let overrides =
-    ctx.opts
-    |> dict.get(field)
-    |> result.unwrap([] )
-    |> list.map(opts.build_from_into_field_override(kind:, opt: _, field:, type_:))
-    |> result.values
-
-  let override =
-    opts.match_specific(field:, ident:, overrides:)
-    |> result.lazy_or(fn() {
-      opts.match_general(field:, ident:, overrides:)
-    })
+  let overrides = build_overrides(type_:, field:, kind:, ctx:)
+  let override = find_override(ident:, field:, overrides:)
 
   let #(ignored, target_field, conv, inner) =
     case override {
