@@ -467,7 +467,6 @@ fn variant_func(
                 Ok(field)
 
               Missing(field: f, ..) -> {
-                echo f
                 use <- bool.guard(return_fields |> list.contains(f), Ok(field))
                 Error(Nil)
               }
@@ -480,7 +479,6 @@ fn variant_func(
             case field {
               g.LabelledVariantField(label: field, item: type_) -> {
                 use <- bool.guard(field |> list.contains(param_fields, _), Error(Nil))
-                echo field
                 Ok(Missing(field:, type_:))
               }
 
