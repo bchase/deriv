@@ -336,6 +336,32 @@ pub fn into_simple_test() {
 
 // TEST HELPERS
 
+pub fn hyphen_case_test() {
+  common.hyphen_case("-")
+  |> should.equal("-")
+
+  common.hyphen_case("FooBar")
+  |> should.equal("foo-bar")
+
+  common.hyphen_case("Foo")
+  |> should.equal("foo")
+
+  common.hyphen_case("FooBarX")
+  |> should.equal("foo-bar-x")
+
+  common.hyphen_case("Foo123Bar")
+  |> should.equal("foo123-bar")
+
+  common.hyphen_case("FooBar1")
+  |> should.equal("foo-bar1")
+
+  common.hyphen_case("FooBar12")
+  |> should.equal("foo-bar12")
+
+  common.hyphen_case("FooBar123")
+  |> should.equal("foo-bar123")
+}
+
 pub fn snake_case_test() {
   common.snake_case("_")
   |> should.equal("_")
