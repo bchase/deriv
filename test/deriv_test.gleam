@@ -337,6 +337,9 @@ pub fn into_simple_test() {
 // TEST HELPERS
 
 pub fn snake_case_test() {
+  common.snake_case("_")
+  |> should.equal("_")
+
   common.snake_case("FooBar")
   |> should.equal("foo_bar")
 
