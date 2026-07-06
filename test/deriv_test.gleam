@@ -336,6 +336,30 @@ pub fn into_simple_test() {
 
 // TEST HELPERS
 
+pub fn is_test() {
+  "{\"foo\":\"bar\"}"
+  |> json.parse({
+    use str <- decode.field("foo", util.is("bar"))
+    decode.success(str)
+  })
+  |> should.be_ok
+  |> should.equal(Nil)
+
+  "{\"foo\":\"boom\"}"
+  |> json.parse({
+    use str <- decode.field("foo", util.is("bar"))
+    decode.success(str)
+  })
+  |> should.be_error
+
+  "{\"boom\":\"bar\"}"
+  |> json.parse({
+    use str <- decode.field("foo", util.is("bar"))
+    decode.success(str)
+  })
+  |> should.be_error
+}
+
 pub fn hyphen_case_test() {
   common.hyphen_case("-")
   |> should.equal("-")
