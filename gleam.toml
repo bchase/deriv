@@ -22,6 +22,7 @@ gleam_time = ">= 1.4.0 and < 2.0.0"
 lustre = ">= 5.3.5 and < 6.0.0"
 shellout = ">= 1.6.0 and < 2.0.0"
 simplifile = ">= 2.2.0 and < 3.0.0"
+bchase = { path = "../kohort/bchase" }
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"
