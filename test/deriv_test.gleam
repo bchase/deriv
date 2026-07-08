@@ -32,29 +32,29 @@ pub fn main() {
   gleeunit.main()
 }
 
-// pub fn deriv_test() {
-//   let fs = gen_funcs()
-//   // True |> should.be_false
-//   // let assert Ok(re) = re.from_string("foo(.*)")
-//   // echo re.scan(re, "foo")
+pub fn deriv_test() {
+  let fs = gen_funcs()
+  // True |> should.be_false
+  // let assert Ok(re) = re.from_string("foo(.*)")
+  // echo re.scan(re, "foo")
 
-//   // fs |> list.map(fn(f) { f.0.name })
-//   // |> echo
+  // fs |> list.map(fn(f) { f.0.name })
+  // |> echo
 
-//   list.length(fs)
-//   |> should.equal(1)
+  list.length(fs)
+  |> should.equal(1)
 
-//   let assert Ok(output) = simplifile.read("./output.gleam")
-//   let assert Ok(after) = simplifile.read("./test/gen/after.gleam")
+  let assert Ok(output) = simplifile.read("./output.gleam")
+  let assert Ok(after) = simplifile.read("./test/gen/after.gleam")
 
-//   log_("AFTER", after)
-//   log_("OUTPUT", output)
+  log_("AFTER", after)
+  log_("OUTPUT", output)
 
-//   output
-//   |> should.equal(after)
+  output
+  |> should.equal(after)
 
-//   Nil
-// }
+  Nil
+}
 
 const gen_magic_comment_start = "//$ gen"
 
@@ -245,7 +245,7 @@ fn closing_position(
       list.Continue(acc)
     })
 
-  use <- bool.guard(acc.open <= 0, Ok(ClosingPosition(pos: acc.pos, spaces: -1))) // TODO tk2 why `pos - 1`
+  use <- bool.guard(acc.open <= 0, Ok(ClosingPosition(pos: acc.pos, spaces: -1)))
   Error(Nil)
 }
 
@@ -551,10 +551,7 @@ fn edit(
       let expr = gen_expr(gen:)
       let expr_src = gleam_format_expr(expr:, indent: gen.indent)
 
-      io.println("")
-      io.println("")
-      io.println("EXPR")
-      io.println(string.inspect(expr_src))
+      // log_("EXPR", expr_src)
 
       // case bracket_pos(gen) {
       //   None -> echo ""
@@ -595,11 +592,7 @@ fn edit(
             log("SOME", start)
 
             src
-            |> string.drop_start(start)
-            |> string.split("\n")
-            // |> list.map(string.append(_, "\n"))
-            // |> closing_position(in: _, of: curly_brackets)
-            |> todo
+            |> closing_position(in: _, of: curly_brackets, after: start)
             |> fn(x) {
               log("CLOSE!!!", x)
               x
@@ -610,10 +603,8 @@ fn edit(
                   "couldn't find the closing bracket of existing code gen block"
                 }
 
-                Ok(ClosingPosition(pos: end, spaces:)) ->{
-                  log("INDENT", gen.indent)
-                  echo g.Span(start:, end: end + start + gen.indent) // TODO tk2 why `+ 2`
-                  }
+                Ok(ClosingPosition(pos: end, spaces: _)) ->
+                  g.Span(start:, end: end + start)
               }
             }
           }
