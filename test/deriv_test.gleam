@@ -15,7 +15,7 @@ import deriv
 import deriv/internal/common
 import deriv/internal/parser
 import deriv/internal/types.{File, DerivFieldOpt, DerivField}
-import deriv/internal/glance as dg
+import deriv/internal/glance.{z} as dg
 import deriv/util
 import glance
 import gleam/dict
@@ -191,7 +191,6 @@ type ClosingPairAcc {
   )
 }
 
-
 fn closing_position(
   of pair: Pair,
   in str: String,
@@ -226,161 +225,15 @@ fn closing_position(
   }
 }
 
-type Func {
-  Func(
-    def: g.Definition(g.Function),
-    src: String,
-  )
-}
-
 type Gen {
   Gen(
     str: String,
     comment: String,
     indent: Int,
     pos: Int,
-    line_pos: Int,
     new: Bool,
-    // //
-    // bracket_pos: Option(Int),
-    // comment_pos: Int,
-    // block_pos: Option(#(Int, Int)),
   )
 }
-
-// type Gen {
-//   Gen(
-//     str: String,
-//     indent: Int,
-//     start: Int,
-//     end: Option(Int),
-//   )
-// }
-
-// type Line {
-//   Line(
-//     str: String,
-//     indent: Int,
-//     idx: Int,
-//   )
-// }
-
-// fn find_gen_end_line(
-//   gen gen: Gen,
-//   lines lines: List(#(String, Int)),
-//   after after: Int,
-// ) -> Result(Line, Nil) {
-//   let assert Ok(end_re) =
-//     { "^(\\s*)[/][/][$]\\s*END\\s+gen\\s+" <> gen.str <> "$" }
-//     |> re.from_string
-
-//   lines
-//   |> list.find_map(fn(t) {
-//     use <- bool.guard(t.1 <= after, Error(Nil))
-
-//     let #(line, idx) = t
-
-//     use #(gen_str, indent) <- result.try(
-//       case re.scan(end_re, line) {
-//         [re.Match(_, [indent, Some(gen_str)])] ->
-//           Ok(#(gen_str, indent |> option.unwrap("") |> string.length))
-
-//         _ ->
-//           Error(Nil)
-//       }
-//     )
-
-//     Ok(Line(str: gen_str, indent:, idx:))
-//   })
-// }
-
-// fn gen_lines(
-//   src src: String,
-// ) {
-//   let lines =
-//     src
-//     |> string.split("\n")
-//     |> list.index_map(pair.new)
-
-//   let assert Ok(start_re) =
-//     "^(\\s*)[/][/][$]\\s*(END\\s+)?gen\\s+(.+)$"
-//     |> re.from_string
-
-//   lines
-//   |> list.fold(#(None, []), fn(acc, t) {
-//     let #(gen, gens) = acc
-
-//     let #(line, idx) = t
-
-//     {
-//       use #(gen_str, indent, is_end) <- result.try(
-//         case re.scan(start_re, line) {
-//           [re.Match(_, [indent, end, Some(gen_str)])] ->
-//             Ok(#(
-//               gen_str,
-//               indent |> option.unwrap("") |> string.length,
-//               end |> option.is_some,
-//             ))
-
-//           _ ->
-//             Error(Nil)
-//         }
-//       )
-
-//       case gen, is_end {
-//         None, False ->
-//           // found new `gen`
-//           Ok(#(Some(gen), gens))
-
-//         Some(Gen(str: curr_gen_str, ..) as gen), True if curr_gen_str == gen_str ->
-//           // found end for exisiting `gen`
-//           Ok(#(None, [Gen(..gen, end: Some(idx))]))
-
-//         Some(Gen(str: curr_gen_str, ..) as gen), True ->
-//           // found end for exisiting `gen`
-//           Ok(#(None, [Gen(..gen, end: Some(idx))]))
-
-//         Some(gen), False ->
-//           // found new `gen` without finding end for prev `gen`
-//           // Ok(#())
-//           todo
-
-//         None, True ->
-//           // found end before first finding a `gen`
-//           todo
-//       }
-
-//       // use line <- try_unwrap(default: Ok(#(Some(gen), gens)), result: {
-//       //   find_gen_end_line(gen:, lines:, after: idx)
-//       //   // let assert Ok(end_re) =
-//       //   //   { "^(\\s*)[/][/][$]\\s*END\\s+gen\\s+" <> gen_str <> "$" }
-//       //   //   |> re.from_string
-
-//       //   // case re.scan(start_re, line) {
-//       //   //   [] ->
-//       //   //     Error(Nil)
-
-//       //   //   _ ->
-//       //   //     Ok(todo)
-//       //   // }
-//       // })
-
-//       // Ok(#(None, [Gen(..gen, end: Some(line.idx)), ..gens]))
-//       todo
-//     }
-//     |> result.unwrap(#(gen, gens))
-//   })
-//   |> fn(t) {
-//     let #(gen, gens) = t
-
-//     case gen {
-//       Some(gen) -> [gen, ..gens]
-//       None -> gens
-//     }
-//   }
-// }
-
-//
 
 fn build_gens(
   func func: g.Function,
@@ -411,27 +264,12 @@ fn build_gens(
         }
       )
 
-      // let bracket_pos = {
-      //   use <- bool.guard(!has_block, None)
-      //   Some(pos + indent)
-      // }
-
-      // let block_pos = {
-      //   use <- bool.guard(!has_block, None)
-      //   Some(#(start, end))
-      // }
-
       let gen = Gen(
         str: gen_str,
         comment:,
         indent:,
         pos: pos + until_comment,
-        line_pos: pos,
         new: !has_block,
-        // //
-        // bracket_pos:,
-        // comment_pos: pos + until_comment,
-        // block_pos:,
       )
 
       Ok(#(None, [gen, ..gens], next_pos))
@@ -448,30 +286,6 @@ fn build_gens(
   }
 }
 
-fn spans(
-  func func: Func,
-) -> List(#(g.Span, Option(String))) {
-  let assert Ok(span_re) =
-    "((\\w+)[(])?Span[(](\\d+)\\s*[,]\\s*(\\d+)[)]" |> re.from_string
-
-  func.def.definition.body
-  |> string.inspect
-  |> re.scan(span_re, _)
-  |> list.filter_map(fn(m) {
-    case m {
-      re.Match(_, [_, expr, Some(start), Some(end)]) ->
-        {
-          use start <- result.try(int.parse(start))
-          use end <- result.try(int.parse(end))
-          Ok(#(g.Span(start:, end:), expr))
-        }
-
-      _ ->
-        Error(Nil)
-    }
-  })
-}
-
 fn log(str, x) {
   log_(str, string.inspect(x))
 }
@@ -481,38 +295,6 @@ fn log_(str, s) {
   io.println("")
   io.println(str)
   io.println(s)
-}
-
-fn gen_span(
-  gen gen: Gen,
-  src src: String,
-) -> g.Span {
-  case bracket_pos(gen) {
-    None ->
-      g.Span(start: gen.pos, end: gen.pos + { gen.comment |> string.length })
-
-    Some(start) -> {
-      src
-      |> closing_position(in: _, of: curly_brackets, after: start)
-      |> fn(result) {
-        case result {
-          Error(Nil) -> panic as {
-            "couldn't find the closing bracket of existing code gen block"
-          }
-
-          Ok(end) ->
-            g.Span(start:, end: end + start)
-        }
-      }
-    }
-  }
-}
-
-fn bracket_pos(
-  gen gen: Gen,
-) -> Option(Int) {
-  use <- bool.guard(gen.new, None)
-  Some(gen.pos + gen.indent + 1)
 }
 
 fn run(
@@ -559,198 +341,37 @@ fn run(
   |> pair.first
 }
 
+fn gen_span(
+  gen gen: Gen,
+  src src: String,
+) -> g.Span {
+  case bracket_pos(gen) {
+    None ->
+      g.Span(start: gen.pos, end: gen.pos + { gen.comment |> string.length })
 
-// fn edit_orig(
-//   src src: String,
-//   func func: Func,
-//   gens gens: List(Gen),
-// // ) -> #(Edited(Func), List(Gen)) {
-// ) -> #(Edited(String), List(Gen)) {
-//   // let orig = func.src
+    Some(start) -> {
+      src
+      |> closing_position(in: _, of: curly_brackets, after: start)
+      |> fn(result) {
+        case result {
+          Error(Nil) -> panic as {
+            "couldn't find the closing bracket of existing code gen block"
+          }
 
-//   // let #(rs, collisions) =
-//   //   list.map(rs, fn(r) {
-//   //     span |>
-//   //   })
-//   //   |> todo
-//   //   |> result.partition
+          Ok(end) ->
+            g.Span(start:, end: end + start)
+        }
+      }
+    }
+  }
+}
 
-//   let spans = spans(func:)
-
-//   let #(gens, misses) =
-//     list.map(gens, fn(r) {
-//       list.find_map(spans, fn(t) {
-//         let #(span, _expr) = t
-
-//         case r.pos >= span.start && r.pos <= span.end {
-//           True -> Ok(#(span, r))
-//           False -> Error(Nil)
-//         }
-//       })
-//       |> result.replace_error(r)
-//     })
-//     |> result.partition
-
-//   let #(new, misses) = misses |> list.partition(fn(m) { m.new })
-
-//   use <- bool.lazy_guard(!list.is_empty(misses), fn() { panic as "misses!" })
-
-//   let #(regens, collisions) =
-//     gens
-//     |> list.group(pair.first)
-//     |> dict.map_values(fn(_, xs) { list.map(xs, pair.second) })
-//     |> dict.to_list
-//     |> list.map(fn(t) {
-//       let #(span, gens) = t
-//       case gens {
-//         [gen] -> Ok(#(span, gen))
-//         [] -> Error(Nil) // impossible case?
-//         _ -> Error(Nil)
-//       }
-//     })
-//     |> result.partition
-
-//   use <- bool.lazy_guard(!list.is_empty(collisions), fn() { panic as "collisions!" })
-
-//   let gens =
-//     regens
-//     |> list.map(fn(t) { #(Some(t.0), t.1) })
-//     |> list.append(new |> list.map(pair.new(None, _)))
-//     |> list.sort(fn(a, b) {
-//       int.compare(
-//         a.1.pos,
-//         b.1.pos,
-//       )
-//     })
-
-//   io.println("")
-//   io.println("")
-//   io.println("GENS")
-//   io.println(string.inspect(list.length(gens)))
-
-//   let src =
-//     gens
-//     |> list.fold(#(src, 0), fn(acc, t) {
-//       let #(#(old, offset), #(span, gen)) = #(acc, t)
-//   io.println("")
-//   io.println("")
-//   io.println("OTHER SPAN")
-//   io.println(string.inspect(span))
-
-//       // build & format `glance.Expression` as `String`
-//       let expr = gen_expr(gen:)
-//       let expr_src = gleam_format_expr(expr:, indent: gen.indent)
-
-//       // case bracket_pos(gen) {
-//       //   None -> echo ""
-//       //   Some(pos) -> {
-//       //     echo "HERE"
-//       //     // echo int.to_string(gen.line_pos)
-//       //     // echo int.to_string(gen.indent)
-//       //     // echo int.to_string(pos)
-//       //     echo
-//       //       src
-//       //       |> string.drop_start(pos)
-//       //       |> string.split("\n")
-//       //       |> closing_position(in: _, of: curly_brackets)
-//       //       |> string.inspect
-//       //       |> io.println
-//       //     echo "THERE"
-//       //     panic as "cmon"
-//       //   }
-//       // }
-
-//       // let #(span, expr_src) =
-//       //   case span {
-//       //     Some(span) -> #(span, expr_src)
-//       //     None -> #(g.Span(start: gen.pos, end: gen.pos + string.length(gen.comment)), expr_src)
-//       //   }
-
-//       echo gen
-//       let span =
-//         case bracket_pos(gen) {
-//           None ->
-//             g.Span(start: gen.pos, end: gen.pos + string.length(gen.str))
-
-//           Some(start) -> {
-//             src
-//             |> string.drop_start(start)
-//             |> string.split("\n")
-//             |> closing_position(in: _, of: curly_brackets)
-//             |> fn(result) {
-//               case result {
-//                 Error(Nil) -> panic as {
-//                   "couldn't find the closing bracket of existing code gen block"
-//                 }
-
-//                 Ok(end) ->
-//                   echo g.Span(start:, end: end + start)
-//               }
-//             }
-//           }
-//         }
-
-//       // let diff = todo
-//       // let new = todo
-
-//       // echo span
-
-//       let expr_src =
-//         case expr_src |> string.split("\n") {
-//           [] ->
-//             expr_src // impossible
-
-//           [_] ->
-//             panic as { "`gen " <> gen.str <> "` must generate a multiline block, but failed to" }
-
-//           [opening_bracket, ..rest] ->
-//             [opening_bracket <> " " <> gen.comment, ..rest] |> string.join("\n")
-//         }
-
-//       // // let span = g.Span(
-//       // //   start: func.def.location.start - span.start + offset,
-//       // //   end: func.def.location.start - span.end + offset,
-//       // // )
-//       // // echo span
-//       // let span = g.Span(
-//       //   start: span.start + offset - func.def.location.start,
-//       //   end: span.end + offset - func.def.location.start,
-//       // )
-//       // // echo span
-//       // let slice = string.slice(func.src, span.start, span.end)
-//       // let newlines = slice |> string.split("\n") |> list.length |> int.subtract(1)
-//       // let span = g.Span(..span, end: span.end - newlines)
-//       // // panic as "glance spans are different than src locations because of formatting etc..."
-
-//       // let new = old |> replace(span:, with: expr_src)
-//       io.println("")
-//       io.println("")
-//       io.println("SPAN")
-//       io.println(string.inspect(span))
-//       let new = old |> replace(span:, with: "hi")
-//       let diff = string.length(new) - string.length(old)
-
-//       io.println("")
-//       io.println("")
-//       io.println("OLD")
-//       io.println(old)
-
-//       io.println("")
-//       io.println("")
-//       io.println("NEW")
-//       io.println(new)
-
-//       #(new, offset + diff)
-//     })
-//     |> pair.first
-
-//   io.println(func.src)
-//   io.println(src)
-
-//   let _ = simplifile.write("./output.gleam", src)
-
-//   #(Edited(src), [])
-// }
+fn bracket_pos(
+  gen gen: Gen,
+) -> Option(Int) {
+  use <- bool.guard(gen.new, None)
+  Some(gen.pos + gen.indent + 1)
+}
 
 fn gen_expr(
   gen gen: Gen,
@@ -788,20 +409,6 @@ fn gleam_format_expr(
   }
   |> string.join("\n")
 }
-
-pub fn gleam_format(src: String) -> String {
-  let escaped_src =
-    src
-    |> string.replace(each: "\"", with: "\\\"")
-    |> string.replace(each: "'", with: "\\'")
-
-  let cmd = "echo \"" <> escaped_src <> "\" | gleam format --stdin"
-  let assert Ok(formatted_enc) = shellout.command(run: "sh", with: ["-c", cmd], in: ".", opt: [])
-
-  formatted_enc
-}
-
-const z = g.Span(0, 0)
 
 // OLD
 
