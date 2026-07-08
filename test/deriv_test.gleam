@@ -34,6 +34,7 @@ pub fn main() {
 
 // TODO
 //   next
+//     - allow gleam before block, e.g. `let foo = { //$ gen ...`
 //     - handle multiple `//$ gen` in single file
 //     - handle new case (not replace)
 //     - ensure AST wrapped in `g.Block`
@@ -43,19 +44,14 @@ pub fn main() {
 //     - define module structure
 //     - move to own module
 
+const gen_magic_comment_start = "//$ gen"
+
 pub fn deriv_test() {
-  let fs = gen_funcs()
-  // True |> should.be_false
-  // let assert Ok(re) = re.from_string("foo(.*)")
-  // echo re.scan(re, "foo")
+  let assert Ok(src) = simplifile.read("./test/gen/before.gleam")
+  let assert Ok(module) = g.module(src)
 
-  // fs |> list.map(fn(f) { f.0.name })
-  // |> echo
+  let output = process(src:, module:)
 
-  list.length(fs)
-  |> should.equal(1)
-
-  let assert Ok(output) = simplifile.read("./output.gleam")
   let assert Ok(after) = simplifile.read("./test/gen/after.gleam")
 
   log_("AFTER", after)
@@ -67,31 +63,18 @@ pub fn deriv_test() {
   Nil
 }
 
-const gen_magic_comment_start = "//$ gen"
+pub fn process(
+  module module: g.Module,
+  src src: String,
+) -> String {
+  use <- bool.guard(!{ src |> string.contains(gen_magic_comment_start) }, src)
 
-fn gen_funcs() -> List(Func)  {
-  let assert Ok(file) = simplifile.read("./test/gen/before.gleam")
-  let assert Ok(g.Module(_, _, _, _, funcs)) = g.module(file)
-  let funcs = funcs |> list.map(fn(def) { def.definition })
+  let lines = src |> string.split("\n")
 
-  list.filter_map(funcs, fn(func) {
-    let length = func.location.end - func.location.start
-    let func_src = string.slice(file, func.location.start, length)
-
-    let func = Func(def: func, src: func_src)
-
-    use <- bool.guard(!{ func_src |> string.contains(gen_magic_comment_start) }, Error(Nil))
-
-    echo func.def.name
-    // echo func.def
-    // let assert [gen] = gen_comment_locations(func)
-    let gens = gen_comment_locations(func)
-    // echo file |> string.drop_start(func.def.location.start + gen.position)
-    // echo gen.new
-    edit(src: file, func:, gens:)
-
-    Ok(func)
-  })
+  module.functions
+  |> list.map(fn(func) { func.definition })
+  |> list.map(build_gens(func: _, lines:))
+  |> list.fold(src, run)
 }
 
 pub fn gleam_format_expr_test() {
@@ -99,26 +82,26 @@ pub fn gleam_format_expr_test() {
   |> should.equal("    hi")
 }
 
-pub fn gen_span_test() {
-  let assert Ok(file) = simplifile.read("./test/gen/before.gleam")
-  let assert Ok(g.Module(_, _, _, _, funcs)) = g.module(file)
-  let funcs = funcs |> list.map(fn(def) { def.definition })
-  let assert [func] = funcs
+// pub fn gen_span_test() {
+//   let assert Ok(file) = simplifile.read("./test/gen/before.gleam")
+//   let assert Ok(g.Module(_, _, _, _, funcs)) = g.module(file)
+//   let funcs = funcs |> list.map(fn(def) { def.definition })
+//   let assert [func] = funcs
 
-  let length = func.location.end - func.location.start
-  let func_src = string.slice(file, func.location.start, length)
-  let func = Func(def: func, src: func_src)
-  let assert [gen] = gen_comment_locations(func)
+//   let length = func.location.end - func.location.start
+//   let func_src = string.slice(file, func.location.start, length)
+//   let func = Func(def: func, src: func_src)
+//   let assert [gen] = build_gens(func)
 
-  echo gen
+//   echo gen
 
-  // echo gen_target(gen)
+//   // echo gen_target(gen)
 
-  // todo
-  // |> should.equal(g.Span(116, 196))
+//   // todo
+//   // |> should.equal(g.Span(116, 196))
 
-  Nil
-}
+//   Nil
+// }
 
 // fn gen_target(
 //   gen gen: Gen,
@@ -245,7 +228,7 @@ fn closing_position(
 
 type Func {
   Func(
-    def: g.Function,
+    def: g.Definition(g.Function),
     src: String,
   )
 }
@@ -399,21 +382,16 @@ type Gen {
 
 //
 
-fn gen_comment_locations(
-  func func: Func,
+fn build_gens(
+  func func: g.Function,
+  lines lines: List(String),
 ) -> List(Gen) {
-  let lines =
-    func.src
-    |> string.split("\n")
-    |> list.index_map(pair.new)
-
   let assert Ok(start_re) =
     "^((\\s*)([{]\\s*)?)([/][/][$]\\s*?gen\\s+(.+)$)"
     |> re.from_string
 
-  list.fold(lines, #(None, [], func.def.location.start), fn(acc, t) {
+  list.fold(lines, #(None, [], func.location.start), fn(acc, line) {
     let #(gen, gens, pos) = acc
-    let #(line, _idx) = t
     let next_pos = pos + string.length(line)
 
     {
@@ -476,7 +454,7 @@ fn spans(
   let assert Ok(span_re) =
     "((\\w+)[(])?Span[(](\\d+)\\s*[,]\\s*(\\d+)[)]" |> re.from_string
 
-  func.def.body
+  func.def.definition.body
   |> string.inspect
   |> re.scan(span_re, _)
   |> list.filter_map(fn(m) {
@@ -493,22 +471,6 @@ fn spans(
     }
   })
 }
-
-// type Replacement{
-//   Replacement(
-//     pos: Int,
-//     gen: Gen,
-//   )
-// }
-
-type Edited(t) {
-  Edited(t)
-}
-
-// type EditErr {
-//   Miss
-//   Collision
-// }
 
 fn log(str, x) {
   log_(str, string.inspect(x))
@@ -527,9 +489,7 @@ fn gen_span(
 ) -> g.Span {
   case bracket_pos(gen) {
     None ->
-      // g.Span(start: gen.pos, end: gen.pos + string.length(gen.str)) // tk1
-      // g.Span(start: gen.pos + gen.indent + 1, end: gen.pos + string.length(gen.str))
-      todo
+      g.Span(start: gen.pos, end: gen.pos + { gen.comment |> string.length })
 
     Some(start) -> {
       src
@@ -555,133 +515,48 @@ fn bracket_pos(
   Some(gen.pos + gen.indent + 1)
 }
 
-fn edit(
+fn run(
   src src: String,
-  func func: Func,
   gens gens: List(Gen),
-// ) -> #(Edited(Func), List(Gen)) {
-) -> #(Edited(String), List(Gen)) {
-  // log_("FUNC", func.src)
+) -> String {
+  gens
+  |> list.fold(#(src, 0), fn(acc, gen) {
+    let #(old, offset) = acc
 
-  let src =
-    gens
-    |> list.fold(#(src, 0), fn(acc, gen) {
-      let #(old, offset) = acc
+    // build & format `glance.Expression` as `String`
+    let expr = gen_expr(gen:)
+    let expr_src = gleam_format_expr(expr:, indent: gen.indent)
 
-      // build & format `glance.Expression` as `String`
-      let expr = gen_expr(gen:)
-      let expr_src = gleam_format_expr(expr:, indent: gen.indent)
+    // add magic comment back to gen'd `glance.Expression` src
+    let expr_src =
+      case expr_src |> string.split("\n") {
+        [] ->
+          expr_src // impossible
 
-      // log_("EXPR", expr_src)
+        [_] ->
+          panic as { "`gen " <> gen.str <> "` must generate a multiline block, but failed to" }
 
-      // case bracket_pos(gen) {
-      //   None -> echo ""
-      //   Some(pos) -> {
-      //     echo "HERE"
-      //     // echo int.to_string(gen.line_pos)
-      //     // echo int.to_string(gen.indent)
-      //     // echo int.to_string(pos)
-      //     echo
-      //       src
-      //       |> string.drop_start(pos)
-      //       |> string.split("\n")
-      //       |> closing_position(in: _, of: curly_brackets)
-      //       |> string.inspect
-      //       |> io.println
-      //     echo "THERE"
-      //     panic as "cmon"
-      //   }
-      // }
+        [opening_bracket, ..rest] ->
+          [opening_bracket <> " " <> gen.comment, ..rest] |> string.join("\n")
+      }
 
-      // let #(span, expr_src) =
-      //   case span {
-      //     Some(span) -> #(span, expr_src)
-      //     None -> #(g.Span(start: gen.pos, end: gen.pos + string.length(gen.comment)), expr_src)
-      //   }
+    // calc span to overwrite
+    let span = gen_span(gen:, src:)
 
-      log("GEN", gen)
-      let span = gen_span(gen:, src:)
+    // construct new src
+    let #(start, end) = dg.splice_out_span(old, span)
+    let new = string.join([
+      start,
+      expr_src |> string.trim_start,
+      end,
+    ], "")
 
-      // let diff = todo
-      // let new = todo
+    // calc diff for new `offset`
+    let diff = string.length(new) - string.length(old)
 
-      // echo span
-
-      let expr_src =
-        case expr_src |> string.split("\n") {
-          [] ->
-            expr_src // impossible
-
-          [_] ->
-            panic as { "`gen " <> gen.str <> "` must generate a multiline block, but failed to" }
-
-          [opening_bracket, ..rest] ->
-            [opening_bracket <> " " <> gen.comment, ..rest] |> string.join("\n")
-        }
-
-      // // let span = g.Span(
-      // //   start: func.def.location.start - span.start + offset,
-      // //   end: func.def.location.start - span.end + offset,
-      // // )
-      // // echo span
-      // let span = g.Span(
-      //   start: span.start + offset - func.def.location.start,
-      //   end: span.end + offset - func.def.location.start,
-      // )
-      // // echo span
-      // let slice = string.slice(func.src, span.start, span.end)
-      // let newlines = slice |> string.split("\n") |> list.length |> int.subtract(1)
-      // let span = g.Span(..span, end: span.end - newlines)
-      // // panic as "glance spans are different than src locations because of formatting etc..."
-
-      // let new = old |> replace(span:, with: expr_src)
-      log("SPAN", span)
-
-      // let opening = gen.line_pos + gen.indent
-      // // log("OPENING BRACKET POS", opening)
-      // // log("CLOSING BRACKET POS POS", bracket_pos(gen) |> option.map(int.add(opening, _)))
-      // // log("CLOSING BRACKET LENGTH UNTIL", bracket_pos(gen))
-
-      // // let #(start, end) = dg.splice_out_span(old, g.Span(start: 114 + 1 + 1 + gen.indent, end: 192 + 5 - 1)) // "{}" // tk1
-      // let start = 114 + 1 + 1 + gen.indent
-      // let end = 192 + 5 - 1
-      // log("START", start)
-      // log("END", end)
-      // // log("LENGTH", end - start)
-      // let #(start, end) = dg.splice_out_span(old, g.Span(start:, end:))
-
-      let #(start, end) = dg.splice_out_span(old, span)
-      log_("START", start)
-      log_("END", end)
-
-      let new = string.join([
-        start,
-        expr_src |> string.trim_start,
-        end,
-      ], "")
-
-
-      // log_("TRY", [
-      //   start,
-      //   end,
-      // ] |> string.join(""))
-
-      // let new = old |> replace(span:, with: expr_src)
-      let diff = string.length(new) - string.length(old)
-
-      log_("OLD", old)
-      log_("NEW", new)
-
-      #(new, offset + diff)
-    })
-    |> pair.first
-
-  // io.println(func.src)
-  // io.println(src)
-
-  let _ = simplifile.write("./output.gleam", src)
-
-  #(Edited(src), [])
+    #(new, offset + diff)
+  })
+  |> pair.first
 }
 
 
