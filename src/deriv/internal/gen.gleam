@@ -20,8 +20,7 @@ pub fn process(
   let lines = src |> string.split("\n")
 
   module.functions
-  |> list.map(fn(func) { func.definition })
-  |> list.map(build_gens(func: _, lines:))
+  |> list.map(build_func_gens(func: _, lines:))
   |> list.fold(src, run)
 }
 
@@ -29,14 +28,19 @@ pub fn process(
 
 fn run(
   src src: String,
-  gens gens: List(Gen),
+  func_gens func_gens: FuncGens,
 ) -> String {
+  let FuncGens(func:, gens:) = func_gens
+
   gens
   |> list.fold(#(src, 0), fn(acc, gen) {
     let #(old, offset) = acc
 
+    // offset positions based on previous code gen results
+    let gen = Gen(..gen, pos: gen.pos + offset)
+
     // build & format `glance.Expression` as `String`
-    let expr = gen_expr(gen:)
+    let expr = test1(gen:)
     let expr_src = gleam_format_expr(expr:, indent: gen.indent)
 
     // add magic comment back to gen'd `glance.Expression` src
@@ -71,12 +75,22 @@ fn run(
   |> pair.first
 }
 
-fn gen_expr(
+pub fn test1(
   gen gen: Gen,
 ) -> g.Expression {
   g.Block(z, [g.Expression(
     g.Case(z, [g.Variable(z, "foo")], [
       g.Clause(patterns: [[g.PatternDiscard(z, "")]], guard: None, body: g.Variable(z, "foo")),
+    ]),
+  )])
+}
+
+pub fn test2(
+  gen gen: Gen,
+) -> g.Expression {
+  g.Block(z, [g.Expression(
+    g.Case(z, [g.Variable(z, "bar")], [
+      g.Clause(patterns: [[g.PatternDiscard(z, "")]], guard: None, body: g.Variable(z, "bar")),
     ]),
   )])
 }
@@ -131,6 +145,13 @@ fn closing_position(
   }
 }
 
+type FuncGens {
+  FuncGens(
+    func: g.Definition(g.Function),
+    gens: List(Gen),
+  )
+}
+
 pub type Gen {
   Gen(
     str: String,
@@ -141,15 +162,22 @@ pub type Gen {
   )
 }
 
+fn build_func_gens(
+  func func: g.Definition(g.Function),
+  lines lines: List(String),
+) -> FuncGens {
+  FuncGens(func:, gens: build_gens(lines:, func:))
+}
+
 fn build_gens(
-  func func: g.Function,
+  func func: g.Definition(g.Function),
   lines lines: List(String),
 ) -> List(Gen) {
   let assert Ok(start_re) =
     "^((\\s*)([{]\\s*)?)([/][/][$]\\s*?gen\\s+(.+)$)"
     |> re.from_string
 
-  list.fold(lines, #(None, [], func.location.start), fn(acc, line) {
+  list.fold(lines, #(None, [], func.definition.location.start), fn(acc, line) {
     let #(gen, gens, pos) = acc
     let next_pos = pos + string.length(line)
 
