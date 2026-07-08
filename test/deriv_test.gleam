@@ -32,6 +32,17 @@ pub fn main() {
   gleeunit.main()
 }
 
+// TODO
+//   next
+//     - handle multiple `//$ gen` in single file
+//     - handle new case (not replace)
+//     - ensure AST wrapped in `g.Block`
+//   tidy
+//     - refactor
+//     - clean up tests
+//     - define module structure
+//     - move to own module
+
 pub fn deriv_test() {
   let fs = gen_funcs()
   // True |> should.be_false
@@ -172,7 +183,7 @@ fn baz(boo) {
 
   closing_position(of: curly_brackets, in: src, after: start)
   |> should.be_ok
-  |> should.equal(ClosingPosition(pos: length, spaces: -1))
+  |> should.equal(length)
 
   src
   |> string.slice(start, length + 1)
@@ -194,59 +205,42 @@ type ClosingPairAcc {
   ClosingPairAcc(
     pos: Int,
     open: Int,
-    spaces: Int,
   )
 }
 
-type ClosingPosition {
-  ClosingPosition(
-    pos: Int,
-    spaces: Int,
-  )
-}
 
 fn closing_position(
   of pair: Pair,
   in str: String,
   after pos: Int,
-) -> Result(ClosingPosition, Nil) {
+) -> Result(Int, Nil) {
   let lines =
     str
     |> string.drop_start(pos + 1)
     |> string.split("\n")
     |> list.map(string.append(_, "\n"))
 
-  let acc =
-    list.fold_until(lines, ClosingPairAcc(pos: 0, open: 1, spaces: 0), fn(acc, line) {
+  list.fold_until(lines, ClosingPairAcc(pos: 0, open: 1), fn(acc, line) {
+    use <- bool.guard(acc.open <= 0, list.Stop(acc))
+
+    list.fold_until(string.to_graphemes(line), acc, fn(acc, ch) {
       use <- bool.guard(acc.open <= 0, list.Stop(acc))
 
-      echo #("LINE", line)
-      echo #("OUTER", acc)
-
-      let acc =
-        list.fold_until(string.to_graphemes(line), ClosingPairAcc(..acc, spaces: 0), fn(acc, ch) {
-          use <- bool.guard(acc.open <= 0, list.Stop(acc))
-
-          let acc =
-            case ch == pair.open, ch == pair.close, ch == " " {
-              True, _, _ -> ClosingPairAcc(..acc, open: acc.open + 1)
-              _, True, _ -> ClosingPairAcc(..acc, open: acc.open - 1)
-              _, _, True -> ClosingPairAcc(..acc, spaces: acc.spaces + 1)
-              _, _, _ -> acc
-            }
-
-          let acc = ClosingPairAcc(..acc, pos: acc.pos + 1)
-
-          echo #("INNER", ch, acc, acc.open <= 0)
-
-          list.Continue(acc)
-        })
-
-      list.Continue(acc)
+      case ch == pair.open, ch == pair.close {
+        True, _ -> ClosingPairAcc(..acc, open: acc.open + 1)
+        _, True -> ClosingPairAcc(..acc, open: acc.open - 1)
+        _, _ -> acc
+      }
+      |> fn(acc) { list.Continue(ClosingPairAcc(..acc, pos: acc.pos + 1)) }
     })
-
-  use <- bool.guard(acc.open <= 0, Ok(ClosingPosition(pos: acc.pos, spaces: -1)))
-  Error(Nil)
+    |> list.Continue
+  })
+  |> fn(result) {
+    case result {
+      ClosingPairAcc(pos:, open:) if open <= 0 -> Ok(pos)
+      _ -> Error(Nil)
+    }
+  }
 }
 
 type Func {
@@ -269,13 +263,6 @@ type Gen {
     // comment_pos: Int,
     // block_pos: Option(#(Int, Int)),
   )
-}
-
-fn bracket_pos(
-  gen gen: Gen,
-) -> Option(Int) {
-  use <- bool.guard(gen.new, None)
-  Some(gen.pos + gen.indent + 1)
 }
 
 // type Gen {
@@ -534,6 +521,40 @@ fn log_(str, s) {
   io.println(s)
 }
 
+fn gen_span(
+  gen gen: Gen,
+  src src: String,
+) -> g.Span {
+  case bracket_pos(gen) {
+    None ->
+      // g.Span(start: gen.pos, end: gen.pos + string.length(gen.str)) // tk1
+      // g.Span(start: gen.pos + gen.indent + 1, end: gen.pos + string.length(gen.str))
+      todo
+
+    Some(start) -> {
+      src
+      |> closing_position(in: _, of: curly_brackets, after: start)
+      |> fn(result) {
+        case result {
+          Error(Nil) -> panic as {
+            "couldn't find the closing bracket of existing code gen block"
+          }
+
+          Ok(end) ->
+            g.Span(start:, end: end + start)
+        }
+      }
+    }
+  }
+}
+
+fn bracket_pos(
+  gen gen: Gen,
+) -> Option(Int) {
+  use <- bool.guard(gen.new, None)
+  Some(gen.pos + gen.indent + 1)
+}
+
 fn edit(
   src src: String,
   func func: Func,
@@ -579,36 +600,7 @@ fn edit(
       //   }
 
       log("GEN", gen)
-      let span =
-        case bracket_pos(gen) {
-          None ->
-            // g.Span(start: gen.pos, end: gen.pos + string.length(gen.str)) // tk1
-            // g.Span(start: gen.pos + gen.indent + 1, end: gen.pos + string.length(gen.str))
-            todo
-
-          Some(start) -> {
-            log("LINE POS", gen.line_pos)
-            log("POS", gen.pos)
-            log("SOME", start)
-
-            src
-            |> closing_position(in: _, of: curly_brackets, after: start)
-            |> fn(x) {
-              log("CLOSE!!!", x)
-              x
-            }
-            |> fn(result) {
-              case result {
-                Error(Nil) -> panic as {
-                  "couldn't find the closing bracket of existing code gen block"
-                }
-
-                Ok(ClosingPosition(pos: end, spaces: _)) ->
-                  g.Span(start:, end: end + start)
-              }
-            }
-          }
-        }
+      let span = gen_span(gen:, src:)
 
       // let diff = todo
       // let new = todo
