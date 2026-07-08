@@ -6,6 +6,7 @@ import gleam/result
 import gleam/bool
 import glance as g
 import gleam/regexp as re
+import gleam/bit_array
 //
 import gleam/list
 import gleam/dynamic/decode
@@ -25,34 +26,35 @@ import gleeunit/should
 import gleam/io
 import simplifile
 import examples/json_rewrite/after as json_example
+import bchase/list.{at as list_at} as _
 
 pub fn main() {
   gleeunit.main()
 }
 
-pub fn deriv_test() {
-  let fs = gen_funcs()
-  // True |> should.be_false
-  // let assert Ok(re) = re.from_string("foo(.*)")
-  // echo re.scan(re, "foo")
+// pub fn deriv_test() {
+//   let fs = gen_funcs()
+//   // True |> should.be_false
+//   // let assert Ok(re) = re.from_string("foo(.*)")
+//   // echo re.scan(re, "foo")
 
-  // fs |> list.map(fn(f) { f.0.name })
-  // |> echo
+//   // fs |> list.map(fn(f) { f.0.name })
+//   // |> echo
 
-  list.length(fs)
-  |> should.equal(1)
+//   list.length(fs)
+//   |> should.equal(1)
 
-  let assert Ok(output) = simplifile.read("./output.gleam")
-  let assert Ok(after) = simplifile.read("./test/gen/after.gleam")
+//   let assert Ok(output) = simplifile.read("./output.gleam")
+//   let assert Ok(after) = simplifile.read("./test/gen/after.gleam")
 
-  log_("AFTER", after)
-  log_("OUTPUT", output)
+//   log_("AFTER", after)
+//   log_("OUTPUT", output)
 
-  output
-  |> should.equal(after)
+//   output
+//   |> should.equal(after)
 
-  Nil
-}
+//   Nil
+// }
 
 const gen_magic_comment_start = "//$ gen"
 
@@ -86,27 +88,97 @@ pub fn gleam_format_expr_test() {
   |> should.equal("    hi")
 }
 
-pub fn replace_test() {
-  replace(str: "foobarbaz", span: g.Span(start: 3, end: 6), with: "boo")
-  |> should.equal("fooboobaz")
+pub fn gen_span_test() {
+  let assert Ok(file) = simplifile.read("./test/gen/before.gleam")
+  let assert Ok(g.Module(_, _, _, _, funcs)) = g.module(file)
+  let funcs = funcs |> list.map(fn(def) { def.definition })
+  let assert [func] = funcs
+
+  let length = func.location.end - func.location.start
+  let func_src = string.slice(file, func.location.start, length)
+  let func = Func(def: func, src: func_src)
+  let assert [gen] = gen_comment_locations(func)
+
+  echo gen
+
+  // echo gen_target(gen)
+
+  // todo
+  // |> should.equal(g.Span(116, 196))
+
+  Nil
 }
 
-pub fn closing_position_test() {
-  let lines = [
-    "  case True {\n",
-    "    True -> 1\n",
-    "    False -> { 0 }\n",
-    "  }\n",
-    "}\n",
-    "\n",
-    "fn foo(bar) {\n",
-    "  todo",
-    "}\n",
-  ]
+// fn gen_target(
+//   gen gen: Gen,
+//   src src: String,
+// ) -> g.Span {
+//   case bracket_pos(gen) {
+//     None ->
+//       g.Span(start: gen.pos, end: gen.pos + { gen.comment |> string.length })
 
-  closing_position(of: curly_brackets, in: lines)
+//     Some(opening_bracket_pos) -> {
+//       closing_position(of: curly_brackets, in: todo)
+//       todo
+//     }
+//   }
+// }
+
+// pub fn whitespace_before_test() {
+// }
+// whitespace_before(
+// ) {
+// }
+pub fn closing_position_test() {
+  let src = "
+fn foo(bar) {
+  {
+    case True {
+      True -> 1
+      False -> { 0 }
+    }
+  }  // <-- target
+}
+
+fn baz(boo) {
+  todo
+}" |> string.trim
+
+  let target = "
+  {
+    case True {
+      True -> 1
+      False -> { 0 }
+    }
+  }" |> string.trim
+
+  let start = 16
+  let length = 63
+  let end = start + length
+
+  let chars = src |> string.to_graphemes
+  chars
+  |> list_at(index: start)
   |> should.be_ok
-  |> should.equal(52)
+  |> should.equal(curly_brackets.open)
+  chars
+  |> list_at(index: end)
+  |> should.be_ok
+  |> should.equal(curly_brackets.close)
+
+  src
+  |> string.length
+  |> should.not_equal(end)
+
+  closing_position(of: curly_brackets, in: src, after: start)
+  |> should.be_ok
+  |> should.equal(ClosingPosition(pos: length, spaces: -1))
+
+  src
+  |> string.slice(start, length + 1)
+  |> should.equal(target)
+
+  Nil
 }
 
 type Pair {
@@ -122,34 +194,58 @@ type ClosingPairAcc {
   ClosingPairAcc(
     pos: Int,
     open: Int,
+    spaces: Int,
+  )
+}
+
+type ClosingPosition {
+  ClosingPosition(
+    pos: Int,
+    spaces: Int,
   )
 }
 
 fn closing_position(
   of pair: Pair,
-  in lines: List(String),
-) -> Result(Int, Nil) {
+  in str: String,
+  after pos: Int,
+) -> Result(ClosingPosition, Nil) {
+  let lines =
+    str
+    |> string.drop_start(pos + 1)
+    |> string.split("\n")
+    |> list.map(string.append(_, "\n"))
+
   let acc =
-    list.fold_until(lines, ClosingPairAcc(pos: 0, open: 1), fn(acc, line) {
+    list.fold_until(lines, ClosingPairAcc(pos: 0, open: 1, spaces: 0), fn(acc, line) {
+      use <- bool.guard(acc.open <= 0, list.Stop(acc))
+
+      echo #("LINE", line)
+      echo #("OUTER", acc)
+
       let acc =
-        list.fold_until(string.to_graphemes(line), acc, fn(acc, ch) {
+        list.fold_until(string.to_graphemes(line), ClosingPairAcc(..acc, spaces: 0), fn(acc, ch) {
+          use <- bool.guard(acc.open <= 0, list.Stop(acc))
+
           let acc =
-            case ch == pair.open, ch == pair.close {
-              True, _ -> ClosingPairAcc(open: acc.open + 1, pos: acc.pos + 1)
-              _, True -> ClosingPairAcc(open: acc.open - 1, pos: acc.pos + 1)
-              _, _ -> ClosingPairAcc(..acc, pos: acc.pos + 1)
+            case ch == pair.open, ch == pair.close, ch == " " {
+              True, _, _ -> ClosingPairAcc(..acc, open: acc.open + 1)
+              _, True, _ -> ClosingPairAcc(..acc, open: acc.open - 1)
+              _, _, True -> ClosingPairAcc(..acc, spaces: acc.spaces + 1)
+              _, _, _ -> acc
             }
 
-          use <- bool.guard(acc.open <= 0, list.Stop(acc))
+          let acc = ClosingPairAcc(..acc, pos: acc.pos + 1)
+
+          echo #("INNER", ch, acc, acc.open <= 0)
+
           list.Continue(acc)
         })
 
-
-      use <- bool.guard(acc.open <= 0, list.Stop(acc))
       list.Continue(acc)
     })
 
-  use <- bool.guard(acc.open <= 0, Ok(acc.pos))
+  use <- bool.guard(acc.open <= 0, Ok(ClosingPosition(pos: acc.pos, spaces: -1))) // TODO tk2 why `pos - 1`
   Error(Nil)
 }
 
@@ -501,7 +597,9 @@ fn edit(
             src
             |> string.drop_start(start)
             |> string.split("\n")
-            |> closing_position(in: _, of: curly_brackets)
+            // |> list.map(string.append(_, "\n"))
+            // |> closing_position(in: _, of: curly_brackets)
+            |> todo
             |> fn(x) {
               log("CLOSE!!!", x)
               x
@@ -512,8 +610,10 @@ fn edit(
                   "couldn't find the closing bracket of existing code gen block"
                 }
 
-                Ok(end) ->
-                  echo g.Span(start:, end: end + start + gen.indent + 1)
+                Ok(ClosingPosition(pos: end, spaces:)) ->{
+                  log("INDENT", gen.indent)
+                  echo g.Span(start:, end: end + start + gen.indent) // TODO tk2 why `+ 2`
+                  }
               }
             }
           }
@@ -568,6 +668,8 @@ fn edit(
       // let #(start, end) = dg.splice_out_span(old, g.Span(start:, end:))
 
       let #(start, end) = dg.splice_out_span(old, span)
+      log_("START", start)
+      log_("END", end)
 
       let new = string.join([
         start,
@@ -791,18 +893,6 @@ fn edit(
 
 //   #(Edited(src), [])
 // }
-
-// TODO compare w/ `deriv/internal/glance.splice_out_span`
-fn replace(
-  str str: String,
-  span span: g.Span,
-  with new: String,
-) -> String {
-  let begin = string.drop_end(str, span.end)
-  let end = string.drop_start(str, span.end)
-
-  begin <> new <> end
-}
 
 fn gen_expr(
   gen gen: Gen,
