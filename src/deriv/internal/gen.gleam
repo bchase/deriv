@@ -208,7 +208,7 @@ fn dep_package_and_module_names_differ(
   toml gt: GleamToml,
 ) -> Result(Dep, Nil) {
   use package <- try(
-    case all_build_package_gleam_src_filepaths() { // TODO build elsewhere
+    case all_build_package_gleam_src_filepaths() { // TODO tk build elsewhere
       Ok(filepaths) -> {
         let filepath = { path.full |> string.join("/") } <> ".gleam"
 
@@ -370,7 +370,7 @@ pub fn ast(
   )
 }
 
-fn all_build_package_gleam_src_filepaths(
+pub fn all_build_package_gleam_src_filepaths(
 ) -> Result(List(String), #(Int, String)) {
   use output <- try(shellout.command(in: ".", opt: [], run: "find", with: ["build/packages/"]))
 

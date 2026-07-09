@@ -1,3 +1,4 @@
+import gleam/result
 import glance as g
 //
 import gleam/list
@@ -20,6 +21,12 @@ import simplifile
 import examples/json_rewrite/after as json_example
 import bchase/list.{at as list_at} as _
 import deriv/internal/gen
+//
+import gleam/otp/actor
+import gleam/otp/supervision
+import gleam/otp/static_supervisor as supervisor
+import gleam/erlang/process.{type Subject}
+
 
 pub fn main() {
   gleeunit.main()
@@ -62,7 +69,7 @@ fn gen_variant(
 //   - look up expr func based on `Gen.str`
 //   - look up `glance.CustomType` for func param
 //   - map `Gen` to expression builder
-//   - tk ...
+//   - ...
 //
 // TODO
 //   next
@@ -97,12 +104,89 @@ pub fn gen_test() {
   Nil
 }
 
+fn lookup_supervisor(
+  name name: process.Name(LookupMsg),
+) {
+  supervisor.new(supervisor.OneForOne)
+  |> supervisor.add(lookup_worker(name:))
+}
+
+type LookupMsg {
+  NoOp
+  Type(
+    mod: Option(String),
+    name: String,
+    file: gen.GleamFile,
+    reply: Subject(Result(g.CustomType, gen.GenErr)),
+  )
+}
+
+fn lookup_worker(
+  name name: process.Name(LookupMsg),
+) -> supervision.ChildSpecification(Nil) {
+  // TODO tk
+  let assert Ok(pwd) = gen.pwd()
+  let assert Ok(toml) = gen.gleam_toml()
+
+  supervision.worker(fn() { actor.start(
+    actor.new_with_initialiser(100, fn(self) {
+      let state = self
+
+      state
+      |> actor.initialised
+      |> Ok
+    })
+    |> actor.named(name)
+    |> actor.on_message(fn(state, msg) {
+      case msg {
+        NoOp ->
+          actor.continue(state)
+
+        Type(mod:, name:, file:, reply:) -> {
+          let ctx = gen.Context(pwd:, toml:, file:)
+
+          gen.get_custom_type(ctx:, mod:, type_: name)
+          |> process.send(reply, _)
+
+          actor.continue(state)
+        }
+      }
+    })
+  ) })
+}
+
+const lookup_timeout_ms = 5_000
+
+fn look_up_type(
+  actor actor: process.Name(LookupMsg),
+  mod mod: Option(String),
+  name name: String,
+  file file: gen.GleamFile,
+) -> Result(glance.CustomType, gen.GenErr) {
+  let self = process.new_subject()
+
+  actor
+  |> process.named_subject
+  |> actor.send(Type(mod:, name:, file:, reply: self))
+
+  process.receive(self, lookup_timeout_ms)
+  |> result.replace_error(gen.Failed("timed out"))
+  |> result.flatten
+}
+
 pub fn custom_type_lookup_test() {
+  let lookup = process.new_name("type-ast-lookup")
+
+  let assert Ok(_) = supervisor.start(lookup_supervisor(name: lookup))
+
   let assert Ok(pwd) = gen.pwd()
   let assert Ok(toml) = gen.gleam_toml()
 
   let filepath = "src/deriv/internal/dummy/lookup.gleam"
   let assert Ok(file) = gen.load_gleam_file(filepath:)
+
+  look_up_type(lookup, file:, mod: Some("id"), name: "Id")
+  |> echo
 
   let ctx = gen.Context(pwd:, toml:, file:)
 
@@ -124,7 +208,6 @@ pub fn custom_type_lookup_test() {
 
   Nil
 }
-
 
 // pub fn gleam_format_expr_test() {
 //   gleam_format_expr(g.Variable(z, "hi"), indent: 4)
