@@ -260,7 +260,7 @@ pub fn ast(
         None -> {
           let name =
             parse_gleam_module_path(path:)
-            |> result.map(fn(path) { path.package })
+            |> result.map(fn(path) { path.module })
             |> result.lazy_unwrap(fn() {
               io.print_error("`parse_gleam_module_path` miss: " <> path)
               "__parse_gleam_module_path:miss:" <> path
@@ -288,13 +288,16 @@ pub fn main() {
   let assert Ok(pwd) = pwd()
   let assert Ok(toml) = gleam_toml()
 
-  let filepath = "src/deriv/internal/types.gleam"
+  let filepath = "src/deriv/internal/dummy/lookup.gleam"
   let assert Ok(file) = load_gleam_file(filepath:)
 
   let ctx = Context(pwd:, toml:, file:)
 
-  // echo get_custom_type(ctx:, mod: Some("deriv"), type_: "Context")
-  echo get_custom_type(ctx:, mod: None, type_: "Context")
+  echo get_custom_type(ctx:, mod: None, type_: "Local")
+  echo get_custom_type(ctx:, mod: None, type_: "LocalAlias")
+  echo get_custom_type(ctx:, mod: None, type_: "OtherImport") // <---------------------------------
+  echo get_custom_type(ctx:, mod: Some("lookup_other"), type_: "Other")
+  echo get_custom_type(ctx:, mod: Some("oo"), type_: "OtherOther")
 
   Nil
 }
@@ -379,13 +382,26 @@ pub fn get_custom_type(
     None ->
       Ok(ctx)
 
-    Some(path) -> {
-      use path <- try_err(parse_gleam_module_path(path:), GleamFileErr)
+    Some(module) -> {
+      use path <- try(import_path(module:, ctx:))
       load_context(pwd: ctx.pwd, path:, toml: ctx.toml)
     }
   })
 
   get_custom_type_in(ctx:, type_:)
+}
+
+fn import_path(
+  module module: String,
+  ctx ctx: Context,
+) -> Result(GleamPath, GenErr) {
+  use g.Definition(_, import_) <- try_err(
+    ctx.file.ast.imports.named |> dict.get(module),
+    always(ImportNotFound(path: ctx.file.path, name: module)),
+  )
+
+  parse_gleam_module_path(path: import_.module)
+  |> result.map_error(GleamFileErr)
 }
 
 fn get_custom_type_in(
