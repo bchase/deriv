@@ -50,6 +50,7 @@ pub type GenErr {
   CustomTypeNotFound(path: GleamPath, type_: String)
   ImportNotFound(path: GleamPath, name: String)
   TypeIsNotCustomType(path: GleamPath, name: String, type_: g.Type)
+  Failed(msg: String)
 }
 
 pub fn pwd() -> Result(Pwd, simplifile.FileError) {
@@ -114,9 +115,9 @@ fn filepath(
 
 pub type GleamPath {
   GleamPath(
+    full: List(String),
     package: String,
     module: String,
-    full: List(String),
   )
 }
 
@@ -151,6 +152,16 @@ pub type GleamToml {
     name: String,
     toml: Dict(String, tom.Toml),
   )
+}
+
+fn all_imports(
+  imports imports: Imports,
+) -> List(g.Definition(g.Import)) {
+  [
+    imports.named |> dict.values,
+    imports.discarded,
+  ]
+  |> list.flatten
 }
 
 fn init() -> Result(Context, GleamTomlErr) {
@@ -293,11 +304,15 @@ pub fn main() {
 
   let ctx = Context(pwd:, toml:, file:)
 
+  // curr package
   echo get_custom_type(ctx:, mod: None, type_: "Local")
   echo get_custom_type(ctx:, mod: None, type_: "LocalAlias")
-  echo get_custom_type(ctx:, mod: None, type_: "OtherImport") // <---------------------------------
+  echo get_custom_type(ctx:, mod: None, type_: "OtherImport")
   echo get_custom_type(ctx:, mod: Some("lookup_other"), type_: "Other")
   echo get_custom_type(ctx:, mod: Some("oo"), type_: "OtherOther")
+
+  // // dep
+  // // dep at path
 
   Nil
 }
@@ -389,6 +404,9 @@ pub fn get_custom_type(
   })
 
   get_custom_type_in(ctx:, type_:)
+  |> result.lazy_or(fn() {
+    get_custom_type_unqualified_import_in(ctx:, type_:)
+  })
 }
 
 fn import_path(
@@ -399,7 +417,6 @@ fn import_path(
     ctx.file.ast.imports.named |> dict.get(module),
     always(ImportNotFound(path: ctx.file.path, name: module)),
   )
-
   parse_gleam_module_path(path: import_.module)
   |> result.map_error(GleamFileErr)
 }
@@ -412,6 +429,26 @@ fn get_custom_type_in(
   |> result.lazy_or(fn() {
     get_custom_type_aliased_in(ctx:, type_:)
   })
+}
+
+fn get_custom_type_unqualified_import_in(
+  ctx ctx: Context,
+  type_ type_: String,
+) -> Result(g.CustomType, GenErr) {
+  use import_ <- try(
+    all_imports(ctx.file.ast.imports)
+    |> list.find(fn(import_) {
+      import_.definition.unqualified_types
+      |> list.any(fn(t) { t.name == type_ })
+    })
+    |> result.replace_error(Failed("`get_custom_type_unqualified_import_in` miss"))
+  )
+
+  let module = import_.definition.module
+  use path <- try_err(parse_gleam_module_path(path: module), GleamFileErr)
+  use ctx <- try(load_context(pwd: ctx.pwd, path:, toml: ctx.toml))
+
+  get_custom_type_in(ctx:, type_:)
 }
 
 fn get_custom_type_defined_in(
