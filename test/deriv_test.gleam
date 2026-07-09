@@ -1,16 +1,8 @@
-import shellout
-import glance_printer
-import gleam/int
-import gleam/pair
-import gleam/result
-import gleam/bool
 import glance as g
-import gleam/regexp as re
-import gleam/bit_array
 //
 import gleam/list
 import gleam/dynamic/decode
-import gleam/json
+import gleam/json.{type Json}
 import deriv
 import deriv/internal/common
 import deriv/internal/parser
@@ -18,7 +10,7 @@ import deriv/internal/types.{File, DerivFieldOpt, DerivField}
 import deriv/internal/glance.{z} as dg
 import deriv/util
 import glance
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/option.{Some, type Option, None}
 import gleam/string
 import gleeunit
@@ -44,10 +36,38 @@ fn log_(str, s) {
   io.println(s)
 }
 
+type ApiReq {
+  ListPeople
+  GetPerson(id: String)
+}
+
+fn server(
+  req req: ApiReq,
+) -> Json {
+  { //$ gen variant pkg/mod.gen req
+  }
+}
+
+fn gen_variant(
+) -> Dict(String, fn(gen.Gen) -> g.Expression) {
+  [
+    #("deriv/gen.test1", gen.test1),
+    #("deriv/gen.test2", gen.test2),
+  ] |> dict.from_list
+}
+
+// pieces
+// X - `VariantField` decoders & expression builders (`bchase/deriv`)
+// \ - splice in code get for `//$ gen` magic comments
+//   - look up expr func based on `Gen.str`
+//   - look up `glance.CustomType` for func param
+//   - map `Gen` to expression builder
+//   - tk ...
+//
 // TODO
 //   next
-//     - allow gleam before block, e.g. `let foo = { //$ gen ...`
 //     - handle multiple `//$ gen` in single file
+//     - allow gleam before block, e.g. `let foo = { //$ gen ...`
 //     - handle new case (not replace)
 //     - ensure AST wrapped in `g.Block`
 //   tidy
@@ -56,9 +76,13 @@ fn log_(str, s) {
 //     - define module structure
 //     - move to own module
 
-pub fn deriv_test() {
+pub fn gen_test() {
   let assert Ok(src) = simplifile.read("./test/gen/before.gleam")
   let assert Ok(module) = g.module(src)
+  // let assert [func] = module.functions
+  // log("SPAN", func.definition.location)
+  // log("LEN", string.length(src))
+  // log("SRC", src)
 
   let output = gen.process(src:, module:)
 
@@ -72,6 +96,35 @@ pub fn deriv_test() {
 
   Nil
 }
+
+pub fn custom_type_lookup_test() {
+  let assert Ok(pwd) = gen.pwd()
+  let assert Ok(toml) = gen.gleam_toml()
+
+  let filepath = "src/deriv/internal/dummy/lookup.gleam"
+  let assert Ok(file) = gen.load_gleam_file(filepath:)
+
+  let ctx = gen.Context(pwd:, toml:, file:)
+
+  [
+    // curr package
+    gen.get_custom_type(ctx:, mod: None, type_: "Local"),
+    gen.get_custom_type(ctx:, mod: None, type_: "LocalAlias"),
+    gen.get_custom_type(ctx:, mod: None, type_: "OtherImport"),
+    gen.get_custom_type(ctx:, mod: Some("lookup_other"), type_: "Other"),
+    gen.get_custom_type(ctx:, mod: Some("oo"), type_: "OtherOther"),
+    // dep
+    gen.get_custom_type(ctx:, mod: Some("glance"), type_: "Span"),
+    // dep at path
+    gen.get_custom_type(ctx:, mod: Some("id"), type_: "Id"),
+    // dep package name doesn't match module name
+    gen.get_custom_type(ctx:, mod: Some("option"), type_: "Option"),
+  ]
+  |> list.each(should.be_ok)
+
+  Nil
+}
+
 
 // pub fn gleam_format_expr_test() {
 //   gleam_format_expr(g.Variable(z, "hi"), indent: 4)

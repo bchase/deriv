@@ -171,7 +171,7 @@ fn init() -> Result(Context, GleamTomlErr) {
   todo
 }
 
-fn gleam_toml() -> Result(GleamToml, GleamTomlErr) {
+pub fn gleam_toml() -> Result(GleamToml, GleamTomlErr) {
   use src <- try_err(simplifile.read("gleam.toml"), FileReadErr)
   use toml <- try_err(tom.parse(src), TomlParseErr)
   use name <- try_err(tom.get_string(toml, ["name"]), TomlReadErr)
@@ -199,11 +199,11 @@ fn any_dep(
     dep(name, "dev-dependencies", gt)
   })
   |> result.lazy_or(fn() {
-    dep_with_name_not_matching_package_name(path, gt)
+    dep_package_and_module_names_differ(path, gt)
   })
 }
 
-fn dep_with_name_not_matching_package_name(
+fn dep_package_and_module_names_differ(
   path path: GleamPath,
   toml gt: GleamToml,
 ) -> Result(Dep, Nil) {
@@ -370,33 +370,6 @@ pub fn ast(
   )
 }
 
-pub fn main() {
-  let assert Ok(pwd) = pwd()
-  let assert Ok(toml) = gleam_toml()
-
-  let filepath = "src/deriv/internal/dummy/lookup.gleam"
-  let assert Ok(file) = load_gleam_file(filepath:)
-
-  let ctx = Context(pwd:, toml:, file:)
-
-  // curr package
-  echo get_custom_type(ctx:, mod: None, type_: "Local")
-  echo get_custom_type(ctx:, mod: None, type_: "LocalAlias")
-  echo get_custom_type(ctx:, mod: None, type_: "OtherImport")
-  echo get_custom_type(ctx:, mod: Some("lookup_other"), type_: "Other")
-  echo get_custom_type(ctx:, mod: Some("oo"), type_: "OtherOther")
-
-  // dep
-  echo get_custom_type(ctx:, mod: Some("glance"), type_: "Span")
-  // dep at path
-  echo get_custom_type(ctx:, mod: Some("id"), type_: "Id")
-
-  // dep package name doesn't match module name
-  echo get_custom_type(ctx:, mod: Some("option"), type_: "Option")
-
-  Nil
-}
-
 fn all_build_package_gleam_src_filepaths(
 ) -> Result(List(String), #(Int, String)) {
   use output <- try(shellout.command(in: ".", opt: [], run: "find", with: ["build/packages/"]))
@@ -441,7 +414,7 @@ fn to_relative_src_filepath(
   |> string.append(suffix: ".gleam")
 }
 
-fn load_gleam_file(
+pub fn load_gleam_file(
   filepath abs: String,
 ) -> Result(GleamFile, GleamFileErr) {
   use path <- try(parse_gleam_module_path_from(filepath: abs))
