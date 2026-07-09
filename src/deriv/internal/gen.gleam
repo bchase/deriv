@@ -1,3 +1,4 @@
+import gleam/int
 import gleam/option.{Some, type Option, None}
 import glance_printer
 import gleam/pair
@@ -17,10 +18,14 @@ pub fn process(
 ) -> String {
   use <- bool.guard(!{ src |> string.contains(gen_magic_comment_start) }, src)
 
-  let lines = src |> string.split("\n")
-
   module.functions
-  |> list.map(build_func_gens(func: _, lines:))
+  |> list.map(build_func_gens(func: _, src:))
+  |> list.sort(fn(a, b) {
+    int.compare(
+      a.func.definition.location.start,
+      b.func.definition.location.start,
+    )
+  })
   |> list.fold(src, run)
 }
 
@@ -164,15 +169,16 @@ pub type Gen {
 
 fn build_func_gens(
   func func: g.Definition(g.Function),
-  lines lines: List(String),
+  src src: String,
 ) -> FuncGens {
-  FuncGens(func:, gens: build_gens(lines:, func:))
-}
+  let func_src =
+    dg.read_span(src:, span: func.definition.location)
+    |> result.lazy_unwrap(fn() {
+      panic as "tried to read func def outside of bounds of src"
+    })
 
-fn build_gens(
-  func func: g.Definition(g.Function),
-  lines lines: List(String),
-) -> List(Gen) {
+  let lines = func_src |> string.split("\n")
+
   let assert Ok(start_re) =
     "^((\\s*)([{]\\s*)?)([/][/][$]\\s*?gen\\s+(.+)$)"
     |> re.from_string
@@ -218,6 +224,7 @@ fn build_gens(
       None -> gens
     }
   }
+  |> FuncGens(gens: _, func:)
 }
 
 fn gen_span(

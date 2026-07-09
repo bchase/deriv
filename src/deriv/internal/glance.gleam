@@ -1,3 +1,4 @@
+import gleam/bool
 import gleam/option.{type Option, None}
 import gleam/list
 import gleam/string
@@ -140,4 +141,12 @@ pub fn splice_out_span(
   let after = str |> string.drop_start(ignore_start)
 
   #(before, after)
+}
+
+pub fn read_span(
+  src src: String,
+  span span: g.Span,
+) -> Result(String, Nil) {
+  use <- bool.guard(span.end >= string.length(src), Error(Nil))
+  Ok(string.slice(src, span.start, span.end - span.start))
 }
