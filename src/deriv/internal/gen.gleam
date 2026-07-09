@@ -178,9 +178,13 @@ fn gleam_toml() -> Result(GleamToml, GleamTomlErr) {
 }
 
 type Dep {
-  Dep(
+  DepString(
     name: String,
-    toml: Dict(String, tom.Toml),
+    str: String,
+  )
+  DepTable(
+    name: String,
+    table: Dict(String, tom.Toml),
   )
 }
 
@@ -199,8 +203,28 @@ fn dep(
   in key: String,
   toml gt: GleamToml,
 ) -> Result(Dep, Nil) {
-  use toml <- try_fail(tom.get_table(gt.toml, [key, name]), Nil)
-  Ok(Dep(name:, toml:))
+  dep_string(name, key, gt)
+  |> result.lazy_or(fn() {
+    dep_table(name, key, gt)
+  })
+}
+
+fn dep_string(
+  name name: String,
+  in key: String,
+  toml gt: GleamToml,
+) -> Result(Dep, Nil) {
+  use str <- try_fail(tom.get_string(gt.toml, [key, name]), Nil)
+  Ok(DepString(name:, str:))
+}
+
+fn dep_table(
+  name name: String,
+  in key: String,
+  toml gt: GleamToml,
+) -> Result(Dep, Nil) {
+  use table <- try_fail(tom.get_table(gt.toml, [key, name]), Nil)
+  Ok(DepTable(name:, table:))
 }
 
 fn dep_src_dir_path(
@@ -211,10 +235,22 @@ fn dep_src_dir_path(
 
   use dep <- try_fail(any_dep(package, toml), GleamDependencyFailedToResolve(package:))
 
-  case tom.get_string(dep.toml, ["path"]) {
-    Ok(path) -> Ok(path <> "/src/")
-    Error(_) -> Ok("build/packages/" <> dep.name <> "/src/")
+  case dep {
+    DepString(..) ->
+      Ok(build_packages_path(dep:))
+
+    DepTable(table:, ..) ->
+      case tom.get_string(table, ["path"]) {
+        Ok(path) -> Ok(path <> "/src/")
+        Error(_) -> Ok(build_packages_path(dep:))
+      }
   }
+}
+
+fn build_packages_path(
+  dep dep: Dep,
+) -> String {
+  "build/packages/" <> dep.name <> "/src/"
 }
 
 // type Dependency {
@@ -304,15 +340,20 @@ pub fn main() {
 
   let ctx = Context(pwd:, toml:, file:)
 
-  // curr package
-  echo get_custom_type(ctx:, mod: None, type_: "Local")
-  echo get_custom_type(ctx:, mod: None, type_: "LocalAlias")
-  echo get_custom_type(ctx:, mod: None, type_: "OtherImport")
-  echo get_custom_type(ctx:, mod: Some("lookup_other"), type_: "Other")
-  echo get_custom_type(ctx:, mod: Some("oo"), type_: "OtherOther")
+  // // curr package
+  // echo get_custom_type(ctx:, mod: None, type_: "Local")
+  // echo get_custom_type(ctx:, mod: None, type_: "LocalAlias")
+  // echo get_custom_type(ctx:, mod: None, type_: "OtherImport")
+  // echo get_custom_type(ctx:, mod: Some("lookup_other"), type_: "Other")
+  // echo get_custom_type(ctx:, mod: Some("oo"), type_: "OtherOther")
 
-  // // dep
-  // // dep at path
+  // dep
+  echo get_custom_type(ctx:, mod: Some("glance"), type_: "Span")
+  // dep at path
+
+  // gleam stdlib
+  // gleam other package ... e.g. `gleam_erlang`
+  // package name doesn't match import, e.g. `lustre_dev_tools` (same as above?)
 
   Nil
 }
