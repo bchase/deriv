@@ -18,6 +18,7 @@ import deriv/internal/glance.{z} as dg
 import bchase/dict.{keyed as dict_keyed} as _
 import bchase/result.{try_err, try_fail, try_fail_} as _
 import bchase/function.{x, always}
+import shellout
 
 pub type Context {
   Context(
@@ -190,12 +191,46 @@ type Dep {
 
 fn any_dep(
   name name: String,
+  path path: GleamPath,
   toml gt: GleamToml,
 ) -> Result(Dep, Nil) {
   dep(name, "dependencies", gt)
   |> result.lazy_or(fn() {
     dep(name, "dev-dependencies", gt)
   })
+  |> result.lazy_or(fn() {
+    dep_with_name_not_matching_package_name(path, gt)
+  })
+}
+
+fn dep_with_name_not_matching_package_name(
+  path path: GleamPath,
+  toml gt: GleamToml,
+) -> Result(Dep, Nil) {
+  use package <- try(
+    case all_build_package_gleam_src_filepaths() { // TODO build elsewhere
+      Ok(filepaths) -> {
+        let filepath = { path.full |> string.join("/") } <> ".gleam"
+
+        use filepath <- try(filepaths |> list.find(string.ends_with(_, filepath)))
+
+        let assert Ok(package_re) =
+          "[/](\\w+)[/]src[/]" |> re.from_string
+
+        use match <- try(filepath |> re.scan(package_re, _) |> list.last)
+
+        case match {
+          re.Match(_, [Some(package)]) -> Ok(package)
+          _ -> Error(Nil)
+        }
+      }
+
+      Error(_errs) ->
+        Error(Nil)
+    }
+  )
+
+  any_dep(package, path, gt)
 }
 
 fn dep(
@@ -229,11 +264,12 @@ fn dep_table(
 
 fn dep_src_dir_path(
   package package: String,
+  path path: GleamPath,
   toml toml: GleamToml,
 ) -> Result(String, GenErr) {
   use <- bool.guard(toml.name == package , Ok("src/"))
 
-  use dep <- try_fail(any_dep(package, toml), GleamDependencyFailedToResolve(package:))
+  use dep <- try_fail(any_dep(package, path, toml), GleamDependencyFailedToResolve(package:))
 
   case dep {
     DepString(..) ->
@@ -241,8 +277,11 @@ fn dep_src_dir_path(
 
     DepTable(table:, ..) ->
       case tom.get_string(table, ["path"]) {
-        Ok(path) -> Ok(path <> "/src/")
-        Error(_) -> Ok(build_packages_path(dep:))
+        Ok(path) ->
+          Ok(path <> "/src/")
+
+        Error(_) ->
+          Ok(build_packages_path(dep:))
       }
   }
 }
@@ -340,22 +379,34 @@ pub fn main() {
 
   let ctx = Context(pwd:, toml:, file:)
 
-  // // curr package
-  // echo get_custom_type(ctx:, mod: None, type_: "Local")
-  // echo get_custom_type(ctx:, mod: None, type_: "LocalAlias")
-  // echo get_custom_type(ctx:, mod: None, type_: "OtherImport")
-  // echo get_custom_type(ctx:, mod: Some("lookup_other"), type_: "Other")
-  // echo get_custom_type(ctx:, mod: Some("oo"), type_: "OtherOther")
+  // curr package
+  echo get_custom_type(ctx:, mod: None, type_: "Local")
+  echo get_custom_type(ctx:, mod: None, type_: "LocalAlias")
+  echo get_custom_type(ctx:, mod: None, type_: "OtherImport")
+  echo get_custom_type(ctx:, mod: Some("lookup_other"), type_: "Other")
+  echo get_custom_type(ctx:, mod: Some("oo"), type_: "OtherOther")
 
   // dep
   echo get_custom_type(ctx:, mod: Some("glance"), type_: "Span")
   // dep at path
+  echo get_custom_type(ctx:, mod: Some("id"), type_: "Id")
 
-  // gleam stdlib
-  // gleam other package ... e.g. `gleam_erlang`
-  // package name doesn't match import, e.g. `lustre_dev_tools` (same as above?)
+  // dep package name doesn't match module name
+  echo get_custom_type(ctx:, mod: Some("option"), type_: "Option")
 
   Nil
+}
+
+fn all_build_package_gleam_src_filepaths(
+) -> Result(List(String), #(Int, String)) {
+  use output <- try(shellout.command(in: ".", opt: [], run: "find", with: ["build/packages/"]))
+
+  output
+  |> string.split("\n")
+  |> list.filter(string.ends_with(_, ".gleam"))
+  |> list.filter(string.contains(_, "/src/"))
+  // |> list.map(fn(x) { echo x })
+  |> Ok
 }
 
 fn parse_gleam_module_path_from(
@@ -410,7 +461,7 @@ fn load_context(
   pwd pwd: Pwd,
   toml toml: GleamToml,
 ) -> Result(Context, GenErr) {
-  use dep_src_dir_path <- try(dep_src_dir_path(package: path.package, toml:))
+  use dep_src_dir_path <- try(dep_src_dir_path(package: path.package, path:, toml:))
   let filepath = dep_src_dir_path <> { path |> to_relative_src_filepath }
   use file <- try_err(load_gleam_file(filepath:), GleamFileErr)
 
@@ -458,6 +509,7 @@ fn import_path(
     ctx.file.ast.imports.named |> dict.get(module),
     always(ImportNotFound(path: ctx.file.path, name: module)),
   )
+
   parse_gleam_module_path(path: import_.module)
   |> result.map_error(GleamFileErr)
 }
