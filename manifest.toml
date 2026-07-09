@@ -43,7 +43,9 @@ birl = { version = ">= 1.8.0 and < 2.0.0" }
 formal = { version = ">= 3.0.0 and < 4.0.0" }
 glance = { version = ">= 5.0.0 and < 6.0.0" }
 glance_printer = { git = "git@github.com:bchase/glance_printer.git", ref = "dev" }
+gleam_erlang = { version = ">= 1.3.0 and < 2.0.0" }
 gleam_json = { version = ">= 3.0.1 and < 4.0.0" }
+gleam_otp = { version = ">= 1.2.0 and < 2.0.0" }
 gleam_regexp = { version = ">= 1.0.0 and < 2.0.0" }
 gleam_stdlib = { version = ">= 0.34.0 and < 2.0.0" }
 gleam_time = { version = ">= 1.4.0 and < 2.0.0" }
