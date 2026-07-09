@@ -111,6 +111,15 @@ fn lookup_supervisor(
   |> supervisor.add(lookup_worker(name:))
 }
 
+type LookupState {
+  LookupState(
+    self: Subject(LookupMsg),
+    pwd: gen.Pwd,
+    toml: gen.GleamToml,
+    filepaths: List(String),
+  )
+}
+
 type LookupMsg {
   NoOp
   Type(
@@ -119,20 +128,32 @@ type LookupMsg {
     file: gen.GleamFile,
     reply: Subject(Result(g.CustomType, gen.GenErr)),
   )
+  ReloadGleamToml
+  ReloadFilepaths
 }
+
+const lookup_init_msgs = [
+  ReloadGleamToml,
+  ReloadFilepaths,
+]
 
 fn lookup_worker(
   name name: process.Name(LookupMsg),
 ) -> supervision.ChildSpecification(Nil) {
-  // TODO tk
-  let assert Ok(pwd) = gen.pwd()
-  let assert Ok(toml) = gen.gleam_toml()
+  let assert Ok(init_pwd) = gen.pwd() as "`gen` failed to get `pwd`"
+  let assert Ok(init_toml) = gen.gleam_toml() as "`gen` failed to load `gleam.toml` in pwd"
 
   supervision.worker(fn() { actor.start(
     actor.new_with_initialiser(100, fn(self) {
-      let state = self
+      lookup_init_msgs
+      |> list.each(process.send(self, _))
 
-      state
+      LookupState(
+        self:,
+        pwd: init_pwd,
+        toml: init_toml,
+        filepaths: [],
+      )
       |> actor.initialised
       |> Ok
     })
@@ -143,12 +164,26 @@ fn lookup_worker(
           actor.continue(state)
 
         Type(mod:, name:, file:, reply:) -> {
-          let ctx = gen.Context(pwd:, toml:, file:)
+          let ctx = gen.Context(pwd: state.pwd, toml: state.toml, file:)
 
           gen.get_custom_type(ctx:, mod:, type_: name)
           |> process.send(reply, _)
 
           actor.continue(state)
+        }
+
+        ReloadGleamToml -> {
+          let assert Ok(toml) = gen.gleam_toml()
+            as "`gen` failed to load `gleam.toml` in pwd"
+
+          actor.continue(LookupState(..state, toml:))
+        }
+
+        ReloadFilepaths -> {
+          let assert Ok(filepaths) = gen.all_build_package_gleam_src_filepaths()
+            as "`gen` failed to load `build/packages/**/src/**/*.gleam` paths"
+
+          actor.continue(LookupState(..state, filepaths:))
         }
       }
     })

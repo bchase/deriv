@@ -378,7 +378,6 @@ pub fn all_build_package_gleam_src_filepaths(
   |> string.split("\n")
   |> list.filter(string.ends_with(_, ".gleam"))
   |> list.filter(string.contains(_, "/src/"))
-  // |> list.map(fn(x) { echo x })
   |> Ok
 }
 
