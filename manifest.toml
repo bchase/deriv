@@ -6,7 +6,9 @@ packages = [
   { name = "bchase", version = "1.0.0", build_tools = ["gleam"], requirements = ["glance_printer", "gleam_json", "gleam_regexp", "gleam_stdlib", "gsv", "lustre"], source = "local", path = "../kohort/bchase" },
   { name = "birl", version = "1.9.0", build_tools = ["gleam"], requirements = ["gleam_regexp", "gleam_stdlib", "gleam_time", "ranger"], otp_app = "birl", source = "hex", outer_checksum = "9924A2C3EECD33A5C94CD6859570261F2620435C54DAC5F2B00E5E6C806EEC6F" },
   { name = "filepath", version = "1.1.2", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "filepath", source = "hex", outer_checksum = "B06A9AF0BF10E51401D64B98E4B627F1D2E48C154967DA7AF4D0914780A6D40A" },
+  { name = "filespy", version = "0.7.0", build_tools = ["gleam"], requirements = ["fs", "gleam_erlang", "gleam_otp", "gleam_stdlib"], otp_app = "filespy", source = "hex", outer_checksum = "1136C7DB512B83DF544CDA4632A633412281B48489428391DB0356F66423D7C0" },
   { name = "formal", version = "3.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_time"], otp_app = "formal", source = "hex", outer_checksum = "686D0C4C9CB36397DBAC2EC8C6ED9BD0F81B2DF2E88F75A7DB75F56768DDD8FC" },
+  { name = "fs", version = "11.4.1", build_tools = ["rebar3"], requirements = [], otp_app = "fs", source = "hex", outer_checksum = "DD00A61D89EAC01D16D3FC51D5B0EB5F0722EF8E3C1A3A547CD086957F3260A9" },
   { name = "glam", version = "2.0.3", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "glam", source = "hex", outer_checksum = "237C2CE218A2A0A5D46D625F8EF5B78F964BC91018B78D692B17E1AB84295229" },
   { name = "glance", version = "5.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "glexer"], otp_app = "glance", source = "hex", outer_checksum = "FAA3DAC74AF71D47C67D88EB32CE629075169F878D148BB1FF225439BE30070A" },
   { name = "glance_printer", version = "3.0.0", build_tools = ["gleam"], requirements = ["glam", "glance", "gleam_stdlib"], source = "git", repo = "git@github.com:bchase/glance_printer.git", commit = "c8b362ba7e962064e3d7689fe1fc1fc428876b6f" },
@@ -40,6 +42,7 @@ packages = [
 argv = { version = ">= 1.0.2 and < 2.0.0" }
 bchase = { path = "../kohort/bchase" }
 birl = { version = ">= 1.8.0 and < 2.0.0" }
+filespy = { version = ">= 0.7.0 and < 1.0.0" }
 formal = { version = ">= 3.0.0 and < 4.0.0" }
 glance = { version = ">= 5.0.0 and < 6.0.0" }
 glance_printer = { git = "git@github.com:bchase/glance_printer.git", ref = "dev" }
