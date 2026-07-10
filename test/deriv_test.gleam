@@ -113,6 +113,7 @@ type Config {
 
 type Names {
   Names(
+    app: process.Name(Msg),
     lookup: process.Name(LookupMsg),
   )
 }
@@ -121,12 +122,57 @@ fn gen_supervisor(
   names names: Names,
 ) -> supervisor.Builder {
   supervisor.new(supervisor.OneForOne)
+  |> supervisor.add(filespy_worker(notify: names.app))
   |> supervisor.add(lookup_worker(name: names.lookup))
-  |> supervisor.add(filespy_worker(notify: names.lookup))
+  |> supervisor.add(app_worker(name: names.app))
+}
+
+type Msg {
+  NoOp
+  GotFileChange(change: filespy.Change(Nil))
+}
+
+type State {
+  State
+}
+
+fn app_worker(
+  name name: process.Name(Msg),
+) -> supervision.ChildSpecification(Subject(Msg)) {
+  supervision.worker(fn() { app(name:) })
+}
+
+fn app(
+  name name: process.Name(Msg),
+) -> Result(actor.Started(Subject(Msg)), actor.StartError) {
+  actor.new_with_initialiser(100, fn(self) {
+    let sel =
+      process.new_selector()
+      |> process.select(self)
+
+    State
+    |> actor.initialised
+    |> actor.selecting(sel)
+    |> actor.returning(self)
+    |> Ok
+  })
+  |> actor.named(name)
+  |> actor.on_message(fn(state, msg) {
+    case msg {
+      NoOp ->
+        actor.continue(state)
+
+      GotFileChange(change:) -> {
+        echo change
+        actor.continue(state)
+      }
+    }
+  })
+  |> actor.start
 }
 
 fn filespy_worker(
-  notify notify: process.Name(LookupMsg),
+  notify notify: process.Name(Msg),
 ) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
   supervision.worker(fn() {
     filespy.new()
@@ -161,7 +207,7 @@ type LookupState {
 }
 
 pub opaque type LookupMsg {
-  NoOp
+  LookupNoOp
   Type(
     mod: Option(String),
     name: String,
@@ -170,7 +216,6 @@ pub opaque type LookupMsg {
   )
   ReloadGleamToml
   ReloadFilepaths
-  GotFileChange(change: filespy.Change(Nil))
 }
 
 const lookup_init_msgs = [
@@ -180,7 +225,7 @@ const lookup_init_msgs = [
 
 fn lookup_worker(
   name name: process.Name(LookupMsg),
-) -> supervision.ChildSpecification(Nil) {
+) -> supervision.ChildSpecification(Subject(LookupMsg)) {
   let assert Ok(init_pwd) = gen.pwd()
     as "`gen` failed to get `pwd`"
 
@@ -205,12 +250,13 @@ fn lookup_worker(
       )
       |> actor.initialised
       |> actor.selecting(sel)
+      |> actor.returning(self)
       |> Ok
     })
     |> actor.named(name)
     |> actor.on_message(fn(state, msg) {
       case msg {
-        NoOp ->
+        LookupNoOp ->
           actor.continue(state)
 
         Type(mod:, name:, file:, reply:) -> {
@@ -234,11 +280,6 @@ fn lookup_worker(
             as "`gen` failed to load `build/packages/**/src/**/*.gleam` paths"
 
           actor.continue(LookupState(..state, filepaths:))
-        }
-
-        GotFileChange(change:) -> {
-          echo change
-          actor.continue(state)
         }
       }
     })
@@ -267,7 +308,8 @@ fn look_up_type(
 fn build_config() -> Config {
   Config(
     names: Names(
-      lookup: process.new_name("type-ast-lookup"),
+      app: process.new_name("deriv-app"),
+      lookup: process.new_name("deriv-type-ast-lookup"),
     )
   )
 }
