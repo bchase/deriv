@@ -1,19 +1,18 @@
-import bchase/casing
 import bchase/function.{x}
 import glance as g
-import gleam/option.{None}
+import gleam/option.{None, type Option}
 import gleam/list
 import gleam/pair
 import gleam/result
-import deriv/internal/glance.{z, term, call, call_, pipe, dot} as _
+import deriv/internal/glance.{z} as _
 
 pub opaque type VariantExpr(out) {
   VariantExpr(
     run: fn(
       g.Variant,
       String,
-      fn(g.Type) -> Result(g.CustomType, Nil),
-      List(String), // fields acc, used to detect need for `with_spread`
+      fn(Option(String), String) -> Result(g.CustomType, Nil),
+      List(String), // NOTE: fields acc, used to detect need for `with_spread`
     ) -> Result(#(g.Expression, List(String)), Nil),
   )
 }
@@ -22,26 +21,26 @@ pub opaque type VariantExpr(out) {
 //   todo
 // }
 
-fn variant_shorthand_field_type(
-  name name: String,
-  cont cont: fn(g.Type) -> VariantExpr(out),
-) -> VariantExpr(out) {
-  VariantExpr(fn(variant, args, get_type, fields) {
-    use #(field, f) <- result.try(
-      variant.fields
-      |> list.find_map(fn(field) {
-        case field {
-          g.LabelledVariantField(label:, item:) if label == name ->
-            Ok(#(name, item))
+// fn variant_shorthand_field_type(
+//   name name: String,
+//   cont cont: fn(g.Type) -> VariantExpr(out),
+// ) -> VariantExpr(out) {
+//   VariantExpr(fn(variant, args, get_type, fields) {
+//     use #(field, f) <- result.try(
+//       variant.fields
+//       |> list.find_map(fn(field) {
+//         case field {
+//           g.LabelledVariantField(label:, item:) if label == name ->
+//             Ok(#(name, item))
 
-          _ -> Error(Nil)
-        }
-      }),
-    )
+//           _ -> Error(Nil)
+//         }
+//       }),
+//     )
 
-    cont(f).run(variant, args, get_type, [field, ..fields])
-  })
-}
+//     cont(f).run(variant, args, get_type, [field, ..fields])
+//   })
+// }
 
 pub fn variant_shorthand_field(
   name name: String,
@@ -50,7 +49,7 @@ pub fn variant_shorthand_field(
   variant_shorthand_field_map(name, cont, x(short, pair.first))
 }
 
-fn variant_shorthand_type(
+pub fn variant_shorthand_type(
   name name: String,
   cont cont: fn(g.Type) -> VariantExpr(out),
 ) -> VariantExpr(out) {
@@ -90,7 +89,7 @@ pub fn run(
   ve: VariantExpr(out),
   variant variant: g.Variant,
   args args: String,
-  get_type get_type: fn(g.Type) -> Result(g.CustomType, Nil),
+  get_type get_type: fn(Option(String), String) -> Result(g.CustomType, Nil),
 ) -> Result(g.Clause, Nil) {
   ve.run(variant, args, get_type, [])
   |> result.map(fn(t) {

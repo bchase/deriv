@@ -58,7 +58,6 @@ pub fn func() -> var.VariantExpr(g.Clause) {
   |> var.success
 }
 
-
 //
 
 pub type Context {
@@ -695,10 +694,68 @@ fn run(
   |> pair.first
 }
 
+fn build_expr(
+  ve ve: var.VariantExpr(t),
+  path path: GleamPath,
+  args args: String,
+  get_type get_type: fn(Option(String), String) -> Result(g.CustomType, Nil)
+) -> Result(g.Expression, Nil) {
+  let assert Ok(ws_re) = "\\s+" |> re.from_string
+
+  case args |> re.split(ws_re, _) {
+    ["variant:" <> variant, .._rest] ->
+      case variant |> string.split(".") {
+        [module, type_] -> {
+          // use path <- try_fail(parse_gleam_module_path(module), Nil)
+          use type_ <- try_fail(get_type(Some(module), type_), Nil)
+
+          let args =
+            args
+            |> string.drop_start(string.length("variant:" <> variant))
+            |> string.trim
+
+          build_case_expr(ve, type_, args, get_type)
+        }
+
+        _ ->
+          Error(Nil)
+      }
+
+    _ ->
+      Error(Nil)
+  }
+}
+
+fn build_case_expr(
+  ve ve: var.VariantExpr(t),
+  type_ type_: g.CustomType,
+  args args: String,
+  get_type get_type: fn(Option(String), String) -> Result(g.CustomType, Nil),
+) -> Result(g.Expression, Nil) {
+  use clauses <- try(
+    type_.variants
+    |> list.map(fn(variant) { var.run(ve, variant:, args:, get_type:) })
+    |> result.all
+  )
+
+  let subject = todo
+
+  Ok(g.Case(z, subjects: [subject], clauses: ))
+}
+
 const gen_lookup = [
   #(GleamPath(full: ["bchase", "foo", "bar", "test1"], package: "bchase", module: "test1"), test1),
   #(GleamPath(full: ["bchase", "foo", "bar", "test2"], package: "bchase", module: "test2"), test1),
 ]
+
+pub fn test0() -> var.VariantExpr(g.Clause) {
+  use variant <- var.variant_name()
+  use foo <- var.variant_shorthand_field("foo")
+
+  let func = { variant |> casing.snake <> "_func" } |> term
+
+  var.success(func |> call_([ foo, short("bar") ]))
+}
 
 pub fn test1(
   args: String,
