@@ -105,12 +105,24 @@ pub fn gen_test() {
   Nil
 }
 
+type Config {
+  Config(
+    names: Names,
+  )
+}
+
+type Names {
+  Names(
+    lookup: process.Name(LookupMsg),
+  )
+}
+
 fn gen_supervisor(
-  lookup lookup_name: process.Name(LookupMsg),
-) {
+  names names: Names,
+) -> supervisor.Builder {
   supervisor.new(supervisor.OneForOne)
-  |> supervisor.add(lookup_worker(name: lookup_name))
-  |> supervisor.add(filespy_worker(notify: lookup_name))
+  |> supervisor.add(lookup_worker(name: names.lookup))
+  |> supervisor.add(filespy_worker(notify: names.lookup))
 }
 
 fn filespy_worker(
@@ -169,8 +181,11 @@ const lookup_init_msgs = [
 fn lookup_worker(
   name name: process.Name(LookupMsg),
 ) -> supervision.ChildSpecification(Nil) {
-  let assert Ok(init_pwd) = gen.pwd() as "`gen` failed to get `pwd`"
-  let assert Ok(init_toml) = gen.gleam_toml() as "`gen` failed to load `gleam.toml` in pwd"
+  let assert Ok(init_pwd) = gen.pwd()
+    as "`gen` failed to get `pwd`"
+
+  let assert Ok(init_toml) = gen.gleam_toml()
+    as "`gen` failed to load `gleam.toml` in pwd"
 
   supervision.worker(fn() { actor.start(
     actor.new_with_initialiser(100, fn(self) {
@@ -249,21 +264,23 @@ fn look_up_type(
   |> result.flatten
 }
 
+fn build_config() -> Config {
+  Config(
+    names: Names(
+      lookup: process.new_name("type-ast-lookup"),
+    )
+  )
+}
+
 pub fn custom_type_lookup_test() {
-  let lookup = process.new_name("type-ast-lookup")
+  let cfg = build_config()
 
-  let assert Ok(_) = supervisor.start(gen_supervisor(lookup:))
-
+  let assert Ok(_) = supervisor.start(gen_supervisor(cfg.names))
   let assert Ok(pwd) = gen.pwd()
   let assert Ok(toml) = gen.gleam_toml()
 
   let filepath = "src/deriv/internal/dummy/lookup.gleam"
   let assert Ok(file) = gen.load_gleam_file(filepath:)
-
-  look_up_type(lookup, file:, mod: Some("id"), name: "Id")
-  |> echo
-
-  // process.sleep_forever()
 
   let ctx = gen.Context(pwd:, toml:, file:)
 
