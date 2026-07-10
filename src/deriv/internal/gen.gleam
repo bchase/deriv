@@ -19,6 +19,45 @@ import bchase/dict.{keyed as dict_keyed} as _
 import bchase/result.{try_err, try_fail, try_fail_} as _
 import bchase/function.{x, always}
 import shellout
+//
+import deriv/gen/variant as var
+import deriv/internal/glance.{term, call, call_, pipe, dot, short} as _
+import bchase/casing
+
+// type VariantExpr {
+//   Foo(
+//     run: fn(
+//       String,
+//       g.Definition(g.Function),
+//       fn(g.Type) -> Result(g.CustomType, Nil),
+//     ) -> g.Expression,
+//   )
+// }
+
+// fn gen_variant_expr(
+//   ve: VariantExpr,
+//   args args: String,
+//   func func: g.Definition(g.Function),
+//   get_type get_type: fn(g.Type) -> Result(g.CustomType, Nil),
+// ) -> g.Expression {
+//   ve.run(args, func, get_type)
+// }
+
+pub fn func() -> var.VariantExpr(g.Clause) {
+  use variant <- var.variant_name()
+  use func <- var.variant_shorthand_field("func")
+  let handler = term("handle_" <> casing.snake(variant))
+
+  handler |> call([])
+  |> pipe("server" |> dot("process_func") |> call_([
+    func,
+    "ref" |> short,
+    "subs" |> short,
+    "ctx" |> short,
+  ]))
+  |> var.success
+}
+
 
 //
 

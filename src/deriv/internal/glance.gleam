@@ -85,6 +85,10 @@ pub fn pipe(
   g.BinaryOperator(x, name: g.Pipe, left:, right:)
 }
 
+pub fn short(field: String) -> g.Field(t) {
+  g.ShorthandField(field)
+}
+
 //
 
 pub fn named_type(

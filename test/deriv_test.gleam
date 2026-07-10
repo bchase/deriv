@@ -233,13 +233,13 @@ type ApiReq {
 //   }
 // }
 
-fn gen_variant(
-) -> Dict(String, fn(String) -> g.Expression) {
-  [
-    #("deriv/gen.test1", gen.test1),
-    #("deriv/gen.test2", gen.test2),
-  ] |> dict.from_list
-}
+// fn gen_variant(
+// ) -> Dict(String, fn(String) -> g.Expression) {
+//   [
+//     #("deriv/gen.test1", gen.test1),
+//     #("deriv/gen.test2", gen.test2),
+//   ] |> dict.from_list
+// }
 
 // pieces
 // X - `VariantField` decoders & expression builders (`bchase/deriv`)
