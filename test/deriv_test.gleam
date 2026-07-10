@@ -26,6 +26,7 @@ import gleam/otp/actor
 import gleam/otp/supervision
 import gleam/otp/static_supervisor as supervisor
 import gleam/erlang/process.{type Subject}
+import filespy
 
 
 pub fn main() {
@@ -104,11 +105,37 @@ pub fn gen_test() {
   Nil
 }
 
-fn lookup_supervisor(
-  name name: process.Name(LookupMsg),
+fn gen_supervisor(
+  lookup lookup_name: process.Name(LookupMsg),
 ) {
   supervisor.new(supervisor.OneForOne)
-  |> supervisor.add(lookup_worker(name:))
+  |> supervisor.add(lookup_worker(name: lookup_name))
+  |> supervisor.add(filespy_worker(notify: lookup_name))
+}
+
+fn filespy_worker(
+  notify notify: process.Name(LookupMsg),
+) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
+  supervision.worker(fn() {
+    filespy.new()
+    |> filespy.set_initial_state(Nil)
+    |> filespy.add_dir(".")
+    |> filespy.set_actor_handler(fn(state, msg) {
+      case msg {
+        filespy.Change(..) as change -> {
+          notify
+          |> process.named_subject
+          |> process.send(GotFileChange(change:))
+
+          actor.continue(state)
+        }
+
+        filespy.Custom(..) ->
+          actor.continue(state)
+      }
+    })
+    |> filespy.start
+  })
 }
 
 type LookupState {
@@ -117,10 +144,11 @@ type LookupState {
     pwd: gen.Pwd,
     toml: gen.GleamToml,
     filepaths: List(String),
+    changes: Dict(String, List(filespy.Change(Nil))),
   )
 }
 
-type LookupMsg {
+pub opaque type LookupMsg {
   NoOp
   Type(
     mod: Option(String),
@@ -130,6 +158,7 @@ type LookupMsg {
   )
   ReloadGleamToml
   ReloadFilepaths
+  GotFileChange(change: filespy.Change(Nil))
 }
 
 const lookup_init_msgs = [
@@ -148,13 +177,19 @@ fn lookup_worker(
       lookup_init_msgs
       |> list.each(process.send(self, _))
 
+      let sel =
+        process.new_selector()
+        |> process.select(self)
+
       LookupState(
         self:,
         pwd: init_pwd,
         toml: init_toml,
         filepaths: [],
+        changes: dict.new(),
       )
       |> actor.initialised
+      |> actor.selecting(sel)
       |> Ok
     })
     |> actor.named(name)
@@ -185,6 +220,11 @@ fn lookup_worker(
 
           actor.continue(LookupState(..state, filepaths:))
         }
+
+        GotFileChange(change:) -> {
+          echo change
+          actor.continue(state)
+        }
       }
     })
   ) })
@@ -212,7 +252,7 @@ fn look_up_type(
 pub fn custom_type_lookup_test() {
   let lookup = process.new_name("type-ast-lookup")
 
-  let assert Ok(_) = supervisor.start(lookup_supervisor(name: lookup))
+  let assert Ok(_) = supervisor.start(gen_supervisor(lookup:))
 
   let assert Ok(pwd) = gen.pwd()
   let assert Ok(toml) = gen.gleam_toml()
@@ -222,6 +262,8 @@ pub fn custom_type_lookup_test() {
 
   look_up_type(lookup, file:, mod: Some("id"), name: "Id")
   |> echo
+
+  // process.sleep_forever()
 
   let ctx = gen.Context(pwd:, toml:, file:)
 
