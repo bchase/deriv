@@ -572,7 +572,8 @@ pub fn process(
   let src = file.src
 
   let assert Ok(gen_magic_comment_start_re) =
-    "[/][/][$]\\s*gen([:]|\\s+)" |> re.from_string
+    // "[/][/][$]\\s*gen([:]|\\s+)" |> re.from_string
+    "[/][/][$]\\s*gen\\s+" |> re.from_string
 
   use <- bool.guard(!re.check(gen_magic_comment_start_re, src), src)
 
@@ -600,46 +601,68 @@ fn run(
   |> list.fold(#(src, 0), fn(acc, gen) {
     let #(old, offset) = acc
 
-    // offset positions based on previous code gen results
-    let gen = Gen(..gen, pos: gen.pos + offset)
+    {
+      // offset positions based on previous code gen results
+      let gen = Gen(..gen, pos: gen.pos + offset)
 
-    // build & format `glance.Expression` as `String`
-    let expr = test1(gen:)
-    let expr_src = format_gleam_expr(expr:, indent: gen.indent)
+      // look up expr generator
+      use #(path, args) <- try_fail_(case gen.str |> string.split(" ") {
+        [] -> Error(Nil)
+        [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
+      }, fn(_) {
+        io.println_error("Couldn't parse a Gleam module path from: //$ gen " <> gen.str)
+        Error(Nil)
+      })
+      use path <- try_fail_(parse_gleam_module_path(path), fn(_) {
+        io.println_error("Invalid Gleam module path: //$ gen " <> gen.str)
+        Error(Nil)
+      })
+      use gen_expr <- result.try(gen_lookup |> dict.from_list |> dict.get(path))
 
-    case expr_src |> string.split("\n") {
-      [] | [_] -> {
-        io.println_error("`deriv/gen.run` unexpected generated expr; returning orig src")
-        #(src, offset)
-      }
+      // gen expr
+      let expr = gen_expr(args)
 
-      [x, ..xs] -> {
-        // add magic comment back to gen'd `glance.Expression` src
-        let expr_src = [x <> " " <> gen.comment, ..xs] |> string.join("\n")
+      // build & format `glance.Expression` as `String`
+      let expr_src = format_gleam_expr(expr:, indent: gen.indent)
 
-        // calc span to overwrite
-        let span = gen_span(gen:, src:)
+      // add magic comment back to gen'd `glance.Expression` src
+      use #(x, xs) <- result.try(case expr_src |> string.split("\n") {
+        [] | [_] -> {
+          io.println_error("`deriv/gen.run` unexpected generated expr; returning orig src")
+          Error(Nil)
+        }
 
-        // construct new src
-        let #(start, end) = dg.splice_out_span(old, span)
-        let new = string.join([
-          start,
-          expr_src |> string.trim_start,
-          end,
-        ], "")
+        [x, ..xs] -> Ok(#(x, xs))
+      })
+      let expr_src = [x <> " " <> gen.comment, ..xs] |> string.join("\n")
 
-        // calc diff for new `offset`
-        let diff = string.length(new) - string.length(old)
+      // calc span to overwrite
+      let span = gen_span(gen:, src:)
 
-        #(new, offset + diff)
-      }
-    }
+      // construct new src
+      let #(start, end) = dg.splice_out_span(old, span)
+      let new = string.join([
+        start,
+        expr_src |> string.trim_start,
+        end,
+      ], "")
+
+      // calc diff for new `offset`
+      let diff = string.length(new) - string.length(old)
+
+      Ok(#(new, offset + diff))
+    } |> result.unwrap(acc)
   })
   |> pair.first
 }
 
+const gen_lookup = [
+  #(GleamPath(full: ["bchase", "foo", "bar", "test1"], package: "bchase", module: "test1"), test1),
+  #(GleamPath(full: ["bchase", "foo", "bar", "test2"], package: "bchase", module: "test2"), test1),
+]
+
 pub fn test1(
-  gen gen: Gen,
+  args: String,
 ) -> g.Expression {
   g.Block(z, [g.Expression(
     g.Case(z, [g.Variable(z, "foo")], [
@@ -649,7 +672,7 @@ pub fn test1(
 }
 
 pub fn test2(
-  gen gen: Gen,
+  args: String,
 ) -> g.Expression {
   g.Block(z, [g.Expression(
     g.Case(z, [g.Variable(z, "bar")], [

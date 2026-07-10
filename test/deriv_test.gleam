@@ -234,7 +234,7 @@ type ApiReq {
 // }
 
 fn gen_variant(
-) -> Dict(String, fn(gen.Gen) -> g.Expression) {
+) -> Dict(String, fn(String) -> g.Expression) {
   [
     #("deriv/gen.test1", gen.test1),
     #("deriv/gen.test2", gen.test2),
@@ -573,7 +573,7 @@ pub fn custom_type_lookup_test() {
 
   let assert Ok(_) = supervisor.start(gen_supervisor(cfg.names))
 
-  process.sleep_forever()
+  // process.sleep_forever()
 
   let assert Ok(file) = gen.load_gleam_file( "src/deriv/internal/dummy/lookup.gleam")
 

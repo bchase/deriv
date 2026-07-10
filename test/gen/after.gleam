@@ -3,7 +3,7 @@ pub fn slice_replace(bool: Bool) {
 
   // some other logic and comments to differ the src & AST
 
-  { //$ gen target
+  { //$ gen bchase/foo/bar/test1
     case foo {
       _ -> foo
     }

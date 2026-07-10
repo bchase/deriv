@@ -13,8 +13,6 @@ pub type Foo {
 
 pub type LocalAlias = Local
 
-//$ gen:hoge/fuga.piyo variant:foo/bar.baz
-
 pub fn gen() {
   let foo = todo
 
