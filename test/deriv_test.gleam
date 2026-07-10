@@ -1,3 +1,5 @@
+import gleam/bool
+import gleam/set.{type Set}
 import bchase/result.{try_err, try_fail, try_fail_} as _
 import bchase/function.{always}
 import gleam/pair
@@ -31,10 +33,8 @@ import gleam/otp/supervision
 import gleam/otp/static_supervisor as supervisor
 import gleam/erlang/process.{type Subject, type Selector}
 import filespy
-
-
-
-
+import gleam/crypto
+import gleam/bit_array as ba
 
 //
 
@@ -226,12 +226,12 @@ type ApiReq {
   GetPerson(id: String)
 }
 
-fn server(
-  req req: ApiReq,
-) -> Json {
-  { //$ gen variant pkg/mod.gen req
-  }
-}
+// fn server(
+//   req req: ApiReq,
+// ) -> Json {
+//   { //$ gen variant pkg/mod.gen req
+//   }
+// }
 
 fn gen_variant(
 ) -> Dict(String, fn(gen.Gen) -> g.Expression) {
@@ -262,14 +262,9 @@ fn gen_variant(
 //     - move to own module
 
 pub fn gen_test() {
-  let assert Ok(src) = simplifile.read("./test/gen/before.gleam")
-  let assert Ok(module) = g.module(src)
-  // let assert [func] = module.functions
-  // log("SPAN", func.definition.location)
-  // log("LEN", string.length(src))
-  // log("SRC", src)
+  let assert Ok(file) = gen.load_gleam_file("./test/gen/before.gleam")
 
-  let output = gen.process(src:, module:)
+  let output = gen.process(file:)
 
   let assert Ok(after) = simplifile.read("./test/gen/after.gleam")
 
@@ -301,52 +296,140 @@ fn gen_supervisor(
   supervisor.new(supervisor.OneForOne)
   |> supervisor.add(filespy_worker(notify: names.app))
   |> supervisor.add(worker(lookup_actor(name: names.lookup)))
-  |> supervisor.add(worker(app_actor(name: names.app)))
+  |> supervisor.add(worker(app_actor(name: names.app, cfg: AppConfig(lookup: names.lookup))))
 }
 
 type Msg {
   NoOp
   GotFileChange(change: filespy.Change(Nil))
+  ProcessQueue
+  Process(path: String)
 }
 
 type State {
   State(
     self: Subject(Msg),
+    cfg: AppConfig,
+    queue: Set(String),
+    hashes: Dict(String, BitArray),
+  )
+}
+
+type AppConfig {
+  AppConfig(
+    lookup: process.Name(LookupMsg),
   )
 }
 
 fn app_actor(
   name name: process.Name(Msg),
+  cfg cfg: AppConfig,
 ) -> actor.Builder(State, Msg, Nil) {
-  actor(init:, update:, timeout: 100, name:, return: always(Nil), flags: Nil)
+  actor(init:, update:, timeout: 100, name:, return: always(Nil), flags: cfg)
 }
 
 fn init(
-  _: Nil,
+  cfg cfg: AppConfig,
   self self: Subject(Msg),
 ) -> #(State, Selector(Msg)) {
   State(
     self:,
+    cfg:,
+    queue: set.new(),
+    hashes: dict.new(),
   )
   |> pair.new(process.new_selector())
+}
+
+fn sha256_hash(
+  str str: String
+) -> BitArray {
+  str
+  |> ba.from_string
+  |> crypto.hash(crypto.Sha256, _)
 }
 
 fn update(
   state state: State,
   msg msg: Msg,
 ) -> actor.Next(State, Msg) {
-  case msg {
-    NoOp ->
-      actor.continue(state)
+  let State(self:, ..) = state
+  let lookup = state.cfg.lookup |> process.named_subject
 
+  case msg {
+    NoOp |
     GotFileChange(change: filespy.Custom(Nil)) ->
       actor.continue(state)
 
-    GotFileChange(change: filespy.Change(path:, ..)) ->
-      case path {
-        _ ->
+    GotFileChange(change: filespy.Change(path:, ..)) -> {
+      let ok = Ok(actor.continue(state))
+
+      use <- bool.lazy_guard(path |> string.ends_with("gleam.toml"), fn() {
+        process.send(lookup, ReloadGleamToml)
+        ok
+      })
+
+      use <- bool.lazy_guard(path |> string.contains("/build/packages/"), fn() {
+        process.send(lookup, ReloadFilepaths)
+        ok
+      })
+
+      use <- bool.guard(!{path |> string.ends_with(".gleam")} , ok)
+
+      use src <- try_fail_(simplifile.read(path), fn(_) {
+        io.println_error("Failed to read Gleam file: " <> path)
+        Error(Nil)
+      })
+
+      let hash = sha256_hash(src)
+
+      use <- bool.guard({ state.hashes |> dict.get(path) } == Ok(hash), ok)
+
+      process.send_after(self, 1000, ProcessQueue)
+
+      Ok(actor.continue(State(..state, queue: state.queue |> set.insert(path), hashes: state.hashes |> dict.insert(path, hash))))
+    } |> result.unwrap(actor.continue(state))
+
+    Process(path:) -> {
+      case gen.load_gleam_file(filepath: path) {
+        Error(err) -> {
+          io.println_error([
+            "Failed to load Gleam file at path: " <> path,
+            "  " <> string.inspect(err)
+          ] |> string.join("\n"))
+
           actor.continue(state)
+        }
+
+        Ok(file) -> {
+          let new = gen.process(file:)
+
+          let hash = sha256_hash(new)
+
+          case simplifile.write(path, new) {
+            Ok(Nil) ->
+              Nil
+
+            Error(err) ->
+              io.println_error([
+                "Failed to write new Gleam file to path: " <> path,
+                "  " <> string.inspect(err)
+              ] |> string.join("\n"))
+          }
+
+          actor.continue(State(..state, hashes: state.hashes |> dict.insert(path, hash)))
+        }
       }
+    }
+
+    ProcessQueue -> {
+      state.queue
+      |> set.each(fn(path) {
+        process.send(state.self, Process(path:))
+      })
+
+      actor.continue(State(..state, queue: set.new()))
+    }
   }
 }
 
@@ -490,9 +573,9 @@ pub fn custom_type_lookup_test() {
 
   let assert Ok(_) = supervisor.start(gen_supervisor(cfg.names))
 
-  let assert Ok(file) = gen.load_gleam_file(
-    filepath: "src/deriv/internal/dummy/lookup.gleam"
-  )
+  process.sleep_forever()
+
+  let assert Ok(file) = gen.load_gleam_file( "src/deriv/internal/dummy/lookup.gleam")
 
   // echo modules_affected_by_change_to(file:, x: X(refs: dict.new())) |> pair.second
 

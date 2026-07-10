@@ -416,15 +416,15 @@ fn to_relative_src_filepath(
 }
 
 pub fn load_gleam_file(
-  filepath abs: String,
+  filepath filepath: String,
 ) -> Result(GleamFile, GleamFileErr) {
-  use path <- try(parse_gleam_module_path_from(filepath: abs))
-  use src <- try_err(simplifile.read(abs), GleamFileNotFound(path: abs, err: _))
-  use module <- try_err(g.module(src), GleamFileInvalid(path: abs, src:, err: _))
+  use path <- try(parse_gleam_module_path_from(filepath:))
+  use src <- try_err(simplifile.read(filepath), GleamFileNotFound(path: filepath, err: _))
+  use module <- try_err(g.module(src), GleamFileInvalid(path: filepath, src:, err: _))
 
   Ok(GleamFile(
     path:,
-    filepath: abs,
+    filepath: filepath,
     src:,
     ast: ast(module:),
   ))
@@ -566,15 +566,18 @@ fn get_custom_type_aliased_in(
 //
 //
 
-const gen_magic_comment_start = "//$ gen"
-
 pub fn process(
-  module module: g.Module,
-  src src: String,
+  file file: GleamFile,
 ) -> String {
-  use <- bool.guard(!{ src |> string.contains(gen_magic_comment_start) }, src)
+  let src = file.src
 
-  module.functions
+  let assert Ok(gen_magic_comment_start_re) =
+    "[/][/][$]\\s*gen([:]|\\s+)" |> re.from_string
+
+  use <- bool.guard(!re.check(gen_magic_comment_start_re, src), src)
+
+  file.ast.functions
+  |> dict.values
   |> list.map(build_func_gens(func: _, src:))
   |> list.sort(fn(a, b) {
     int.compare(
@@ -602,36 +605,35 @@ fn run(
 
     // build & format `glance.Expression` as `String`
     let expr = test1(gen:)
-    let expr_src = gleam_format_expr(expr:, indent: gen.indent)
+    let expr_src = format_gleam_expr(expr:, indent: gen.indent)
 
-    // add magic comment back to gen'd `glance.Expression` src
-    let expr_src =
-      case expr_src |> string.split("\n") {
-        [] ->
-          expr_src // impossible
-
-        [_] ->
-          panic as { "`gen " <> gen.str <> "` must generate a multiline block, but failed to" }
-
-        [opening_bracket, ..rest] ->
-          [opening_bracket <> " " <> gen.comment, ..rest] |> string.join("\n")
+    case expr_src |> string.split("\n") {
+      [] | [_] -> {
+        io.println_error("`deriv/gen.run` unexpected generated expr; returning orig src")
+        #(src, offset)
       }
 
-    // calc span to overwrite
-    let span = gen_span(gen:, src:)
+      [x, ..xs] -> {
+        // add magic comment back to gen'd `glance.Expression` src
+        let expr_src = [x <> " " <> gen.comment, ..xs] |> string.join("\n")
 
-    // construct new src
-    let #(start, end) = dg.splice_out_span(old, span)
-    let new = string.join([
-      start,
-      expr_src |> string.trim_start,
-      end,
-    ], "")
+        // calc span to overwrite
+        let span = gen_span(gen:, src:)
 
-    // calc diff for new `offset`
-    let diff = string.length(new) - string.length(old)
+        // construct new src
+        let #(start, end) = dg.splice_out_span(old, span)
+        let new = string.join([
+          start,
+          expr_src |> string.trim_start,
+          end,
+        ], "")
 
-    #(new, offset + diff)
+        // calc diff for new `offset`
+        let diff = string.length(new) - string.length(old)
+
+        #(new, offset + diff)
+      }
+    }
   })
   |> pair.first
 }
@@ -817,7 +819,7 @@ fn bracket_pos(
   Some(gen.pos + gen.indent + 1)
 }
 
-fn gleam_format_expr(
+fn format_gleam_expr(
   expr expr: g.Expression,
   indent indent: Int,
 ) -> String {
