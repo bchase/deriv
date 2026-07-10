@@ -260,7 +260,7 @@ fn look_up_type(
   |> actor.send(Type(mod:, name:, file:, reply: self))
 
   process.receive(self, lookup_timeout_ms)
-  |> result.replace_error(gen.Failed("timed out"))
+  |> result.replace_error(gen.Failed("lookup timed out (" <> string.inspect(actor) <> ")"))
   |> result.flatten
 }
 
@@ -276,27 +276,24 @@ pub fn custom_type_lookup_test() {
   let cfg = build_config()
 
   let assert Ok(_) = supervisor.start(gen_supervisor(cfg.names))
-  let assert Ok(pwd) = gen.pwd()
-  let assert Ok(toml) = gen.gleam_toml()
 
-  let filepath = "src/deriv/internal/dummy/lookup.gleam"
-  let assert Ok(file) = gen.load_gleam_file(filepath:)
-
-  let ctx = gen.Context(pwd:, toml:, file:)
+  let assert Ok(file) = gen.load_gleam_file(
+    filepath: "src/deriv/internal/dummy/lookup.gleam"
+  )
 
   [
     // curr package
-    gen.get_custom_type(ctx:, mod: None, type_: "Local"),
-    gen.get_custom_type(ctx:, mod: None, type_: "LocalAlias"),
-    gen.get_custom_type(ctx:, mod: None, type_: "OtherImport"),
-    gen.get_custom_type(ctx:, mod: Some("lookup_other"), type_: "Other"),
-    gen.get_custom_type(ctx:, mod: Some("oo"), type_: "OtherOther"),
+    look_up_type(cfg.names.lookup, file:, mod: None, name: "Local"),
+    look_up_type(cfg.names.lookup, file:, mod: None, name: "LocalAlias"),
+    look_up_type(cfg.names.lookup, file:, mod: None, name: "OtherImport"),
+    look_up_type(cfg.names.lookup, file:, mod: Some("lookup_other"), name: "Other"),
+    look_up_type(cfg.names.lookup, file:, mod: Some("oo"), name: "OtherOther"),
     // dep
-    gen.get_custom_type(ctx:, mod: Some("glance"), type_: "Span"),
+    look_up_type(cfg.names.lookup, file:, mod: Some("glance"), name: "Span"),
     // dep at path
-    gen.get_custom_type(ctx:, mod: Some("id"), type_: "Id"),
+    look_up_type(cfg.names.lookup, file:, mod: Some("id"), name: "Id"),
     // dep package name doesn't match module name
-    gen.get_custom_type(ctx:, mod: Some("option"), type_: "Option"),
+    look_up_type(cfg.names.lookup, file:, mod: Some("option"), name: "Option"),
   ]
   |> list.each(should.be_ok)
 
