@@ -8,4 +8,9 @@ pub type Local {
   Local
 }
 
+pub type Foo {
+}
+
 pub type LocalAlias = Local
+
+//$ gen:hoge/fuga.piyo variant:foo/bar.baz

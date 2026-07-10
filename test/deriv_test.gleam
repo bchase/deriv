@@ -1,6 +1,8 @@
+import bchase/result.{try_err, try_fail, try_fail_} as _
 import bchase/function.{always}
 import gleam/pair
 import gleam/result
+import gleam/regexp as re
 import glance as g
 //
 import gleam/list
@@ -29,6 +31,175 @@ import gleam/otp/supervision
 import gleam/otp/static_supervisor as supervisor
 import gleam/erlang/process.{type Subject, type Selector}
 import filespy
+
+
+fn check_gen_variant(
+  str: String,
+  from: gen.GleamPath,
+  get_type: fn(String) -> Result(g.CustomType, Nil),
+) -> Result(Ref, Nil) {
+  let assert Ok(whitespace) = "\\s+" |> re.from_string
+
+  case str |> re.split(whitespace, _) {
+    ["gen:" <> _gen, "variant:" <> target, ..] ->
+      case target |> string.split(".") {
+        [module, type_] -> {
+          use module <- try_fail(gen.parse_gleam_module_path(module), Nil)
+          Ok(Ref(from:, to: module, type_:))
+        }
+
+        _ ->
+          Error(Nil)
+      }
+
+    _ ->
+      Error(Nil)
+  }
+}
+
+const checkers = [
+  check_gen_variant,
+]
+
+fn parse_magic_comment_contents(
+  src src: String,
+) -> List(String) {
+  let assert Ok(magic_comment_re) =
+    "[/][/][\\$]\\s*(.+)" |> re.from_string
+
+  src
+  |> re.scan(magic_comment_re, _)
+  |> list.filter_map(fn(match) {
+    case match.submatches {
+      [Some(str)] -> Ok(str)
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn modules_affected_by_change_to(
+  file file: gen.GleamFile,
+  x x: X,
+) -> #(X, List(gen.GleamPath)) {
+  let path = file.path
+
+  let get_type = todo
+
+  // parse magic comments
+  let magic_comment_strs =
+    parse_magic_comment_contents(file.src)
+
+  // curr file (`path`) refs to types in other modules
+  let refs: List(Ref) =
+    magic_comment_strs
+    |> list.flat_map(fn(str) {
+      build_refs(str:, from: path, checkers:, get_type:)
+    })
+    |> list.unique
+
+  // track curr file ref changes
+  let x = X(refs: x.refs |> dict.insert(path, refs))
+
+  // get paths for all affected modules, i.e. modules ref'ing `path`
+  let affected =
+    refs
+    |> list.map(fn(ref) {
+      x.refs
+      |> dict.get(path)
+      |> result.unwrap([])
+    })
+    |> list.flatten
+    |> list.map(fn(ref) { ref.from })
+    |> list.unique
+
+  #(x, affected)
+}
+
+fn build_refs(
+  str str: String,
+  from from: gen.GleamPath,
+  checkers checkers: List(
+    fn(
+      String,
+      gen.GleamPath,
+      fn(String) -> Result(g.CustomType, Nil),
+    ) -> Result(Ref, Nil)
+  ),
+  get_type get_type: fn(String) -> Result(g.CustomType, Nil),
+) -> List(Ref) {
+  checkers
+  |> list.filter_map(fn(check) { check(str, from, get_type) })
+  |> list.unique
+}
+
+
+pub type X {
+  X(
+    refs: Dict(gen.GleamPath, List(Ref)),
+  )
+}
+
+pub type Ref {
+  Ref(
+    from: gen.GleamPath,
+    to: gen.GleamPath,
+    type_: String,
+  )
+}
+
+pub fn dependencies_for(
+  changed changed: gen.GleamPath,
+  x x: X,
+) -> List(Ref) {
+  dependencies_for_(changed:, x:, depth: 0)
+}
+
+fn dependencies_for_(
+  changed changed: gen.GleamPath,
+  x x: X,
+  depth depth: Int,
+) -> List(Ref) {
+  x.refs
+  |> dict.get(changed)
+  |> result.unwrap([])
+  |> list.fold([], fn(acc, ref) {
+    acc
+    |> list.append([ref])
+    |> list.append(dependencies_for_(ref.to, x, depth + 1))
+  })
+}
+
+
+//
+
+fn worker(
+  actor actor: actor.Builder(state, msg, return),
+) -> supervision.ChildSpecification(return) {
+  supervision.worker(fn() { actor.start(actor) })
+}
+
+fn actor(
+  init init: fn(flags, Subject(msg)) -> #(state, Selector(msg)),
+  update update: fn(state, msg) -> actor.Next(state, msg),
+  timeout timeout: Int,
+  name name: process.Name(msg),
+  return return: fn(state) -> return,
+  flags flags: flags,
+) -> actor.Builder(state, msg, return) {
+  actor.new_with_initialiser(timeout, fn(self) {
+    let #(state, sel) = init(flags, self)
+
+    state
+    |> actor.initialised
+    |> actor.selecting(sel |> process.select(self))
+    |> actor.returning(return(state))
+    |> Ok
+  })
+  |> actor.named(name)
+  |> actor.on_message(update)
+}
+
+//
 
 pub fn main() {
   gleeunit.main()
@@ -137,33 +308,6 @@ type State {
   State(
     self: Subject(Msg),
   )
-}
-
-fn worker(
-  actor actor: actor.Builder(state, msg, return),
-) -> supervision.ChildSpecification(return) {
-  supervision.worker(fn() { actor.start(actor) })
-}
-
-fn actor(
-  init init: fn(flags, Subject(msg)) -> #(state, Selector(msg)),
-  update update: fn(state, msg) -> actor.Next(state, msg),
-  timeout timeout: Int,
-  name name: process.Name(msg),
-  return return: fn(state) -> return,
-  flags flags: flags,
-) -> actor.Builder(state, msg, return) {
-  actor.new_with_initialiser(timeout, fn(self) {
-    let #(state, sel) = init(flags, self)
-
-    state
-    |> actor.initialised
-    |> actor.selecting(sel |> process.select(self))
-    |> actor.returning(return(state))
-    |> Ok
-  })
-  |> actor.named(name)
-  |> actor.on_message(update)
 }
 
 fn app_actor(
@@ -352,6 +496,8 @@ pub fn custom_type_lookup_test() {
   let assert Ok(file) = gen.load_gleam_file(
     filepath: "src/deriv/internal/dummy/lookup.gleam"
   )
+
+  echo modules_affected_by_change_to(file:, x: X(refs: dict.new())) |> pair.second
 
   [
     // curr package

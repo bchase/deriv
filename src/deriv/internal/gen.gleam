@@ -20,6 +20,8 @@ import bchase/result.{try_err, try_fail, try_fail_} as _
 import bchase/function.{x, always}
 import shellout
 
+//
+
 pub type Context {
   Context(
     pwd: Pwd,
@@ -381,6 +383,7 @@ pub fn all_build_package_gleam_src_filepaths(
   |> Ok
 }
 
+// TODO mv generic
 fn parse_gleam_module_path_from(
   filepath filepath: String,
 ) -> Result(GleamPath, GleamFileErr) {
@@ -390,8 +393,7 @@ fn parse_gleam_module_path_from(
 
   parse_gleam_module_path(path:)
 }
-
-fn parse_gleam_module_path(
+pub fn parse_gleam_module_path(
   path path: String,
 ) -> Result(GleamPath, GleamFileErr) {
   case string.split(path, "/") {
