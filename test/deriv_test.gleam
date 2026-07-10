@@ -1,3 +1,5 @@
+import bchase/function.{always}
+import gleam/pair
 import gleam/result
 import glance as g
 //
@@ -25,9 +27,8 @@ import deriv/internal/gen
 import gleam/otp/actor
 import gleam/otp/supervision
 import gleam/otp/static_supervisor as supervisor
-import gleam/erlang/process.{type Subject}
+import gleam/erlang/process.{type Subject, type Selector}
 import filespy
-
 
 pub fn main() {
   gleeunit.main()
@@ -123,8 +124,8 @@ fn gen_supervisor(
 ) -> supervisor.Builder {
   supervisor.new(supervisor.OneForOne)
   |> supervisor.add(filespy_worker(notify: names.app))
-  |> supervisor.add(lookup_worker(name: names.lookup))
-  |> supervisor.add(app_worker(name: names.app))
+  |> supervisor.add(worker(lookup_actor(name: names.lookup)))
+  |> supervisor.add(worker(app_actor(name: names.app)))
 }
 
 type Msg {
@@ -133,43 +134,74 @@ type Msg {
 }
 
 type State {
-  State
+  State(
+    self: Subject(Msg),
+  )
 }
 
-fn app_worker(
-  name name: process.Name(Msg),
-) -> supervision.ChildSpecification(Subject(Msg)) {
-  supervision.worker(fn() { app(name:) })
+fn worker(
+  actor actor: actor.Builder(state, msg, return),
+) -> supervision.ChildSpecification(return) {
+  supervision.worker(fn() { actor.start(actor) })
 }
 
-fn app(
-  name name: process.Name(Msg),
-) -> Result(actor.Started(Subject(Msg)), actor.StartError) {
-  actor.new_with_initialiser(100, fn(self) {
-    let sel =
-      process.new_selector()
-      |> process.select(self)
+fn actor(
+  init init: fn(flags, Subject(msg)) -> #(state, Selector(msg)),
+  update update: fn(state, msg) -> actor.Next(state, msg),
+  timeout timeout: Int,
+  name name: process.Name(msg),
+  return return: fn(state) -> return,
+  flags flags: flags,
+) -> actor.Builder(state, msg, return) {
+  actor.new_with_initialiser(timeout, fn(self) {
+    let #(state, sel) = init(flags, self)
 
-    State
+    state
     |> actor.initialised
-    |> actor.selecting(sel)
-    |> actor.returning(self)
+    |> actor.selecting(sel |> process.select(self))
+    |> actor.returning(return(state))
     |> Ok
   })
   |> actor.named(name)
-  |> actor.on_message(fn(state, msg) {
-    case msg {
-      NoOp ->
-        actor.continue(state)
-
-      GotFileChange(change:) -> {
-        echo change
-        actor.continue(state)
-      }
-    }
-  })
-  |> actor.start
+  |> actor.on_message(update)
 }
+
+fn app_actor(
+  name name: process.Name(Msg),
+) -> actor.Builder(State, Msg, Nil) {
+  actor(init:, update:, timeout: 100, name:, return: always(Nil), flags: Nil)
+}
+
+fn init(
+  _: Nil,
+  self self: Subject(Msg),
+) -> #(State, Selector(Msg)) {
+  State(
+    self:,
+  )
+  |> pair.new(process.new_selector())
+}
+
+fn update(
+  state state: State,
+  msg msg: Msg,
+) -> actor.Next(State, Msg) {
+  case msg {
+    NoOp ->
+      actor.continue(state)
+
+    GotFileChange(change: filespy.Custom(Nil)) ->
+      actor.continue(state)
+
+    GotFileChange(change: filespy.Change(path:, ..)) ->
+      case path {
+        _ ->
+          actor.continue(state)
+      }
+  }
+}
+
+//
 
 fn filespy_worker(
   notify notify: process.Name(Msg),
@@ -223,67 +255,65 @@ const lookup_init_msgs = [
   ReloadFilepaths,
 ]
 
-fn lookup_worker(
+fn lookup_actor(
   name name: process.Name(LookupMsg),
-) -> supervision.ChildSpecification(Subject(LookupMsg)) {
+) -> actor.Builder(LookupState, LookupMsg, Subject(LookupMsg)) {
   let assert Ok(init_pwd) = gen.pwd()
     as "`gen` failed to get `pwd`"
 
   let assert Ok(init_toml) = gen.gleam_toml()
     as "`gen` failed to load `gleam.toml` in pwd"
 
-  supervision.worker(fn() { actor.start(
-    actor.new_with_initialiser(100, fn(self) {
-      lookup_init_msgs
-      |> list.each(process.send(self, _))
+  actor.new_with_initialiser(100, fn(self) {
+    lookup_init_msgs
+    |> list.each(process.send(self, _))
 
-      let sel =
-        process.new_selector()
-        |> process.select(self)
+    let sel =
+      process.new_selector()
+      |> process.select(self)
 
-      LookupState(
-        self:,
-        pwd: init_pwd,
-        toml: init_toml,
-        filepaths: [],
-        changes: dict.new(),
-      )
-      |> actor.initialised
-      |> actor.selecting(sel)
-      |> actor.returning(self)
-      |> Ok
-    })
-    |> actor.named(name)
-    |> actor.on_message(fn(state, msg) {
-      case msg {
-        LookupNoOp ->
-          actor.continue(state)
+    LookupState(
+      self:,
+      pwd: init_pwd,
+      toml: init_toml,
+      filepaths: [],
+      changes: dict.new(),
+    )
+    |> actor.initialised
+    |> actor.selecting(sel)
+    |> actor.returning(self)
+    |> Ok
+  })
+  |> actor.named(name)
+  |> actor.on_message(fn(state, msg) {
+    case msg {
+      LookupNoOp ->
+        actor.continue(state)
 
-        Type(mod:, name:, file:, reply:) -> {
-          let ctx = gen.Context(pwd: state.pwd, toml: state.toml, file:)
+      Type(mod:, name:, file:, reply:) -> {
+        let ctx = gen.Context(pwd: state.pwd, toml: state.toml, file:)
 
-          gen.get_custom_type(ctx:, mod:, type_: name)
-          |> process.send(reply, _)
+        gen.get_custom_type(ctx:, mod:, type_: name)
+        |> process.send(reply, _)
 
-          actor.continue(state)
-        }
-
-        ReloadGleamToml -> {
-          let assert Ok(toml) = gen.gleam_toml()
-            as "`gen` failed to load `gleam.toml` in pwd"
-
-          actor.continue(LookupState(..state, toml:))
-        }
-
-        ReloadFilepaths -> {
-          let assert Ok(filepaths) = gen.all_build_package_gleam_src_filepaths()
-            as "`gen` failed to load `build/packages/**/src/**/*.gleam` paths"
-
-          actor.continue(LookupState(..state, filepaths:))
-        }
+        actor.continue(state)
       }
-    })
-  ) })
+
+      ReloadGleamToml -> {
+        let assert Ok(toml) = gen.gleam_toml()
+          as "`gen` failed to load `gleam.toml` in pwd"
+
+        actor.continue(LookupState(..state, toml:))
+      }
+
+      ReloadFilepaths -> {
+        let assert Ok(filepaths) = gen.all_build_package_gleam_src_filepaths()
+          as "`gen` failed to load `build/packages/**/src/**/*.gleam` paths"
+
+        actor.continue(LookupState(..state, filepaths:))
+      }
+    }
+  })
 }
 
 const lookup_timeout_ms = 5_000
