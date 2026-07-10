@@ -605,9 +605,9 @@ fn get_custom_type_aliased_in(
 //
 
 pub fn process(
-  file file: GleamFile,
+  ctx ctx: Context,
 ) -> String {
-  let src = file.src
+  let src = ctx.file.src
 
   let assert Ok(gen_magic_comment_start_re) =
     // "[/][/][$]\\s*gen([:]|\\s+)" |> re.from_string
@@ -615,9 +615,9 @@ pub fn process(
 
   use <- bool.guard(!re.check(gen_magic_comment_start_re, src), src)
 
-  file.ast.functions
+  ctx.file.ast.functions
   |> dict.values
-  |> list.map(build_func_gens(func: _, src:))
+  |> list.map(build_func_gens(func: _, src:, ctx:))
   |> list.sort(fn(a, b) {
     int.compare(
       a.func.definition.location.start,
@@ -633,7 +633,7 @@ fn run(
   src src: String,
   func_gens func_gens: FuncGens,
 ) -> String {
-  let FuncGens(func:, gens:) = func_gens
+  let FuncGens(func:, gens:, ctx:) = func_gens
 
   gens
   |> list.fold(#(src, 0), fn(acc, gen) {
@@ -655,10 +655,14 @@ fn run(
         io.println_error("Invalid Gleam module path: //$ gen " <> gen.str)
         Error(Nil)
       })
-      use gen_expr <- result.try(gen_lookup |> dict.from_list |> dict.get(path))
+      use var_expr <- result.try(gen_lookup |> dict.from_list |> dict.get(path))
 
       // gen expr
-      let expr = gen_expr(args)
+      let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> echo |> result.replace_error(Nil) }
+      use expr <- try_fail_(build_expr(var_expr(), args, func, get_type), fn(_) {
+        io.println_error("Variant expr builder failed for: //$ gen " <> gen.str)
+        Error(Nil)
+      })
 
       // build & format `glance.Expression` as `String`
       let expr_src = format_gleam_expr(expr:, indent: gen.indent)
@@ -696,25 +700,29 @@ fn run(
 
 fn build_expr(
   ve ve: var.VariantExpr(t),
-  path path: GleamPath,
+  // path path: GleamPath,
   args args: String,
+  func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(g.CustomType, Nil)
 ) -> Result(g.Expression, Nil) {
   let assert Ok(ws_re) = "\\s+" |> re.from_string
 
   case args |> re.split(ws_re, _) {
     ["variant:" <> variant, .._rest] ->
-      case variant |> string.split(".") {
+      case variant |> string.split(".")  {
         [module, type_] -> {
           // use path <- try_fail(parse_gleam_module_path(module), Nil)
-          use type_ <- try_fail(get_type(Some(module), type_), Nil)
+          echo "here"
+          echo #(module, type_)
+          use type_ <- try_fail(get_type(Some(module), type_) |> echo, Nil)
+          echo type_
 
           let args =
             args
             |> string.drop_start(string.length("variant:" <> variant))
             |> string.trim
 
-          build_case_expr(ve, type_, args, get_type)
+          build_case_expr(ve, type_, args, func, get_type)
         }
 
         _ ->
@@ -730,23 +738,49 @@ fn build_case_expr(
   ve ve: var.VariantExpr(t),
   type_ type_: g.CustomType,
   args args: String,
+  func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(g.CustomType, Nil),
 ) -> Result(g.Expression, Nil) {
+  // TODO better errs
+
   use clauses <- try(
     type_.variants
     |> list.map(fn(variant) { var.run(ve, variant:, args:, get_type:) })
     |> result.all
   )
 
-  let subject = todo
+  let assert Ok(ws_re) = "\\s+" |> re.from_string
+
+  use subject <- try(args |> re.split(ws_re, _) |> list.first |> result.map(term))
+  // use param_type <- try({
+  //   func.definition.parameters
+  //   |> list.find(fn(param) {
+  //     param.label == Some(str) || param.name == g.Named(str)
+  //   })
+  //   |> result.map(fn(param) { param.type_ })
+  //   |> result.map(option.to_result(_, Nil))
+  //   |> result.flatten
+  // })
+  // case param_type {
+  //   g.NamedType(location:, name:, module:, parameters:) -> todo
+  //   g.TupleType(location:, elements:) -> todo
+  //   g.FunctionType(location:, parameters:, return:) -> todo
+  //   g.VariableType(location:, name:) -> todo
+  //   g.HoleType(location:, name:) -> todo
+  // }
+  // use subject <- try({
+  // })
 
   Ok(g.Case(z, subjects: [subject], clauses: ))
 }
 
 const gen_lookup = [
-  #(GleamPath(full: ["bchase", "foo", "bar", "test1"], package: "bchase", module: "test1"), test1),
-  #(GleamPath(full: ["bchase", "foo", "bar", "test2"], package: "bchase", module: "test2"), test1),
+  #(GleamPath(full: ["bchase", "foo", "bar", "test0"], package: "bchase", module: "test0"), test0),
 ]
+// const gen_lookup = [
+//   #(GleamPath(full: ["bchase", "foo", "bar", "test1"], package: "bchase", module: "test1"), test1),
+//   #(GleamPath(full: ["bchase", "foo", "bar", "test2"], package: "bchase", module: "test2"), test1),
+// ]
 
 pub fn test0() -> var.VariantExpr(g.Clause) {
   use variant <- var.variant_name()
@@ -831,6 +865,7 @@ type FuncGens {
   FuncGens(
     func: g.Definition(g.Function),
     gens: List(Gen),
+    ctx: Context,
   )
 }
 
@@ -847,6 +882,7 @@ pub type Gen {
 fn build_func_gens(
   func func: g.Definition(g.Function),
   src src: String,
+  ctx ctx: Context,
 ) -> FuncGens {
   let span = func.definition.location
 
@@ -903,7 +939,7 @@ fn build_func_gens(
       None -> gens
     }
   }
-  |> FuncGens(gens: _, func:)
+  |> FuncGens(gens: _, func:, ctx:)
 }
 
 fn gen_span(

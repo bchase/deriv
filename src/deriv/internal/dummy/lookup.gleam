@@ -9,6 +9,7 @@ pub type Local {
 }
 
 pub type Foo {
+  Foo(foo: String)
 }
 
 pub type LocalAlias = Local

@@ -262,9 +262,12 @@ type ApiReq {
 //     - move to own module
 
 pub fn gen_test() {
+  let assert Ok(pwd) = gen.pwd()
+  let assert Ok(toml) = gen.gleam_toml()
   let assert Ok(file) = gen.load_gleam_file("./test/gen/before.gleam")
+  let ctx = gen.Context(pwd:, toml:, file:)
 
-  let output = gen.process(file:)
+  let output = gen.process(ctx:)
 
   let assert Ok(after) = simplifile.read("./test/gen/after.gleam")
 
@@ -401,23 +404,29 @@ fn update(
           actor.continue(state)
         }
 
-        Ok(file) -> {
-          let new = gen.process(file:)
+        Ok(file) ->
+        case fetch_context(state.cfg.lookup, file:) {
+          Error(_) ->
+            actor.continue(state)
 
-          let hash = sha256_hash(new)
+          Ok(ctx) -> {
+            let new = gen.process(ctx:)
 
-          case simplifile.write(path, new) {
-            Ok(Nil) ->
-              Nil
+            let hash = sha256_hash(new)
 
-            Error(err) ->
-              io.println_error([
-                "Failed to write new Gleam file to path: " <> path,
-                "  " <> string.inspect(err)
-              ] |> string.join("\n"))
+            case simplifile.write(path, new) {
+              Ok(Nil) ->
+                Nil
+
+              Error(err) ->
+                io.println_error([
+                  "Failed to write new Gleam file to path: " <> path,
+                  "  " <> string.inspect(err)
+                ] |> string.join("\n"))
+            }
+
+            actor.continue(State(..state, hashes: state.hashes |> dict.insert(path, hash)))
           }
-
-          actor.continue(State(..state, hashes: state.hashes |> dict.insert(path, hash)))
         }
       }
     }
@@ -481,6 +490,10 @@ pub opaque type LookupMsg {
     file: gen.GleamFile,
     reply: Subject(Result(g.CustomType, gen.GenErr)),
   )
+  Context(
+    file: gen.GleamFile,
+    reply: Subject(gen.Context),
+  )
 }
 
 fn lookup_actor(
@@ -536,11 +549,32 @@ fn lookup_actor(
 
         actor.continue(state)
       }
+
+      Context(file:, reply:) -> {
+        gen.Context(pwd: state.pwd, toml: state.toml, file:)
+        |> process.send(reply, _)
+
+        actor.continue(state)
+      }
     }
   })
 }
 
 const lookup_timeout_ms = 5_000
+
+fn fetch_context(
+  actor actor: process.Name(LookupMsg),
+  file file: gen.GleamFile,
+) -> Result(gen.Context, gen.GenErr) {
+  let self = process.new_subject()
+
+  actor
+  |> process.named_subject
+  |> actor.send(Context(file:, reply: self))
+
+  process.receive(self, lookup_timeout_ms)
+  |> result.replace_error(gen.Failed("context lookup timed out (" <> string.inspect(actor) <> ")"))
+}
 
 fn look_up_type(
   actor actor: process.Name(LookupMsg),
@@ -555,7 +589,7 @@ fn look_up_type(
   |> actor.send(Type(mod:, name:, file:, reply: self))
 
   process.receive(self, lookup_timeout_ms)
-  |> result.replace_error(gen.Failed("lookup timed out (" <> string.inspect(actor) <> ")"))
+  |> result.replace_error(gen.Failed("type lookup timed out (" <> string.inspect(actor) <> ")"))
   |> result.flatten
 }
 
