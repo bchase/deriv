@@ -658,6 +658,7 @@ fn run(
       use var_expr <- result.try(gen_lookup |> dict.from_list |> dict.get(path))
 
       // gen expr
+      echo ctx
       let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> echo |> result.replace_error(Nil) }
       use expr <- try_fail_(build_expr(var_expr(), args, func, get_type), fn(_) {
         io.println_error("Variant expr builder failed for: //$ gen " <> gen.str)
@@ -698,6 +699,42 @@ fn run(
   |> pair.first
 }
 
+// fn build_expr(
+//   ve ve: var.VariantExpr(t),
+//   // path path: GleamPath,
+//   args args: String,
+//   func func: g.Definition(g.Function),
+//   get_type get_type: fn(Option(String), String) -> Result(g.CustomType, Nil)
+// ) -> Result(g.Expression, Nil) {
+//   let assert Ok(ws_re) = "\\s+" |> re.from_string
+
+//   case args |> re.split(ws_re, _) {
+//     ["variant:" <> variant, .._rest] ->
+//       case variant |> string.split(".")  {
+//         [module, type_] -> {
+//           // use path <- try_fail(parse_gleam_module_path(module), Nil)
+//           echo "here"
+//           echo #(module, type_)
+//           use type_ <- try_fail(get_type(Some(module), type_) |> echo, Nil)
+//           echo type_
+
+//           let args =
+//             args
+//             |> string.drop_start(string.length("variant:" <> variant))
+//             |> string.trim
+
+//           build_case_expr(ve, type_, args, func, get_type)
+//         }
+
+//         _ ->
+//           Error(Nil)
+//       }
+
+//     _ ->
+//       Error(Nil)
+//   }
+// }
+
 fn build_expr(
   ve ve: var.VariantExpr(t),
   // path path: GleamPath,
@@ -707,31 +744,36 @@ fn build_expr(
 ) -> Result(g.Expression, Nil) {
   let assert Ok(ws_re) = "\\s+" |> re.from_string
 
-  case args |> re.split(ws_re, _) {
-    ["variant:" <> variant, .._rest] ->
-      case variant |> string.split(".")  {
-        [module, type_] -> {
-          // use path <- try_fail(parse_gleam_module_path(module), Nil)
-          echo "here"
-          echo #(module, type_)
-          use type_ <- try_fail(get_type(Some(module), type_) |> echo, Nil)
-          echo type_
+  use str <- try(args |> re.split(ws_re, _) |> list.first)
 
-          let args =
-            args
-            |> string.drop_start(string.length("variant:" <> variant))
-            |> string.trim
+  use type_ <- try(get_type_of_param_named(str:, func:, get_type:))
 
-          build_case_expr(ve, type_, args, func, get_type)
-        }
+  build_case_expr(ve:, type_:, args:, func:, get_type:)
+}
 
-        _ ->
-          Error(Nil)
-      }
+fn get_type_of_param_named(
+  str str: String,
+  func func: g.Definition(g.Function),
+  get_type get_type: fn(Option(String), String) -> Result(g.CustomType, Nil)
+) -> Result(g.CustomType, Nil) {
+  use param_type <- try({
+    func.definition.parameters
+    |> list.find(fn(param) {
+      param.label == Some(str) || param.name == g.Named(str)
+    })
+    |> result.map(fn(param) { param.type_ })
+    |> result.map(option.to_result(_, Nil))
+    |> result.flatten
+  })
 
-    _ ->
-      Error(Nil)
-  }
+  use #(mod, type_) <- try({
+    case param_type {
+      g.NamedType(module:, name:, ..) -> Ok(#(module, name))
+      _ -> Error(Nil)
+    }
+  })
+
+  get_type(mod, type_)
 }
 
 fn build_case_expr(

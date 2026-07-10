@@ -264,12 +264,12 @@ type ApiReq {
 pub fn gen_test() {
   let assert Ok(pwd) = gen.pwd()
   let assert Ok(toml) = gen.gleam_toml()
-  let assert Ok(file) = gen.load_gleam_file("./test/gen/before.gleam")
+  let assert Ok(file) = gen.load_gleam_file("src/deriv/internal/dummy/gen/before.gleam")
   let ctx = gen.Context(pwd:, toml:, file:)
 
   let output = gen.process(ctx:)
 
-  let assert Ok(after) = simplifile.read("./test/gen/after.gleam")
+  let assert Ok(after) = simplifile.read("src/deriv/internal/dummy/gen/after.gleam")
 
   log_("AFTER", after)
   log_("OUTPUT", output)
