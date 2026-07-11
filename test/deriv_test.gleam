@@ -35,6 +35,7 @@ import gleam/erlang/process.{type Subject, type Selector}
 import filespy
 import gleam/crypto
 import gleam/bit_array as ba
+import deriv/gen/types.{type TypeDef} as _
 
 //
 
@@ -488,7 +489,7 @@ pub opaque type LookupMsg {
     mod: Option(String),
     name: String,
     file: gen.GleamFile,
-    reply: Subject(Result(g.CustomType, gen.GenErr)),
+    reply: Subject(Result(TypeDef, gen.GenErr)),
   )
   Context(
     file: gen.GleamFile,
@@ -581,7 +582,7 @@ fn look_up_type(
   mod mod: Option(String),
   name name: String,
   file file: gen.GleamFile,
-) -> Result(glance.CustomType, gen.GenErr) {
+) -> Result(TypeDef, gen.GenErr) {
   let self = process.new_subject()
 
   actor

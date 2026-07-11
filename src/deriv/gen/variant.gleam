@@ -5,13 +5,14 @@ import gleam/list
 import gleam/pair
 import gleam/result
 import deriv/internal/glance.{z} as _
+import deriv/gen/types.{type TypeDef, TypeDef, type GleamPath, GleamPath}
 
 pub opaque type VariantExpr(out) {
   VariantExpr(
     run: fn(
       g.Variant,
       String,
-      fn(Option(String), String) -> Result(g.CustomType, Nil),
+      fn(Option(String), String) -> Result(TypeDef, Nil),
       List(String), // NOTE: fields acc, used to detect need for `with_spread`
     ) -> Result(#(g.Expression, List(String)), Nil),
   )
@@ -89,7 +90,7 @@ pub fn run(
   ve: VariantExpr(out),
   variant variant: g.Variant,
   args args: String,
-  get_type get_type: fn(Option(String), String) -> Result(g.CustomType, Nil),
+  get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
 ) -> Result(g.Clause, Nil) {
   ve.run(variant, args, get_type, [])
   |> result.map(fn(t) {
