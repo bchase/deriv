@@ -26,7 +26,7 @@ import gleam/io
 import simplifile
 import examples/json_rewrite/after as json_example
 import bchase/list.{at as list_at} as _
-import deriv/internal/gen
+import deriv/internal/gen.{type Ref}
 //
 import gleam/otp/actor
 import gleam/otp/supervision
@@ -35,7 +35,7 @@ import gleam/erlang/process.{type Subject, type Selector}
 import filespy
 import gleam/crypto
 import gleam/bit_array as ba
-import deriv/gen/types.{type TypeDef} as _
+import deriv/gen/types.{type TypeDef, type GleamPath} as _
 
 //
 
@@ -184,11 +184,22 @@ fn worker(
   supervision.worker(fn() { actor.start(actor) })
 }
 
+fn actor_named(
+  name name: process.Name(msg),
+  init init: fn(flags, Subject(msg)) -> #(state, Selector(msg)),
+  update update: fn(state, msg) -> actor.Next(state, msg),
+  timeout timeout: Int,
+  return return: fn(state) -> return,
+  flags flags: flags,
+) -> actor.Builder(state, msg, return) {
+  actor(init:, update:, timeout:, return:, flags:)
+  |> actor.named(name)
+}
+
 fn actor(
   init init: fn(flags, Subject(msg)) -> #(state, Selector(msg)),
   update update: fn(state, msg) -> actor.Next(state, msg),
   timeout timeout: Int,
-  name name: process.Name(msg),
   return return: fn(state) -> return,
   flags flags: flags,
 ) -> actor.Builder(state, msg, return) {
@@ -201,8 +212,35 @@ fn actor(
     |> actor.returning(return(state))
     |> Ok
   })
-  |> actor.named(name)
   |> actor.on_message(update)
+}
+
+fn select(
+  map f: fn(t) -> msg,
+) -> #(Subject(t), Selector(msg)) {
+  select_(map: f, subj: process.new_subject())
+}
+
+fn select_named(
+  name name: process.Name(t),
+  map f: fn(t) -> msg,
+) -> #(Subject(t), Selector(msg)) {
+  select_(map: f, subj: process.named_subject(name))
+}
+
+fn select_(
+  map f: fn(t) -> msg,
+  subj subj: Subject(t),
+) -> #(Subject(t), Selector(msg)) {
+  process.new_selector()
+  |> process.select_map(subj, f)
+  |> pair.new(subj, _)
+}
+
+fn select_batch(
+  sels sels: List(Selector(msg)),
+) -> Selector(msg) {
+  list.fold(sels, process.new_selector(), process.merge_selector)
 }
 
 //
@@ -268,7 +306,9 @@ pub fn gen_test() {
   let assert Ok(file) = gen.load_gleam_file("src/deriv/internal/dummy/gen/before.gleam")
   let ctx = gen.Context(pwd:, toml:, file:)
 
-  let output = gen.process(ctx:)
+  let update_refs = always(Nil)
+
+  let output = gen.process(ctx:, update_refs:)
 
   let assert Ok(after) = simplifile.read("src/deriv/internal/dummy/gen/after.gleam")
 
@@ -291,6 +331,7 @@ type Names {
   Names(
     app: process.Name(Msg),
     lookup: process.Name(LookupMsg),
+    refs: process.Name(RefMsg),
   )
 }
 
@@ -300,7 +341,11 @@ fn gen_supervisor(
   supervisor.new(supervisor.OneForOne)
   |> supervisor.add(filespy_worker(notify: names.app))
   |> supervisor.add(worker(lookup_actor(name: names.lookup)))
-  |> supervisor.add(worker(app_actor(name: names.app, cfg: AppConfig(lookup: names.lookup))))
+  |> supervisor.add(worker(refs_actor(name: names.refs)))
+  |> supervisor.add(worker(app_actor(name: names.app, cfg: AppConfig(
+    lookup: names.lookup,
+    refs: names.refs,
+  ))))
 }
 
 type Msg {
@@ -322,6 +367,7 @@ type State {
 type AppConfig {
   AppConfig(
     lookup: process.Name(LookupMsg),
+    refs: process.Name(RefMsg),
   )
 }
 
@@ -329,7 +375,7 @@ fn app_actor(
   name name: process.Name(Msg),
   cfg cfg: AppConfig,
 ) -> actor.Builder(State, Msg, Nil) {
-  actor(init:, update:, timeout: 100, name:, return: always(Nil), flags: cfg)
+  actor_named(name:, init:, update:, timeout: 100, return: always(Nil), flags: cfg)
 }
 
 fn init(
@@ -411,7 +457,12 @@ fn update(
             actor.continue(state)
 
           Ok(ctx) -> {
-            let new = gen.process(ctx:)
+            let new = gen.process(ctx:, update_refs: fn(t) {
+              echo t
+              state.cfg.refs
+              |> process.named_subject
+              |> process.send(Update(path: t.0, refs: t.1))
+            })
 
             let hash = sha256_hash(new)
 
@@ -441,6 +492,60 @@ fn update(
       actor.continue(State(..state, queue: set.new()))
     }
   }
+}
+
+//
+
+type RefState {
+  RefState(
+    self: Subject(RefMsg),
+    refs: Dict(GleamPath, List(Ref)),
+  )
+}
+
+type RefMsg {
+  RefNoOp
+  Update(path: GleamPath, refs: List(Ref))
+}
+
+type RefConfig {
+  RefConfig
+}
+
+fn ref_init(
+  _cfg: RefConfig,
+  self: Subject(RefMsg),
+) -> #(RefState, Selector(RefMsg)) {
+  RefState(
+    self:,
+    refs: dict.new(),
+  )
+  |> pair.new(process.new_selector())
+}
+
+fn ref_update(
+  state state: RefState,
+  msg msg: RefMsg,
+) -> actor.Next(RefState, RefMsg){
+  case msg {
+    RefNoOp ->
+      actor.continue(state)
+
+    Update(path:, refs:) -> {
+      echo { "GOT REFS " <> string.inspect(refs) }
+      actor.continue(RefState(..state,
+        refs: state.refs |> dict.insert(path, refs)
+      ))
+    }
+  }
+}
+
+fn refs_actor(
+  name name: process.Name(RefMsg),
+) -> actor.Builder(RefState, RefMsg, Nil) {
+  let flags = RefConfig
+  actor(init: ref_init, update: ref_update, timeout: 100, return: always(Nil), flags:)
+  |> actor.named(name)
 }
 
 //
@@ -517,6 +622,17 @@ fn lookup_actor(
       as "`gen` failed to load `build/packages/**/src/**/*.gleam` paths"
     filepaths
   }
+    // let re = process.new_subject()
+
+    // let x = fn(strs: List(String)) {
+    //   process.send(me, strs)
+    // }
+
+    // let sel =
+    //   process.new_selector()
+    //   |> process.select(me)
+    //   |> process.map_selector(fn(strs) {
+    // })
 
   actor.new_with_initialiser(100, fn(self) {
     LookupState(
@@ -527,6 +643,7 @@ fn lookup_actor(
       changes: dict.new(),
     )
     |> actor.initialised
+    // |> actor.selecting(sel)
     |> Ok
   })
   |> actor.named(name)
@@ -599,6 +716,7 @@ fn build_config() -> Config {
     names: Names(
       app: process.new_name("deriv-app"),
       lookup: process.new_name("deriv-type-ast-lookup"),
+      refs: process.new_name("deriv-refs-listener"),
     )
   )
 }
@@ -608,7 +726,7 @@ pub fn custom_type_lookup_test() {
 
   let assert Ok(_) = supervisor.start(gen_supervisor(cfg.names))
 
-  // process.sleep_forever()
+  process.sleep_forever()
 
   let assert Ok(file) = gen.load_gleam_file( "src/deriv/internal/dummy/lookup.gleam")
 

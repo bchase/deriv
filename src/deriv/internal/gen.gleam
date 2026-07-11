@@ -599,7 +599,13 @@ fn get_custom_type_aliased_in(
 
 pub fn process(
   ctx ctx: Context,
+  update_refs update_refs: fn(#(GleamPath, List(Ref))) -> Nil,
 ) -> String {
+  let path = GleamPath(["foo", "bar", "baz"], "foo", "bar")
+  update_refs(#(path, [Ref(from: path, to: path, type_: "Foo")]))
+  update_refs(#(path, [Ref(from: path, to: path, type_: "Foo")]))
+  update_refs(#(path, [Ref(from: path, to: path, type_: "Foo")]))
+
   let src = ctx.file.src
 
   let assert Ok(gen_magic_comment_start_re) =
@@ -739,7 +745,7 @@ type GenExpr {
   )
 }
 
-type Ref {
+pub type Ref {
   Ref(
     from: GleamPath,
     to: GleamPath,
