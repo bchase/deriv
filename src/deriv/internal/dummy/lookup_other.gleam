@@ -5,3 +5,7 @@ pub type Other {
 pub type OtherImport {
   OtherImport
 }
+
+pub type Bar {
+  Bar(foo: String)
+}

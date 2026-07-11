@@ -306,9 +306,7 @@ pub fn gen_test() {
   let assert Ok(file) = gen.load_gleam_file("src/deriv/internal/dummy/gen/before.gleam")
   let ctx = gen.Context(pwd:, toml:, file:)
 
-  let update_refs = fn(_, _) { Nil }
-
-  let output = gen.process(ctx:, update_refs:)
+  let #(output, _refs) = gen.process(ctx:)
 
   let assert Ok(after) = simplifile.read("src/deriv/internal/dummy/gen/after.gleam")
 
@@ -452,34 +450,33 @@ fn update(
         }
 
         Ok(file) ->
-        case fetch_context(state.cfg.lookup, file:) {
-          Error(_) ->
-            actor.continue(state)
+          case fetch_context(state.cfg.lookup, file:) {
+            Error(_) ->
+              actor.continue(state) // TODO log warn/err
 
-          Ok(ctx) -> {
-            let new = gen.process(ctx:, update_refs: fn(path, refs) {
-              echo #(path, refs)
+            Ok(ctx) -> {
+              let #(new, refs) = gen.process(ctx:)
+
               state.cfg.refs
               |> process.named_subject
-              |> process.send(UpdateRefs(path:, refs:))
-            })
+              |> process.send(UpdateRefs(path: file.path, refs:))
 
-            let hash = sha256_hash(new)
+              let hash = sha256_hash(new)
 
-            case simplifile.write(path, new) {
-              Ok(Nil) ->
-                Nil
+              case simplifile.write(path, new) {
+                Ok(Nil) ->
+                  Nil
 
-              Error(err) ->
-                io.println_error([
-                  "Failed to write new Gleam file to path: " <> path,
-                  "  " <> string.inspect(err)
-                ] |> string.join("\n"))
+                Error(err) ->
+                  io.println_error([
+                    "Failed to write new Gleam file to path: " <> path,
+                    "  " <> string.inspect(err)
+                  ] |> string.join("\n"))
+              }
+
+              actor.continue(State(..state, hashes: state.hashes |> dict.insert(path, hash)))
             }
-
-            actor.continue(State(..state, hashes: state.hashes |> dict.insert(path, hash)))
           }
-        }
       }
     }
 

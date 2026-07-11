@@ -599,26 +599,30 @@ fn get_custom_type_aliased_in(
 
 pub fn process(
   ctx ctx: Context,
-  update_refs update_refs: fn(GleamPath, List(Ref)) -> Nil,
-) -> String {
+) -> #(String, List(Ref)) {
   let src = ctx.file.src
 
   let assert Ok(gen_magic_comment_start_re) =
     // "[/][/][$]\\s*gen([:]|\\s+)" |> re.from_string
     "[/][/][$]\\s*gen\\s+" |> re.from_string
 
-  use <- bool.guard(!re.check(gen_magic_comment_start_re, src), src)
+  use <- bool.guard(!re.check(gen_magic_comment_start_re, src), #(src, []))
 
   ctx.file.ast.functions
   |> dict.values
-  |> list.map(build_func_gens(func: _, src:, ctx:, update_refs:))
+  |> list.map(build_func_gens(func: _, src:, ctx:))
   |> list.sort(fn(a, b) {
     int.compare(
       a.func.definition.location.start,
       b.func.definition.location.start,
     )
   })
-  |> list.fold(src, run)
+  |> list.fold(#(src, []), fn(acc, fg) {
+    let #(src, old_refs) = acc
+    let #(src, new_refs) = run(src, fg)
+    #(src, list.append(old_refs, new_refs))
+  })
+  |> pair.map_second(list.unique)
 }
 
 //
@@ -626,12 +630,12 @@ pub fn process(
 fn run(
   src src: String,
   func_gens func_gens: FuncGens,
-) -> String {
-  let FuncGens(func:, gens:, ctx:, update_refs:) = func_gens
+) -> #(String, List(Ref)) {
+  let FuncGens(func:, gens:, ctx:) = func_gens
 
   gens
-  |> list.fold(#(src, 0), fn(acc, gen) {
-    let #(old, offset) = acc
+  |> list.fold(#(src, [], 0), fn(acc, gen) {
+    let #(old, old_refs, offset) = acc
 
     {
       // offset positions based on previous code gen results
@@ -653,7 +657,7 @@ fn run(
 
       // gen expr
       let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
-      use expr <- try_fail_(build_expr(var_expr(), args, func, get_type, ctx), fn(_) {
+      use GenExpr(expr:, refs: new_refs) <- try_fail_(build_expr(var_expr(), args, func, get_type, ctx), fn(_) {
         io.println_error("Variant expr builder failed for: //$ gen " <> gen.str)
         Error(Nil)
       })
@@ -690,11 +694,17 @@ fn run(
 
       // calc diff for new `offset`
       let diff = string.length(new) - string.length(old)
+      let offset = offset + diff
 
-      Ok(#(new, offset + diff))
+      let refs = list.append(old_refs, new_refs)
+
+      Ok(#(new, refs, offset))
     } |> result.unwrap(acc)
   })
-  |> pair.first
+  |> fn(acc) {
+    let #(src, refs, _offset) = acc
+    #(src, refs)
+  }
 }
 
 // fn build_expr(
@@ -755,7 +765,7 @@ fn build_expr(
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   ctx ctx: Context,
-) -> Result(g.Expression, Nil) {
+) -> Result(GenExpr, Nil) {
   let assert Ok(ws_re) = "\\s+" |> re.from_string
 
   use str <- try(args |> re.split(ws_re, _) |> list.first)
@@ -763,9 +773,10 @@ fn build_expr(
   use type_ <- try(get_type_of_param_named(str:, func:, get_type:))
 
   let ref = Ref(from: ctx.file.path, to: type_.path, type_: type_.def.definition.name)
-  echo ref
 
-  build_case_expr(ve:, type_:, args:, func:, get_type:)
+  use expr <- try(build_case_expr(ve:, type_:, args:, func:, get_type:))
+
+  Ok(GenExpr(expr:, refs: [ref]))
 }
 
 fn get_type_of_param_named(
@@ -885,7 +896,6 @@ type FuncGens {
     func: g.Definition(g.Function),
     gens: List(Gen),
     ctx: Context,
-    update_refs: fn(GleamPath, List(Ref)) -> Nil,
   )
 }
 
@@ -903,7 +913,6 @@ fn build_func_gens(
   func func: g.Definition(g.Function),
   src src: String,
   ctx ctx: Context,
-  update_refs update_refs: fn(GleamPath, List(Ref)) -> Nil,
 ) -> FuncGens {
   let span = func.definition.location
 
@@ -960,7 +969,7 @@ fn build_func_gens(
       None -> gens
     }
   }
-  |> FuncGens(gens: _, func:, ctx:, update_refs:)
+  |> FuncGens(gens: _, func:, ctx:)
 }
 
 fn gen_span(
