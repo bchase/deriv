@@ -5,7 +5,8 @@ pub type Foo {
 pub fn exec(foo: Foo) {
   let bar = Nil
 
-  { case foo { //$ gen bchase/foo/bar/test0 foo
+  { //$ gen bchase/foo/bar/test0 foo
+    case foo {
       Foo(foo:) -> foo_func(foo:, bar:)
     }
   }

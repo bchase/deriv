@@ -43,20 +43,20 @@ import bchase/casing
 //   ve.run(args, func, get_type)
 // }
 
-pub fn func() -> var.VariantExpr(g.Clause) {
-  use variant <- var.variant_name()
-  use func <- var.variant_shorthand_field("func")
-  let handler = term("handle_" <> casing.snake(variant))
+// pub fn func() -> var.VariantExpr(g.Clause) {
+//   use variant <- var.variant_name()
+//   use func <- var.variant_shorthand_field("func")
+//   let handler = term("handle_" <> casing.snake(variant))
 
-  handler |> call([])
-  |> pipe("server" |> dot("process_func") |> call_([
-    func,
-    "ref" |> short,
-    "subs" |> short,
-    "ctx" |> short,
-  ]))
-  |> var.success
-}
+//   handler |> call([])
+//   |> pipe("server" |> dot("process_func") |> call_([
+//     func,
+//     "ref" |> short,
+//     "subs" |> short,
+//     "ctx" |> short,
+//   ]))
+//   |> var.success
+// }
 
 //
 
@@ -658,12 +658,18 @@ fn run(
       use var_expr <- result.try(gen_lookup |> dict.from_list |> dict.get(path))
 
       // gen expr
-      echo ctx
       let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> echo |> result.replace_error(Nil) }
       use expr <- try_fail_(build_expr(var_expr(), args, func, get_type), fn(_) {
         io.println_error("Variant expr builder failed for: //$ gen " <> gen.str)
         Error(Nil)
       })
+
+      // ensure expr is wrapped in a block
+      let expr =
+        case expr {
+          g.Block(..) -> expr
+          _ -> g.Block(z, [g.Expression(expr)])
+        }
 
       // build & format `glance.Expression` as `String`
       let expr_src = format_gleam_expr(expr:, indent: gen.indent)
@@ -1013,7 +1019,7 @@ fn bracket_pos(
   gen gen: Gen,
 ) -> Option(Int) {
   use <- bool.guard(gen.new, None)
-  Some(gen.pos + gen.indent + 1)
+  Some(gen.pos + 1)
 }
 
 fn format_gleam_expr(
