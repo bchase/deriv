@@ -683,18 +683,16 @@ fn run(
 
         [x, ..xs] -> Ok(#(x, xs))
       })
-      let expr_src = [x <> " " <> gen.comment, ..xs] |> string.join("\n")
+      let expr_src =
+        [x <> " " <> gen.comment, ..xs]
+        |> string.join("\n")
+        |> string.trim_start
 
       // calc span to overwrite
       let span = gen_span(gen:, src:)
 
       // construct new src
-      let #(start, end) = dg.splice_out_span(old, span)
-      let new = string.join([
-        start,
-        expr_src |> string.trim_start,
-        end,
-      ], "")
+      let new = dg.replace(span:, in: src, with: expr_src)
 
       // calc diff for new `offset`
       let diff = string.length(new) - string.length(old)

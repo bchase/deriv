@@ -147,6 +147,15 @@ pub fn splice_out_span(
   #(before, after)
 }
 
+pub fn replace(
+  span span: g.Span,
+  in src: String,
+  with new: String
+) {
+  let #(start, end) = splice_out_span(src, span)
+  string.join([ start, new, end ], "")
+}
+
 pub fn read_span(
   src src: String,
   span span: g.Span,
