@@ -306,7 +306,7 @@ pub fn gen_test() {
   let assert Ok(file) = gen.load_gleam_file("src/deriv/internal/dummy/gen/before.gleam")
   let ctx = gen.Context(pwd:, toml:, file:)
 
-  let update_refs = always(Nil)
+  let update_refs = fn(_, _) { Nil }
 
   let output = gen.process(ctx:, update_refs:)
 
@@ -457,11 +457,11 @@ fn update(
             actor.continue(state)
 
           Ok(ctx) -> {
-            let new = gen.process(ctx:, update_refs: fn(t) {
-              echo t
+            let new = gen.process(ctx:, update_refs: fn(path, refs) {
+              echo #(path, refs)
               state.cfg.refs
               |> process.named_subject
-              |> process.send(Update(path: t.0, refs: t.1))
+              |> process.send(UpdateRefs(path:, refs:))
             })
 
             let hash = sha256_hash(new)
@@ -505,7 +505,7 @@ type RefState {
 
 type RefMsg {
   RefNoOp
-  Update(path: GleamPath, refs: List(Ref))
+  UpdateRefs(path: GleamPath, refs: List(Ref))
 }
 
 type RefConfig {
@@ -531,7 +531,7 @@ fn ref_update(
     RefNoOp ->
       actor.continue(state)
 
-    Update(path:, refs:) -> {
+    UpdateRefs(path:, refs:) -> {
       echo { "GOT REFS " <> string.inspect(refs) }
       actor.continue(RefState(..state,
         refs: state.refs |> dict.insert(path, refs)

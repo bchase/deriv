@@ -599,13 +599,8 @@ fn get_custom_type_aliased_in(
 
 pub fn process(
   ctx ctx: Context,
-  update_refs update_refs: fn(#(GleamPath, List(Ref))) -> Nil,
+  update_refs update_refs: fn(GleamPath, List(Ref)) -> Nil,
 ) -> String {
-  let path = GleamPath(["foo", "bar", "baz"], "foo", "bar")
-  update_refs(#(path, [Ref(from: path, to: path, type_: "Foo")]))
-  update_refs(#(path, [Ref(from: path, to: path, type_: "Foo")]))
-  update_refs(#(path, [Ref(from: path, to: path, type_: "Foo")]))
-
   let src = ctx.file.src
 
   let assert Ok(gen_magic_comment_start_re) =
@@ -616,7 +611,7 @@ pub fn process(
 
   ctx.file.ast.functions
   |> dict.values
-  |> list.map(build_func_gens(func: _, src:, ctx:))
+  |> list.map(build_func_gens(func: _, src:, ctx:, update_refs:))
   |> list.sort(fn(a, b) {
     int.compare(
       a.func.definition.location.start,
@@ -632,7 +627,7 @@ fn run(
   src src: String,
   func_gens func_gens: FuncGens,
 ) -> String {
-  let FuncGens(func:, gens:, ctx:) = func_gens
+  let FuncGens(func:, gens:, ctx:, update_refs:) = func_gens
 
   gens
   |> list.fold(#(src, 0), fn(acc, gen) {
@@ -890,6 +885,7 @@ type FuncGens {
     func: g.Definition(g.Function),
     gens: List(Gen),
     ctx: Context,
+    update_refs: fn(GleamPath, List(Ref)) -> Nil,
   )
 }
 
@@ -907,6 +903,7 @@ fn build_func_gens(
   func func: g.Definition(g.Function),
   src src: String,
   ctx ctx: Context,
+  update_refs update_refs: fn(GleamPath, List(Ref)) -> Nil,
 ) -> FuncGens {
   let span = func.definition.location
 
@@ -963,7 +960,7 @@ fn build_func_gens(
       None -> gens
     }
   }
-  |> FuncGens(gens: _, func:, ctx:)
+  |> FuncGens(gens: _, func:, ctx:, update_refs:)
 }
 
 fn gen_span(
