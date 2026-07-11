@@ -1,15 +1,13 @@
-import deriv/internal/dummy/lookup_other.{type Bar}
-
 pub type Foo {
   Foo(foo: String)
 }
 
-pub fn f1(foo: Bar) {
+pub fn f1(foo: Foo) {
   let bar = Nil
 
   { //$ gen bchase/foo/bar/test0 foo
     case foo {
-      Bar(foo:) -> bar_func(foo:, bar:)
+      Foo(foo:) -> foo_func(foo:, bar:)
     }
   }
 }

@@ -723,7 +723,7 @@ pub fn custom_type_lookup_test() {
 
   let assert Ok(_) = supervisor.start(gen_supervisor(cfg.names))
 
-  process.sleep_forever()
+  // process.sleep_forever()
 
   let assert Ok(file) = gen.load_gleam_file( "src/deriv/internal/dummy/lookup.gleam")
 

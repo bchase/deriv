@@ -17,13 +17,16 @@ import gleam/string
 import deriv/internal/glance.{z} as dg
 import bchase/dict.{keyed as dict_keyed} as _
 import bchase/result.{try_err, try_fail, try_fail_} as _
-import bchase/function.{x, always}
+import bchase/function.{x, always, flip}
 import shellout
 //
 import deriv/gen/variant as var
 import deriv/internal/glance.{term, call, call_, pipe, dot, short} as _
 import bchase/casing
 import deriv/gen/types.{type TypeDef, TypeDef, type GleamPath, GleamPath}
+//
+import bchase/lens.{type Lens}
+import bchase/list.{push as list_push} as _
 
 // type VariantExpr {
 //   Foo(
@@ -627,6 +630,144 @@ pub fn process(
 
 //
 
+pub type ReadWriteResult(t, e, r, w) {
+  ReadWriteResult(run: fn(r, List(w)) -> #(Result(t, e), List(w)))
+}
+
+pub fn pure(
+  val val: t,
+) -> ReadWriteResult(t, e, r, w) {
+  ReadWriteResult(fn(_read, writes) {
+    #(Ok(val), writes)
+  })
+}
+
+pub fn fail(
+  err err: e,
+) -> ReadWriteResult(t, e, r, w) {
+  ReadWriteResult(run: fn(_read, writes) {
+    #(Error(err), writes)
+  })
+}
+
+pub fn do(
+  rw rw: ReadWriteResult(a, e, r, w),
+  cont cont: fn(a) -> ReadWriteResult(b, e, r, w),
+) -> ReadWriteResult(b, e, r, w) {
+  ReadWriteResult(run: fn(read, writes) {
+    case rw.run(read, writes) {
+      #(Ok(x), writes) -> cont(x).run(read, writes)
+      #(Error(err), writes) -> #(Error(err), writes)
+    }
+  })
+}
+
+pub fn read(
+  cont cont: fn(r) -> ReadWriteResult(t, e, r, w)
+) -> ReadWriteResult(t, e, r, w) {
+  do(
+    ReadWriteResult(run: fn(read, writes) {
+      #(Ok(read), writes)
+    }),
+    cont,
+  )
+}
+
+pub fn write(
+  write write: w,
+  cont cont: fn() -> ReadWriteResult(t, e, r, w),
+) -> ReadWriteResult(t, e, r, w) {
+  do(
+    ReadWriteResult(run: fn(_read, writes) {
+      #(Ok(Nil), list.append(writes, [write]))
+    }
+  ), always(cont()))
+}
+
+pub fn writes(
+  cont cont: fn(List(w)) -> ReadWriteResult(t, e, r, w),
+) -> ReadWriteResult(t, e, r, w) {
+  do(
+    ReadWriteResult(run: fn(_read, writes) {
+      #(Ok(writes), writes)
+    }
+  ), cont)
+}
+
+pub fn run_(
+  rw rw: ReadWriteResult(t, e, r, w),
+  read read: r
+) -> #(Result(t, e), List(w)) {
+  rw.run(read, [])
+}
+
+pub type ListRun(input, output, e, r, w) {
+  ListRun(
+    succeeded: List(output),
+    failed: List(#(input, e)),
+    writes: List(#(input, List(w)),)
+  )
+}
+
+pub fn run_until_failure(
+  xs xs: List(a),
+  rw rw: ReadWriteResult(b, e, r, w),
+  read read: r
+// ) -> #(Result(Nil, #(a, e)), List(b), List(w)) {
+) {
+  let writes: List(w) = todo
+  let succeeded: List(b) = todo
+  let input: a = todo
+  let err: e = todo
+
+  let result =
+    case todo {
+      True -> Ok(Nil)
+      False -> Error(#(input, err))
+    }
+
+  ListRun(succeeded:, failed: [], writes: todo)
+}
+
+pub fn run_ignoring_failures(
+  xs xs: List(a),
+  rw rw: ReadWriteResult(b, e, r, w),
+  read read: r
+) -> #(Result(List(b), #(a, e)), List(#(a, List(w)))) {
+  let writes: List(w) = todo
+  let succeeded: List(b) = todo
+  let input: a = todo
+  let failures: List(#(a, e)) = todo
+
+  let result =
+    case todo {
+      True -> Ok(Nil)
+      False -> Error(#(input, todo))
+    }
+
+  todo
+}
+
+pub fn main() {
+  {
+    use read <- read()
+
+    use <- write(1)
+    // use _ <- do(fail("woops"))
+    use <- write(2)
+    use writes <- writes()
+    use <- write(3)
+
+    pure("success " <> read <> " " <> string.inspect(writes))
+  }
+  |> run_("hi")
+  |> echo
+
+  Nil
+}
+
+//
+
 fn run(
   src src: String,
   func_gens func_gens: FuncGens,
@@ -699,7 +840,8 @@ fn run(
       let refs = list.append(old_refs, new_refs)
 
       Ok(#(new, refs, offset))
-    } |> result.unwrap(acc)
+    }
+    |> result.unwrap(acc)
   })
   |> fn(acc) {
     let #(src, refs, _offset) = acc
