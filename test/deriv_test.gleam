@@ -1,4 +1,3 @@
-import bchase/dynamic as dyn
 import gleam/bool
 import gleam/set.{type Set}
 import bchase/result.{try_err, try_fail, try_fail_} as _
@@ -23,7 +22,7 @@ import gleam/option.{Some, type Option, None}
 import gleam/string
 import gleeunit
 import gleeunit/should
-import gleam/io
+import bchase/io.{log_err}
 import simplifile
 import examples/json_rewrite/after as json_example
 import bchase/list.{at as list_at} as _
@@ -37,6 +36,24 @@ import filespy
 import gleam/crypto
 import gleam/bit_array as ba
 import deriv/gen/types.{type TypeDef, type GleamPath} as _
+
+// todo
+//   - rework from hashes to file modified times?
+//     * persist last `filespy` event time (file)
+// actors
+// X - look up`CustomType`s
+// X - watch for file changes (`filespy`)
+// \ - track magic comment references
+//     * init
+//   X * update
+//   - serve & update gen logic helpers
+//     * init
+//     * update
+//     * reply
+// \ - main
+//   X * gen & write code on file change
+//   X * track new references
+//     * ...
 
 //
 
@@ -330,7 +347,8 @@ type Names {
   Names(
     app: process.Name(Msg),
     lookup: process.Name(LookupMsg),
-    refs: process.Name(RefMsg),
+    refs: process.Name(RefsMsg),
+    gens: process.Name(GensMsg),
   )
 }
 
@@ -340,6 +358,7 @@ fn gen_supervisor(
   supervisor.new(supervisor.OneForOne)
   |> supervisor.add(filespy_worker(notify: names.app))
   |> supervisor.add(worker(lookup_actor(name: names.lookup)))
+  |> supervisor.add(worker(gens_actor(name: names.gens)))
   |> supervisor.add(worker(refs_actor(name: names.refs)))
   |> supervisor.add(worker(app_actor(name: names.app, cfg: AppConfig(
     lookup: names.lookup,
@@ -366,7 +385,7 @@ type State {
 type AppConfig {
   AppConfig(
     lookup: process.Name(LookupMsg),
-    refs: process.Name(RefMsg),
+    refs: process.Name(RefsMsg),
   )
 }
 
@@ -381,13 +400,17 @@ fn init(
   cfg cfg: AppConfig,
   self self: Subject(Msg),
 ) -> #(State, Selector(Msg)) {
+  let sel =
+    process.new_selector()
+    |> process.select(self)
+
   State(
     self:,
     cfg:,
     queue: set.new(),
     hashes: dict.new(),
   )
-  |> pair.new(process.new_selector())
+  |> pair.new(sel)
 }
 
 fn sha256_hash(
@@ -407,8 +430,9 @@ fn update(
 
   case msg {
     NoOp |
-    GotFileChange(change: filespy.Custom(Nil)) ->
+    GotFileChange(change: filespy.Custom(Nil)) -> {
       actor.continue(state)
+    }
 
     GotFileChange(change: filespy.Change(path:, ..)) -> {
       let ok = Ok(actor.continue(state))
@@ -442,10 +466,10 @@ fn update(
     Process(path:) -> {
       case gen.load_gleam_file(filepath: path) {
         Error(err) -> {
-          io.println_error([
+          log_err([
             "Failed to load Gleam file at path: " <> path,
             "  " <> string.inspect(err)
-          ] |> string.join("\n"))
+          ])
 
           actor.continue(state)
         }
@@ -458,6 +482,8 @@ fn update(
             Ok(ctx) ->
               case gen.process(ctx:) {
                 Ok(#(new, refs)) -> {
+                  use <- bool.guard(new == file.src, actor.continue(state))
+
                   state.cfg.refs
                   |> process.named_subject
                   |> process.send(UpdateRefs(path: file.path, refs:))
@@ -469,10 +495,10 @@ fn update(
                       Nil
 
                     Error(err) ->
-                      io.println_error([
+                      log_err([
                         "Failed to write new Gleam file to path: " <> path,
                         "  " <> string.inspect(err)
-                      ] |> string.join("\n"))
+                      ])
                   }
 
                   actor.continue(State(..state, hashes: state.hashes |> dict.insert(path, hash)))
@@ -482,11 +508,11 @@ fn update(
                   actor.continue(state)
 
                 Error(Error(err)) -> {
-                  io.println_error([
+                  log_err([
                     { "Code gen failed..." },
                     { "  filepath: " <> file.filepath },
                     { "  error: " <> string.inspect(err) },
-                  ] |> string.join("\n"))
+                  ])
 
                   actor.continue(state)
                 }
@@ -508,14 +534,72 @@ fn update(
 
 //
 
+type GensMsg {
+  GensNoOp
+  GensPostInit
+}
+
+type GensConfig {
+  GensConfig(
+  )
+}
+
+type GensState {
+  GensState(
+    cfg: GensConfig,
+    self: Subject(GensMsg),
+  )
+}
+
+fn gens_actor(
+  name name: process.Name(GensMsg),
+) -> actor.Builder(GensState, GensMsg, Nil) {
+  let flags = GensConfig
+  actor(init: gens_init, update: gens_update, timeout: 100, return: always(Nil), flags:)
+  |> actor.named(name)
+}
+
+fn gens_init(
+  cfg: GensConfig,
+  self: Subject(GensMsg),
+) -> #(GensState, Selector(GensMsg)) {
+  let sel =
+    process.new_selector()
+    |> process.select(self)
+
+  process.send(self, GensPostInit)
+
+  GensState(
+    cfg:,
+    self:,
+  )
+  |> pair.new(sel)
+}
+
+fn gens_update(
+  state: GensState,
+  msg: GensMsg,
+) -> actor.Next(GensState, b) {
+  case msg {
+    GensNoOp ->
+      actor.continue(state)
+
+    GensPostInit -> {
+      actor.continue(state)
+    }
+  }
+}
+
+//
+
 type RefState {
   RefState(
-    self: Subject(RefMsg),
+    self: Subject(RefsMsg),
     refs: Dict(GleamPath, List(Ref)),
   )
 }
 
-type RefMsg {
+type RefsMsg {
   RefNoOp
   UpdateRefs(path: GleamPath, refs: List(Ref))
 }
@@ -524,21 +608,25 @@ type RefConfig {
   RefConfig
 }
 
-fn ref_init(
+fn refs_init(
   _cfg: RefConfig,
-  self: Subject(RefMsg),
-) -> #(RefState, Selector(RefMsg)) {
+  self: Subject(RefsMsg),
+) -> #(RefState, Selector(RefsMsg)) {
+  let sel =
+    process.new_selector()
+    |> process.select(self)
+
   RefState(
     self:,
     refs: dict.new(),
   )
-  |> pair.new(process.new_selector())
+  |> pair.new(sel)
 }
 
-fn ref_update(
+fn refs_update(
   state state: RefState,
-  msg msg: RefMsg,
-) -> actor.Next(RefState, RefMsg){
+  msg msg: RefsMsg,
+) -> actor.Next(RefState, RefsMsg){
   case msg {
     RefNoOp ->
       actor.continue(state)
@@ -553,10 +641,10 @@ fn ref_update(
 }
 
 fn refs_actor(
-  name name: process.Name(RefMsg),
-) -> actor.Builder(RefState, RefMsg, Nil) {
+  name name: process.Name(RefsMsg),
+) -> actor.Builder(RefState, RefsMsg, Nil) {
   let flags = RefConfig
-  actor(init: ref_init, update: ref_update, timeout: 100, return: always(Nil), flags:)
+  actor(init: refs_init, update: refs_update, timeout: 100, return: always(Nil), flags:)
   |> actor.named(name)
 }
 
@@ -729,6 +817,7 @@ fn build_config() -> Config {
       app: process.new_name("deriv-app"),
       lookup: process.new_name("deriv-type-ast-lookup"),
       refs: process.new_name("deriv-refs-listener"),
+      gens: process.new_name("deriv-code-gens-server"),
     )
   )
 }
