@@ -128,7 +128,7 @@ pub type GenErr {
   TypeIsNotCustomType(path: GleamPath, name: String, type_: g.Type)
   //
   GenStrGleamModuleParseErr(gen_str: String)
-  GenNotFound(path: GleamPath, gen_str: String)
+  GenNotFound(path: GleamPath, func: String, gen_str: String)
   GenExprErr(path: GleamPath, gen_str: String)
   GenExprCommentSpliceErr(path: GleamPath, gen_str: String, expr: g.Expression, expr_src: String)
   //
@@ -684,10 +684,10 @@ fn run(
   let gen = Gen(..gen, pos: gen.pos + offset)
 
   // look up expr generator
-  let fetch: fn(GleamPath) -> Result(ExprGen, Nil) = fn(path) {
+  let fetch: fn(String, String) -> Result(ExprGen, Nil) = fn(module, func) {
     gen_lookup
     |> dict.from_list
-    |> dict.get(path)
+    |> dict.get(#(module, func))
     |> result.map(fn(f) { f() })
   }
   use #(expr_gen, args, path) <- monad.do(get_expr_gen(gen:, fetch:))
@@ -744,11 +744,16 @@ fn run(
 
 fn get_expr_gen(
   gen gen: Gen,
-  fetch fetch: fn(GleamPath) -> Result(ExprGen, Nil),
+  fetch fetch: fn(String, String) -> Result(ExprGen, Nil),
 ) -> ReadWriteResult(#(ExprGen, String, GleamPath), GenErr, r, w) {
-  use #(path, args) <- monad.do_ok(case gen.str |> string.split(" ") {
+  use #(str, args) <- monad.do_ok(case gen.str |> string.split(" ") {
     [] -> Error(GenStrGleamModuleParseErr(gen_str: gen.str))
     [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
+  }, function.identity)
+
+  use #(path, func) <- monad.do_ok(case str |> string.split(".") {
+    [path, func] -> Ok(#(path, func))
+    _ -> Error(GenStrGleamModuleParseErr(gen_str: gen.str))
   }, function.identity)
 
   use path <- monad.do_ok(
@@ -757,8 +762,8 @@ fn get_expr_gen(
   )
 
   use expr_gen <- monad.do(monad.ok(
-    fetch(path),
-    always(GenNotFound(path:, gen_str: gen.str))
+    fetch(path.full |> string.join("/"), func),
+    always(GenNotFound(path:, func:, gen_str: gen.str))
   ))
 
   monad.pure(#(expr_gen, args, path))
@@ -917,10 +922,8 @@ fn build_case_expr(
 
 
 const gen_lookup = [
-  #(test0_path, test0),
+  #(#("bchase/foo/bar", "test0"), test0),
 ]
-
-const test0_path = GleamPath(full: ["bchase", "foo", "bar", "test0"], package: "bchase", module: "test0")
 pub fn test0() -> ExprGen {
   VariantClauseCaseExprGen(test0_())
 }

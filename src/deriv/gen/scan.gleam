@@ -1,63 +1,126 @@
+import simplifile
+import deriv/internal/common
+import gleam/pair
 import bchase/io
 import glance_printer
 import gleam/string
 import gleam/option.{Some, None}
 import gleam/result.{try}
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/list
 import shellout
 import glance as g
 import deriv/gen/types.{type GleamPath, GleamPath, type GleamFile}
 import deriv/internal/gen.{type ExprGen}
-import deriv/internal/glance.{z, call, term, dot, format_gleam_expr} as _
+import deriv/internal/glance.{z, call, term, dot, pipe, format_gleam_expr} as _
 
 pub fn foo() -> ExprGen {
   todo
 }
 
+const func_name = "expr_gens"
+
 pub fn main() -> Nil {
   let assert Ok(output) = shellout.command(in: ".", opt: [],  run: "find", with: ["src/"])
   let filepaths = output |> string.split("\n")
 
-  let files =
-    filepaths
-    |> list.map(gen.load_gleam_file)
-    |> result.values
-    |> list.filter_map(fn(file) {
-      let funcs = has_reference(in: file, module: "deriv/internal/gen", type_: "ExprGen")
-      case funcs {
-        [] -> Error(Nil)
-        _ -> Ok(#(
-          file.path.full |> string.join("/"),
-          funcs |> list.map(fn(func) { func.definition.name }),
-        ))
-      }
-    })
-    |> list.map(fn(t) {
-      let #(module, func_names) = t
-      let alias = module |> string.replace("/", "_")
-      #(
-        g.Import(z, module:, alias: Some(g.Named(alias)), unqualified_types: [], unqualified_values: []),
-        func_names |> list.map(fn(func) { alias |> dot(func) })
-      )
-    })
-    |> list.each(fn(t) {
-      let #(import_, funcs) = t
+  filepaths
+  |> list.map(gen.load_gleam_file)
+  |> result.values
+  |> list.filter_map(fn(file) {
+    let funcs = has_reference(in: file, module: "deriv/internal/gen", type_: "ExprGen")
+    case funcs {
+      [] ->
+        Error(Nil)
 
-      g.Module([g.Definition([], import_)], [], [], [], [])
-      |> glance_printer.print
-      |> string.trim
-      |> io.println
+      _ -> Ok(#(
+        file.path.full |> string.join("/"),
+        funcs |> list.map(fn(func) { func.definition.name }),
+      ))
+    }
+  })
+  |> list.map(fn(t) {
+    let #(module, func_names) = t
+    let alias = module |> string.replace("/", "_")
 
-      funcs
-      |> list.each(fn(func) {
-        func
-        |> format_gleam_expr(indent: 2)
-        |> io.println
+    let func_tuple_expr =
+      func_names
+      |> list.map(fn(func) {
+        g.Tuple(z, [
+          g.Tuple(z, [
+            g.String(z, module),
+            g.String(z, func),
+          ]),
+          alias |> dot(func),
+        ])
       })
 
-      io.println("")
-    })
+    #(
+      g.Import(z, module:, alias: Some(g.Named(alias)), unqualified_types: [], unqualified_values: []),
+      func_tuple_expr,
+    )
+  })
+  |> list.unzip
+  |> pair.map_second(list.flatten)
+  |> fn(t) {
+    let #(imports, func_exprs) = t
+
+    let imports =
+      imports
+      |> list.map(g.Definition([], _))
+      |> list.append([
+        g.Import(z, "gleam/dict", None, [
+          g.UnqualifiedImport("Dict", None),
+        ], [])
+        |> g.Definition([], _)
+      ])
+
+    let func = g.Definition([], g.Function(z,
+      name: func_name,
+      publicity: g.Public,
+      parameters: [],
+      return: Some(g.NamedType(z,
+        "Dict", None, [
+          g.TupleType(z, [
+            g.NamedType(z, "String", None, []),
+            g.NamedType(z, "String", None, []),
+          ]),
+          g.NamedType(z, "ExprGen", None, []),
+        ]
+      )),
+      body: [
+        g.Expression(
+          g.List(z, func_exprs, None)
+          |> pipe("dict" |> dot("from_list"))
+        ),
+      ],
+    ))
+
+    let src =
+      g.Module(imports, [], [], [], [func])
+      |> glance_printer.print
+      |> common.gleam_format
+
+    src
+    |> io.println
+  }
+  // |> list.each(fn(t) {
+  //   let #(import_, funcs) = t
+
+  //   g.Module([g.Definition([], import_)], [], [], [], [])
+  //   |> glance_printer.print
+  //   |> string.trim
+  //   |> io.println
+
+  //   funcs
+  //   |> list.each(fn(func) {
+  //     func
+  //     |> format_gleam_expr(indent: 2)
+  //     |> io.println
+  //   })
+
+  //   io.println("")
+  // })
 
   Nil
 }

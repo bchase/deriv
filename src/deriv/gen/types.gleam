@@ -9,6 +9,23 @@ pub type TypeDef {
   )
 }
 
+// pub type ExprGenRef {
+//   ExprGenRef(
+//     module: String,
+//     func: String,
+//   )
+// }
+
+// pub fn expr_gen_ref(
+//   path path: GleamPath,
+//   func func: String,
+// ) -> ExprGenRef {
+//   ExprGenRef(
+//     module: path.full |> string.join("/"),
+//     func:,
+//   )
+// }
+
 pub type GleamPath {
   GleamPath(
     full: List(String),
