@@ -24,11 +24,39 @@ import shellout
 import deriv/gen/variant as var
 import deriv/internal/glance.{term, call, call_, pipe, dot, short} as _
 import bchase/casing
-import deriv/gen/types.{type TypeDef, TypeDef, type GleamPath, GleamPath}
+import deriv/gen/types.{type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type Imports, type AST, AST, Imports}
 //
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
 import deriv/internal/monad.{type ReadWriteResult}
+
+// pieces
+//   - [erl+js]       `deriv`            >>> -- code gen defns helpers             -- `deriv`
+//   - [erl+js]       `deriv_core`       >>> -- code gen defns (`derive` & `gen`)  -- `deriv/core`
+//   - [erl+js]       `deriv_util`           -- runtime helpers                    -- `deriv/util
+//   - [erl+js] (dev) `deriv_gen`            -- convenience runner                 -- `$ gleam run -m `deriv/gen`
+//   - [erl]    (dev) `deriv_gen_supervisor` -- code gen defns & supervisor runner -- `deriv/gen/supervisor`
+
+// code gens node
+//   - separate package from project package
+//   - deps
+//     * all project package deps are maintained as `path` deps
+//     * if a project dep is added/changed/removed, it's reflected here
+//     * on project dep change, this package is rebuilt & restarted
+//   - watches project package & project `build/packages/` for changes
+//     * if changed file contains code gen def
+//       -
+//     * then, if changed file contains code gen magic comment
+//       - run code gen & save to file
+
+// code gen defn update
+//   - core (package)
+//   - curr package dep
+//   - curr package
+//     * same file
+//     * diff file
+
+//
 
 // type VariantExpr {
 //   Foo(
@@ -167,47 +195,11 @@ fn filepath(
   todo
 }
 
-pub type GleamFile {
-  GleamFile(
-    path: GleamPath,
-    filepath: String,
-    src: String,
-    ast: AST,
-  )
-}
-
-pub type AST {
-  AST(
-    imports: Imports,
-    custom_types: Dict(String, g.Definition(g.CustomType)),
-    type_aliases: Dict(String, g.Definition(g.TypeAlias)),
-    constants: Dict(String, g.Definition(g.Constant)),
-    functions: Dict(String, g.Definition(g.Function)),
-  )
-}
-
-pub type Imports {
-  Imports(
-    named: Dict(String, g.Definition(g.Import)),
-    discarded: List(g.Definition(g.Import)),
-  )
-}
-
 pub type GleamToml {
   GleamToml(
     name: String,
     toml: Dict(String, tom.Toml),
   )
-}
-
-fn all_imports(
-  imports imports: Imports,
-) -> List(g.Definition(g.Import)) {
-  [
-    imports.named |> dict.values,
-    imports.discarded,
-  ]
-  |> list.flatten
 }
 
 fn init() -> Result(Context, GleamTomlErr) {
@@ -546,7 +538,7 @@ fn get_custom_type_unqualified_import_in(
   type_ type_: String,
 ) -> Result(TypeDef, GenErr) {
   use import_ <- try(
-    all_imports(ctx.file.ast.imports)
+    types.all_imports(ctx.file.ast.imports)
     |> list.find(fn(import_) {
       import_.definition.unqualified_types
       |> list.any(fn(t) { t.name == type_ })
@@ -817,7 +809,6 @@ pub type GetParam = fn(String) -> Result(g.Type, Nil)
 pub type CodeGen {
   CodeGen(fn(ExprGen, String, FuncDef, GleamFile, GetType) -> Result(GenExpr, Nil))
 }
-
 fn code_gen(
 ) {
   CodeGen(fn(gen, args, func, file, get_type) {

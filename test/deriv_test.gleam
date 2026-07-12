@@ -35,7 +35,7 @@ import gleam/erlang/process.{type Subject, type Selector}
 import filespy
 import gleam/crypto
 import gleam/bit_array as ba
-import deriv/gen/types.{type TypeDef, type GleamPath} as _
+import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
 
 // todo
 //   - rework from hashes to file modified times?
@@ -699,11 +699,11 @@ pub opaque type LookupMsg {
   Type(
     mod: Option(String),
     name: String,
-    file: gen.GleamFile,
+    file: GleamFile,
     reply: Subject(Result(TypeDef, gen.GenErr)),
   )
   Context(
-    file: gen.GleamFile,
+    file: GleamFile,
     reply: Subject(gen.Context),
   )
 }
@@ -788,7 +788,7 @@ const lookup_timeout_ms = 5_000
 
 fn fetch_context(
   actor actor: process.Name(LookupMsg),
-  file file: gen.GleamFile,
+  file file: GleamFile,
 ) -> Result(gen.Context, gen.GenErr) {
   let self = process.new_subject()
 
@@ -804,7 +804,7 @@ fn look_up_type(
   actor actor: process.Name(LookupMsg),
   mod mod: Option(String),
   name name: String,
-  file file: gen.GleamFile,
+  file file: GleamFile,
 ) -> Result(TypeDef, gen.GenErr) {
   let self = process.new_subject()
 
