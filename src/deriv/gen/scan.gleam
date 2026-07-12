@@ -1,3 +1,4 @@
+import gleam/bool
 import simplifile
 import deriv/internal/common
 import gleam/pair
@@ -6,17 +7,13 @@ import glance_printer
 import gleam/string
 import gleam/option.{Some, None}
 import gleam/result.{try}
-import gleam/dict.{type Dict}
+import gleam/dict
 import gleam/list
 import shellout
 import glance as g
-import deriv/gen/types.{type ExprGen, type GleamPath, GleamPath, type GleamFile}
+import deriv/gen/types.{type GleamFile}
 import deriv/internal/gen
-import deriv/internal/glance.{z, call, term, dot, pipe, format_gleam_expr} as _
-
-pub fn foo() -> ExprGen {
-  todo
-}
+import deriv/internal/glance.{z, call, dot, pipe} as _
 
 const func_name = "expr_gens"
 
@@ -24,11 +21,17 @@ pub fn main() -> Nil {
   let assert Ok(output) = shellout.command(in: ".", opt: [],  run: "find", with: ["src/"])
   let filepaths = output |> string.split("\n")
 
+  update_gen_defs_gleam_file(filepaths:)
+}
+
+pub fn update_gen_defs_gleam_file(
+  filepaths filepaths: List(String),
+) -> Nil {
   filepaths
   |> list.map(gen.load_gleam_file)
   |> result.values
   |> list.filter_map(fn(file) {
-    let funcs = has_reference(in: file, module: "deriv/internal/gen", type_: "ExprGen")
+    let funcs = has_reference(in: file, module: "deriv/gen/types", type_: "ExprGen")
     case funcs {
       [] ->
         Error(Nil)
@@ -51,7 +54,7 @@ pub fn main() -> Nil {
             g.String(z, module),
             g.String(z, func),
           ]),
-          alias |> dot(func),
+          alias |> dot(func) |> call([]),
         ])
       })
 
@@ -69,10 +72,14 @@ pub fn main() -> Nil {
       imports
       |> list.map(g.Definition([], _))
       |> list.append([
+        g.Import(z, "deriv/gen/types", None, [
+          g.UnqualifiedImport("ExprGen", None),
+        ], [])
+        |> g.Definition([], _),
         g.Import(z, "gleam/dict", None, [
           g.UnqualifiedImport("Dict", None),
         ], [])
-        |> g.Definition([], _)
+        |> g.Definition([], _),
       ])
 
     let func = g.Definition([], g.Function(z,
@@ -119,6 +126,8 @@ fn has_reference(
   file.ast.functions
   |> dict.values
   |> list.filter_map(fn(func) {
+    use <- bool.guard(func.definition.publicity != g.Public, Error(Nil))
+
     use type_ <- try(func.definition.return |> option.to_result(Nil))
 
     use #(mod, type_) <- try(case type_ {

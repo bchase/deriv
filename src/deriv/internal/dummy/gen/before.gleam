@@ -1,3 +1,9 @@
+import deriv/gen/types.{type ExprGen}
+
+pub fn gen() -> ExprGen {
+  todo
+}
+
 pub type Foo {
   Foo(foo: String)
 }
