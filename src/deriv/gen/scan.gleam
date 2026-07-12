@@ -1,3 +1,4 @@
+import gleam/erlang/process
 import gleam/bool
 import simplifile
 import deriv/internal/common
@@ -14,6 +15,8 @@ import glance as g
 import deriv/gen/types.{type GleamFile}
 import deriv/internal/gen
 import deriv/internal/glance.{z, call, dot, pipe} as _
+import radiate
+import deriv/gen/defs
 
 const func_name = "expr_gens"
 
@@ -22,6 +25,19 @@ pub fn main() -> Nil {
   let filepaths = output |> string.split("\n")
 
   update_gen_defs_gleam_file(filepaths:)
+}
+
+pub fn print(
+  subj subj: process.Subject(Nil),
+  every ms: Int,
+) -> Nil {
+  process.send_after(subj, ms, Nil)
+
+  let _ = process.receive(subj, ms)
+
+  io.println(defs.expr_gens() |> dict.keys |> string.inspect)
+
+  print(subj, every: ms)
 }
 
 pub fn update_gen_defs_gleam_file(

@@ -1,7 +1,9 @@
+import glance
 import deriv/gen/types.{type ExprGen}
+import deriv/internal/glance.{z} as _
 
 pub fn gen() -> ExprGen {
-  todo
+  types.VariantClauseCaseExprGen(expr: types.variant_success(glance.String(z, "")))
 }
 
 pub type Foo {
