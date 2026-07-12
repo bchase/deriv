@@ -696,21 +696,20 @@ fn run(
     [] -> Error(GenStrGleamModuleParseErr(gen_str: gen.str))
     [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
   }, function.identity)
-
   use path <- monad.do_ok(
     parse_gleam_module_path(path),
     GleamFileErr(_, dyn.from("//$ gen " <> gen.str)),
   )
-
   use var_expr <- monad.do(monad.ok(
     gen_lookup |> dict.from_list |> dict.get(path),
     always(GenNotFound(path:, gen_str: gen.str))
   ))
+  let expr_gen = VariantClauseCaseExprGen(var_expr())
 
   // gen expr
   let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
   use GenExpr(expr:, refs: new_refs) <- monad.do(monad.ok(
-    build_expr(var_expr(), args, func, get_type, ctx),
+    build_expr(expr_gen, args, func, get_type, ctx.file),
     always(GenExprErr(path:, gen_str: gen.str))
   ))
 
@@ -793,7 +792,27 @@ fn run(
 //   }
 // }
 
-type GenExpr {
+pub type ExprGen {
+  VariantClauseCaseExprGen(expr: var.VariantExpr)
+}
+pub type FuncDef = g.Definition(g.Function)
+pub type GetType = fn(Option(String), String) -> Result(TypeDef, Nil)
+pub type GetParam = fn(String) -> Result(g.Type, Nil)
+pub type CodeGen {
+  CodeGen(fn(ExprGen, String, FuncDef, GleamFile, GetType) -> Result(GenExpr, Nil))
+}
+
+fn code_gen(
+) {
+  CodeGen(fn(gen, args, func, file, get_type) {
+    case gen {
+      VariantClauseCaseExprGen(expr: ve) ->
+        case_expr_with_variant_clauses(ve: , args:, func:, get_type:, file:)
+    }
+  })
+}
+
+pub type GenExpr {
   GenExpr(
     expr: g.Expression,
     refs: List(Ref),
@@ -808,54 +827,67 @@ pub type Ref {
   )
 }
 
+fn get_param_type(
+  str str: String,
+  func func: g.Definition(g.Function),
+) -> Result(g.Type, Nil) {
+  func.definition.parameters
+  |> list.find(fn(param) {
+    param.label == Some(str) || param.name == g.Named(str)
+  })
+  |> result.map(fn(param) { param.type_ })
+  |> result.map(option.to_result(_, Nil))
+  |> result.flatten
+}
+
+fn get_named_param_type(
+  str str: String,
+  func func: g.Definition(g.Function),
+) -> Result(#(Option(String), String), Nil) {
+  use param_type <- try(get_param_type(str:, func:))
+
+  case param_type {
+    g.NamedType(module:, name:, ..) -> Ok(#(module, name))
+    _ -> Error(Nil)
+  }
+}
+
 fn build_expr(
-  ve ve: var.VariantExpr(t),
-  // path path: GleamPath,
+  gen gen: ExprGen,
   args args: String,
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-  ctx ctx: Context,
+  file file: GleamFile,
+) -> Result(GenExpr, Nil) {
+  case gen {
+    VariantClauseCaseExprGen(expr: ve) ->
+      case_expr_with_variant_clauses(ve:, args:, func:, get_type:, file:)
+  }
+}
+
+fn case_expr_with_variant_clauses(
+  ve ve: var.VariantExpr,
+  args args: String,
+  func func: g.Definition(g.Function),
+  get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
+  file file: GleamFile,
 ) -> Result(GenExpr, Nil) {
   let assert Ok(ws_re) = "\\s+" |> re.from_string
 
   use str <- try(args |> re.split(ws_re, _) |> list.first)
 
-  use type_ <- try(get_type_of_param_named(str:, func:, get_type:))
+  use #(mod, type_) <- try(get_named_param_type(str:, func:))
+  use type_ <- try(get_type(mod, type_))
 
-  let ref = Ref(from: ctx.file.path, to: type_.path, type_: type_.def.definition.name)
+  let ref = Ref(from: file.path, to: type_.path, type_: type_.def.definition.name)
 
   use expr <- try(build_case_expr(ve:, type_:, args:, func:, get_type:))
 
   Ok(GenExpr(expr:, refs: [ref]))
 }
 
-fn get_type_of_param_named(
-  str str: String,
-  func func: g.Definition(g.Function),
-  get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil)
-) -> Result(TypeDef, Nil) {
-  use param_type <- try({
-    func.definition.parameters
-    |> list.find(fn(param) {
-      param.label == Some(str) || param.name == g.Named(str)
-    })
-    |> result.map(fn(param) { param.type_ })
-    |> result.map(option.to_result(_, Nil))
-    |> result.flatten
-  })
-
-  use #(mod, type_) <- try({
-    case param_type {
-      g.NamedType(module:, name:, ..) -> Ok(#(module, name))
-      _ -> Error(Nil)
-    }
-  })
-
-  get_type(mod, type_)
-}
-
 fn build_case_expr(
-  ve ve: var.VariantExpr(t),
+  ve ve: var.VariantExpr,
   type_ type_: TypeDef,
   args args: String,
   func func: g.Definition(g.Function),
@@ -882,7 +914,7 @@ const gen_lookup = [
 ]
 
 const test0_path = GleamPath(full: ["bchase", "foo", "bar", "test0"], package: "bchase", module: "test0")
-pub fn test0() -> var.VariantExpr(g.Clause) {
+pub fn test0() -> var.VariantExpr {
   use variant <- var.variant_name()
   use foo <- var.variant_shorthand_field("foo")
 

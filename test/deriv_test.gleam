@@ -40,6 +40,10 @@ import deriv/gen/types.{type TypeDef, type GleamPath} as _
 // todo
 //   - rework from hashes to file modified times?
 //     * persist last `filespy` event time (file)
+//   - ignore refs w/ modules `from == to`, also don't write to monad or send
+// fix
+// ? - adjust `gen.run` to use lookup actor instead of direct `get_custom_type` call?
+//   ? * not using `LookupState.filepaths`?
 // actors
 // X - look up`CustomType`s
 // X - watch for file changes (`filespy`)
@@ -548,6 +552,7 @@ type GensState {
   GensState(
     cfg: GensConfig,
     self: Subject(GensMsg),
+    gens: Dict(GleamPath, Nil),
   )
 }
 
@@ -572,6 +577,7 @@ fn gens_init(
   GensState(
     cfg:,
     self:,
+    gens: dict.new(),
   )
   |> pair.new(sel)
 }

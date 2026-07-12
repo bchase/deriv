@@ -7,7 +7,7 @@ import gleam/result
 import deriv/internal/glance.{z} as _
 import deriv/gen/types.{type TypeDef, TypeDef, type GleamPath, GleamPath}
 
-pub opaque type VariantExpr(out) {
+pub opaque type VariantExpr {
   VariantExpr(
     run: fn(
       g.Variant,
@@ -18,14 +18,14 @@ pub opaque type VariantExpr(out) {
   )
 }
 
-// pub fn parse(variant variant: g.Variant, decoder decoder: VariantExpr(out)) {
+// pub fn parse(variant variant: g.Variant, decoder decoder: VariantExpr) {
 //   todo
 // }
 
 // fn variant_shorthand_field_type(
 //   name name: String,
-//   cont cont: fn(g.Type) -> VariantExpr(out),
-// ) -> VariantExpr(out) {
+//   cont cont: fn(g.Type) -> VariantExpr,
+// ) -> VariantExpr {
 //   VariantExpr(fn(variant, args, get_type, fields) {
 //     use #(field, f) <- result.try(
 //       variant.fields
@@ -45,23 +45,23 @@ pub opaque type VariantExpr(out) {
 
 pub fn variant_shorthand_field(
   name name: String,
-  cont cont: fn(g.Field(g.Expression)) -> VariantExpr(out),
-) -> VariantExpr(out) {
+  cont cont: fn(g.Field(g.Expression)) -> VariantExpr,
+) -> VariantExpr {
   variant_shorthand_field_map(name, cont, x(short, pair.first))
 }
 
 pub fn variant_shorthand_type(
   name name: String,
-  cont cont: fn(g.Type) -> VariantExpr(out),
-) -> VariantExpr(out) {
+  cont cont: fn(g.Type) -> VariantExpr,
+) -> VariantExpr {
   variant_shorthand_field_map(name, cont, pair.second)
 }
 
 fn variant_shorthand_field_map(
   name name: String,
-  cont cont: fn(t) -> VariantExpr(out),
+  cont cont: fn(t) -> VariantExpr,
   apply f: fn(#(String, g.Type)) -> t,
-) -> VariantExpr(out) {
+) -> VariantExpr {
   VariantExpr(fn(variant, args, get_type, fields) {
     use type_ <- result.try(
       variant.fields
@@ -78,16 +78,16 @@ fn variant_shorthand_field_map(
   })
 }
 
-pub fn failure() -> VariantExpr(out) {
+pub fn failure() -> VariantExpr {
   VariantExpr(fn(_, _, _, _) { Error(Nil) })
 }
 
-pub fn success(expr expr: g.Expression) -> VariantExpr(out) {
+pub fn success(expr expr: g.Expression) -> VariantExpr {
   VariantExpr(fn(_, _, _, fields) { Ok(#(expr, fields)) })
 }
 
 pub fn run(
-  ve: VariantExpr(out),
+  ve: VariantExpr,
   variant variant: g.Variant,
   args args: String,
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
@@ -107,8 +107,8 @@ pub fn run(
 }
 
 pub fn variant_name(
-  cont cont: fn(String) -> VariantExpr(out),
-) -> VariantExpr(out) {
+  cont cont: fn(String) -> VariantExpr,
+) -> VariantExpr {
   VariantExpr(fn(variant, args, get_type, fields) {
     cont(variant.name).run(variant, args, get_type, fields)
   })
