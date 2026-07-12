@@ -656,7 +656,7 @@ pub fn process(
     fg.gens |> list.map(fn(gen) { #(gen, fg.func, fg.ctx) })
   })
   |> list.map(run)
-  |> monad.sequence_shared_write_stop_on_err
+  |> monad.sequence
   |> monad.run_(Nil, Acc(src: ctx.file.src, offset: 0, refs: []))
   |> fn(t) {
     case t {

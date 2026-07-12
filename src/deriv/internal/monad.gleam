@@ -150,7 +150,7 @@ pub fn from_result(
   }
 }
 
-pub fn from_result_set_writes(
+pub fn from_result_with_write(
   write write: w,
   result result: Result(t, e),
 ) -> ReadWriteResult(t, e, r, w) {
@@ -393,45 +393,45 @@ pub fn fold(
 // ) -> ReadWriteResult(Nil, e, r, w) {
 // }
 
-pub fn sequence_shared_write_stop_on_err(
+// pub fn sequence_shared_write_stop_on_err(
+pub fn sequence(
   rws rws: List(ReadWriteResult(t, e, r, w)),
 ) -> ReadWriteResult(List(t), e, r, w) {
   ReadWriteResult(run: fn(read, write) {
-    let #(xs, status, write) =
-      list.fold_until(rws, #([], Ok(Nil), write), fn(acc, rw) {
-        case run_(rw, read, acc.2) {
-          #(Ok(x), write) ->
-            #([x, ..acc.0], Ok(Nil), write)
-            |> list.Continue
+    list.fold_until(rws, #([], Ok(Nil), write), fn(acc, rw) {
+      case run_(rw, read, acc.2) {
+        #(Ok(x), write) ->
+          #([x, ..acc.0], Ok(Nil), write)
+          |> list.Continue
 
-          #(Error(err), write) ->
-            #(acc.0, Error(err), write)
-            |> list.Stop
-        }
-      })
+        #(Error(err), write) ->
+          #(acc.0, Error(err), write)
+          |> list.Stop
+      }
+    })
+    |> fn(acc) {
+      case acc {
+        #(xs, Ok(Nil), write) ->
+          #(Ok(xs), write)
 
-    case status {
-      Ok(_) ->
-        #(Ok(xs), write)
-
-      Error(err) ->
-        #(Error(err), write)
+        #(_xs, Error(err), write) ->
+          #(Error(err), write)
+      }
     }
   })
 }
-
-pub fn sequence_shared_write_continue_on_err(
-  rws rws: List(ReadWriteResult(t, e, r, w)),
-) -> ReadWriteResult(List(Result(t, e)), e, r, w) {
-  ReadWriteResult(run: fn(read, write) {
-    list.fold(rws, #([], write), fn(acc, rw) {
-      run_(rw, read, acc.1)
-      |> pair.map_first(fn(result) { [result, ..acc.0] })
-    })
-    |> pair.map_first(list.reverse)
-    |> pair.map_first(Ok)
-  })
-}
+// pub fn sequence_shared_write_continue_on_err(
+//   rws rws: List(ReadWriteResult(t, e, r, w)),
+// ) -> ReadWriteResult(List(Result(t, e)), e, r, w) {
+//   ReadWriteResult(run: fn(read, write) {
+//     list.fold(rws, #([], write), fn(acc, rw) {
+//       run_(rw, read, acc.1)
+//       |> pair.map_first(fn(result) { [result, ..acc.0] })
+//     })
+//     |> pair.map_first(list.reverse)
+//     |> pair.map_first(Ok)
+//   })
+// }
 
 //
 
