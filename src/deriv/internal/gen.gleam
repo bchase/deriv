@@ -1,6 +1,7 @@
 import gleam/io
 import bchase/unsafe
-import bchase/dynamic
+import bchase/dynamic as dyn
+import gleam/dynamic.{type Dynamic, nil}
 import simplifile
 import tom
 import gleam/dict.{type Dict}
@@ -91,11 +92,18 @@ pub type GleamTomlErr {
 }
 
 pub type GenErr {
-  GleamFileErr(err: GleamFileErr)
+  GleamFileErr(err: GleamFileErr, detail: Dynamic)
+  //
   GleamDependencyFailedToResolve(package: String)
   CustomTypeNotFound(path: GleamPath, type_: String)
   ImportNotFound(path: GleamPath, name: String)
   TypeIsNotCustomType(path: GleamPath, name: String, type_: g.Type)
+  //
+  GenStrGleamModuleParseErr(gen_str: String)
+  GenNotFound(path: GleamPath, gen_str: String)
+  GenExprErr(path: GleamPath, gen_str: String)
+  GenExprCommentSpliceErr(path: GleamPath, gen_str: String, expr: g.Expression, expr_src: String)
+  //
   Failed(msg: String)
 }
 
@@ -472,7 +480,7 @@ fn load_context(
 ) -> Result(Context, GenErr) {
   use dep_src_dir_path <- try(dep_src_dir_path(package: path.package, path:, toml:))
   let filepath = dep_src_dir_path <> { path |> to_relative_src_filepath }
-  use file <- try_err(load_gleam_file(filepath:), GleamFileErr)
+  use file <- try_err(load_gleam_file(filepath:), GleamFileErr(_, nil()))
 
   Ok(Context(pwd:, toml:, file:))
 }
@@ -520,7 +528,7 @@ fn import_path(
   )
 
   parse_gleam_module_path(path: import_.module)
-  |> result.map_error(GleamFileErr)
+  |> result.map_error(GleamFileErr(_, nil()))
 }
 
 fn get_custom_type_in(
@@ -547,7 +555,7 @@ fn get_custom_type_unqualified_import_in(
   )
 
   let module = import_.definition.module
-  use path <- try_err(parse_gleam_module_path(path: module), GleamFileErr)
+  use path <- try_err(parse_gleam_module_path(path: module), GleamFileErr(_, nil()))
   use ctx <- try(load_context(pwd: ctx.pwd, path:, toml: ctx.toml))
 
   get_custom_type_in(ctx:, type_:)
@@ -584,7 +592,7 @@ fn get_custom_type_aliased_in(
         always(ImportNotFound(path: ctx.file.path, name: module)),
       )
 
-      use path <- try_err(parse_gleam_module_path(path: import_.module), GleamFileErr)
+      use path <- try_err(parse_gleam_module_path(path: import_.module), GleamFileErr(_, nil()))
       use ctx <- try(load_context(pwd: ctx.pwd, path:, toml: ctx.toml))
 
       get_custom_type_in(ctx, name)
@@ -601,15 +609,16 @@ fn get_custom_type_aliased_in(
 //
 //
 
-pub type Err {
-  Err(err: String)
-}
+// pub type Err {
+//   Err(err: String)
+//   GenStrGleamModuleParseErr(gen_str: String)
+// }
 
 pub type Skip {
   Skip
 }
 
-const skip: Result(#(String, List(Ref)), Result(Skip, Err)) =
+const skip: Result(#(String, List(Ref)), Result(Skip, GenErr)) =
   Error(Ok(Skip))
 
 type Acc {
@@ -631,7 +640,7 @@ fn set_refs(x: Acc, refs) { Acc(..x, refs:)}
 
 pub fn process(
   ctx ctx: Context,
-) -> Result(#(String, List(Ref)), Result(Skip, Err)) {
+) -> Result(#(String, List(Ref)), Result(Skip, GenErr)) {
   let src = ctx.file.src
 
   let assert Ok(gen_magic_comment_start_re) =
@@ -671,7 +680,7 @@ pub fn process(
 
 fn run(
   gen_func_ctx: #(Gen, g.Definition(g.Function), Context)
-) -> ReadWriteResult(Nil, Err, Nil, Acc) {
+) -> ReadWriteResult(Nil, GenErr, Nil, Acc) {
   let #(gen, func, ctx) = gen_func_ctx
 
   use orig <- monad.writes(at: lens_src)
@@ -684,25 +693,25 @@ fn run(
 
   // look up expr generator
   use #(path, args) <- monad.do_ok(case gen.str |> string.split(" ") {
-    [] -> Error(Err("Couldn't parse a Gleam module path from: //$ gen " <> gen.str))
+    [] -> Error(GenStrGleamModuleParseErr(gen_str: gen.str))
     [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
   }, function.identity)
 
-  use path <- monad.do_ok(parse_gleam_module_path(path), fn(_err) {
-    // TODO `err`
-    Err("Invalid Gleam module path: //$ gen " <> gen.str)
-  })
+  use path <- monad.do_ok(
+    parse_gleam_module_path(path),
+    GleamFileErr(_, dyn.from("//$ gen " <> gen.str)),
+  )
 
   use var_expr <- monad.do(monad.ok(
     gen_lookup |> dict.from_list |> dict.get(path),
-    always(Err("Found no generator registered for module: " <> string.join(path.full, "/")))
+    always(GenNotFound(path:, gen_str: gen.str))
   ))
 
   // gen expr
   let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
   use GenExpr(expr:, refs: new_refs) <- monad.do(monad.ok(
     build_expr(var_expr(), args, func, get_type, ctx),
-    always(Err("Variant expr builder failed for: //$ gen " <> gen.str))
+    always(GenExprErr(path:, gen_str: gen.str))
   ))
 
   // persist refs
@@ -725,7 +734,7 @@ fn run(
       [] | [_] -> Error(Nil)
       [x, ..xs] -> Ok(#(x, xs))
     },
-      always(Err("`deriv/gen.run` unexpected generated expr; returning orig src"))
+    always(GenExprCommentSpliceErr(path:, gen_str: gen.str, expr:, expr_src:)),
   )
   let expr_src =
     [x <> " " <> gen.comment, ..xs]

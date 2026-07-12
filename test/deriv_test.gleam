@@ -1,3 +1,4 @@
+import bchase/dynamic as dyn
 import gleam/bool
 import gleam/set.{type Set}
 import bchase/result.{try_err, try_fail, try_fail_} as _
