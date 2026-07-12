@@ -674,8 +674,8 @@ fn run(
 ) -> ReadWriteResult(Nil, Err, Nil, Acc) {
   let #(gen, func, ctx) = gen_func_ctx
 
-  use orig <- monad.writes_(at: lens_src)
-  use offset <- monad.writes_(at: lens_offset)
+  use orig <- monad.writes(at: lens_src)
+  use offset <- monad.writes(at: lens_offset)
 
   // use <- monad.add_int_(1, lens_offset)
 
@@ -706,7 +706,7 @@ fn run(
   ))
 
   // persist refs
-  use <- monad.concat_(new_refs, lens_refs)
+  use <- monad.concat(new_refs, lens_refs)
   // TODO this could be done in `build_expr` w/o having to pass these back up
 
   // ensure expr is wrapped in a block
@@ -740,10 +740,10 @@ fn run(
 
   // calc diff for, and persist new `offset`
   let diff = string.length(new) - string.length(orig)
-  use <- monad.add_int_(diff, lens_offset)
+  use <- monad.add_int(diff, lens_offset)
 
   // persist newly gen'd src
-  use <- monad.set_(new, lens_src)
+  use <- monad.set(new, lens_src)
 
   monad.pure(Nil)
 }
