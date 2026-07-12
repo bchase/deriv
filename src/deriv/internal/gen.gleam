@@ -27,6 +27,7 @@ import deriv/gen/types.{type TypeDef, TypeDef, type GleamPath, GleamPath}
 //
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
+import deriv/internal/monad.{type ReadWriteResult}
 
 // type VariantExpr {
 //   Foo(
@@ -600,253 +601,151 @@ fn get_custom_type_aliased_in(
 //
 //
 
+pub type Err {
+  Err(err: String)
+}
+
+pub type Skip {
+  Skip
+}
+
+const skip: Result(#(String, List(Ref)), Result(Skip, Err)) =
+  Error(Ok(Skip))
+
+type Acc {
+  Acc(
+    src: String,
+    offset: Int,
+    refs: List(Ref),
+  )
+}
+const lens_src = lens.Lens(get: get_src, set: set_src)
+fn get_src(x: Acc) { x.src }
+fn set_src(x: Acc, src) { Acc(..x, src:)}
+const lens_offset = lens.Lens(get: get_offset, set: set_offset)
+fn get_offset(x: Acc) { x.offset }
+fn set_offset(x: Acc, offset) { Acc(..x, offset:)}
+const lens_refs = lens.Lens(get: get_refs, set: set_refs)
+fn get_refs(x: Acc) { x.refs }
+fn set_refs(x: Acc, refs) { Acc(..x, refs:)}
+
 pub fn process(
   ctx ctx: Context,
-) -> #(String, List(Ref)) {
+) -> Result(#(String, List(Ref)), Result(Skip, Err)) {
   let src = ctx.file.src
 
   let assert Ok(gen_magic_comment_start_re) =
     // "[/][/][$]\\s*gen([:]|\\s+)" |> re.from_string
     "[/][/][$]\\s*gen\\s+" |> re.from_string
 
-  use <- bool.guard(!re.check(gen_magic_comment_start_re, src), #(src, []))
+  use <- bool.guard(!re.check(gen_magic_comment_start_re, src), skip)
 
-  ctx.file.ast.functions
-  |> dict.values
-  |> list.map(build_func_gens(func: _, src:, ctx:))
-  |> list.sort(fn(a, b) {
-    int.compare(
-      a.func.definition.location.start,
-      b.func.definition.location.start,
-    )
+  let fgs =
+    ctx.file.ast.functions
+    |> dict.values
+    |> list.map(build_func_gens(func: _, src:, ctx:))
+    |> list.sort(fn(a, b) {
+      int.compare(
+        a.func.definition.location.start,
+        b.func.definition.location.start,
+      )
+    })
+
+  fgs
+  |> list.flat_map(fn(fg) {
+    fg.gens |> list.map(fn(gen) { #(gen, fg.func, fg.ctx) })
   })
-  |> list.fold(#(src, []), fn(acc, fg) {
-    let #(src, old_refs) = acc
-    let #(src, new_refs) = run(src, fg)
-    #(src, list.append(old_refs, new_refs))
-  })
-  |> pair.map_second(list.unique)
-}
+  |> list.map(run)
+  |> monad.sequence_shared_write_stop_on_err
+  |> monad.run_(Nil, Acc(src: ctx.file.src, offset: 0, refs: []))
+  |> fn(t) {
+    case t {
+      #(Ok(_), acc) ->
+        Ok(#(acc.src, acc.refs))
 
-//
-
-pub type ReadWriteResult(t, e, r, w) {
-  ReadWriteResult(run: fn(r, List(w)) -> #(Result(t, e), List(w)))
-}
-
-pub fn pure(
-  val val: t,
-) -> ReadWriteResult(t, e, r, w) {
-  ReadWriteResult(fn(_read, writes) {
-    #(Ok(val), writes)
-  })
-}
-
-pub fn fail(
-  err err: e,
-) -> ReadWriteResult(t, e, r, w) {
-  ReadWriteResult(run: fn(_read, writes) {
-    #(Error(err), writes)
-  })
-}
-
-pub fn do(
-  rw rw: ReadWriteResult(a, e, r, w),
-  cont cont: fn(a) -> ReadWriteResult(b, e, r, w),
-) -> ReadWriteResult(b, e, r, w) {
-  ReadWriteResult(run: fn(read, writes) {
-    case rw.run(read, writes) {
-      #(Ok(x), writes) -> cont(x).run(read, writes)
-      #(Error(err), writes) -> #(Error(err), writes)
+      #(Error(err), _acc) ->
+        Error(Error(err))
     }
-  })
-}
-
-pub fn read(
-  cont cont: fn(r) -> ReadWriteResult(t, e, r, w)
-) -> ReadWriteResult(t, e, r, w) {
-  do(
-    ReadWriteResult(run: fn(read, writes) {
-      #(Ok(read), writes)
-    }),
-    cont,
-  )
-}
-
-pub fn write(
-  write write: w,
-  cont cont: fn() -> ReadWriteResult(t, e, r, w),
-) -> ReadWriteResult(t, e, r, w) {
-  do(
-    ReadWriteResult(run: fn(_read, writes) {
-      #(Ok(Nil), list.append(writes, [write]))
-    }
-  ), always(cont()))
-}
-
-pub fn writes(
-  cont cont: fn(List(w)) -> ReadWriteResult(t, e, r, w),
-) -> ReadWriteResult(t, e, r, w) {
-  do(
-    ReadWriteResult(run: fn(_read, writes) {
-      #(Ok(writes), writes)
-    }
-  ), cont)
-}
-
-pub fn run_(
-  rw rw: ReadWriteResult(t, e, r, w),
-  read read: r
-) -> #(Result(t, e), List(w)) {
-  rw.run(read, [])
-}
-
-pub type ListRun(input, output, e, r, w) {
-  ListRun(
-    succeeded: List(output),
-    failed: List(#(input, e)),
-    writes: List(#(input, List(w)),)
-  )
-}
-
-pub fn run_until_failure(
-  xs xs: List(a),
-  rw rw: ReadWriteResult(b, e, r, w),
-  read read: r
-// ) -> #(Result(Nil, #(a, e)), List(b), List(w)) {
-) {
-  let writes: List(w) = todo
-  let succeeded: List(b) = todo
-  let input: a = todo
-  let err: e = todo
-
-  let result =
-    case todo {
-      True -> Ok(Nil)
-      False -> Error(#(input, err))
-    }
-
-  ListRun(succeeded:, failed: [], writes: todo)
-}
-
-pub fn run_ignoring_failures(
-  xs xs: List(a),
-  rw rw: ReadWriteResult(b, e, r, w),
-  read read: r
-) -> #(Result(List(b), #(a, e)), List(#(a, List(w)))) {
-  let writes: List(w) = todo
-  let succeeded: List(b) = todo
-  let input: a = todo
-  let failures: List(#(a, e)) = todo
-
-  let result =
-    case todo {
-      True -> Ok(Nil)
-      False -> Error(#(input, todo))
-    }
-
-  todo
-}
-
-pub fn main() {
-  {
-    use read <- read()
-
-    use <- write(1)
-    // use _ <- do(fail("woops"))
-    use <- write(2)
-    use writes <- writes()
-    use <- write(3)
-
-    pure("success " <> read <> " " <> string.inspect(writes))
   }
-  |> run_("hi")
-  |> echo
-
-  Nil
 }
-
-//
 
 fn run(
-  src src: String,
-  func_gens func_gens: FuncGens,
-) -> #(String, List(Ref)) {
-  let FuncGens(func:, gens:, ctx:) = func_gens
+  gen_func_ctx: #(Gen, g.Definition(g.Function), Context)
+) -> ReadWriteResult(Nil, Err, Nil, Acc) {
+  let #(gen, func, ctx) = gen_func_ctx
 
-  gens
-  |> list.fold(#(src, [], 0), fn(acc, gen) {
-    let #(old, old_refs, offset) = acc
+  use orig <- monad.writes_(at: lens_src)
+  use offset <- monad.writes_(at: lens_offset)
 
-    {
-      // offset positions based on previous code gen results
-      let gen = Gen(..gen, pos: gen.pos + offset)
+  // use <- monad.add_int_(1, lens_offset)
 
-      // look up expr generator
-      use #(path, args) <- try_fail_(case gen.str |> string.split(" ") {
-        [] -> Error(Nil)
-        [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
-      }, fn(_) {
-        io.println_error("Couldn't parse a Gleam module path from: //$ gen " <> gen.str)
-        Error(Nil)
-      })
-      use path <- try_fail_(parse_gleam_module_path(path), fn(_) {
-        io.println_error("Invalid Gleam module path: //$ gen " <> gen.str)
-        Error(Nil)
-      })
-      use var_expr <- result.try(gen_lookup |> dict.from_list |> dict.get(path))
+  // offset positions based on previous code gen results
+  let gen = Gen(..gen, pos: gen.pos + offset)
 
-      // gen expr
-      let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
-      use GenExpr(expr:, refs: new_refs) <- try_fail_(build_expr(var_expr(), args, func, get_type, ctx), fn(_) {
-        io.println_error("Variant expr builder failed for: //$ gen " <> gen.str)
-        Error(Nil)
-      })
+  // look up expr generator
+  use #(path, args) <- monad.do_ok(case gen.str |> string.split(" ") {
+    [] -> Error(Err("Couldn't parse a Gleam module path from: //$ gen " <> gen.str))
+    [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
+  }, function.identity)
 
-      // ensure expr is wrapped in a block
-      let expr =
-        case expr {
-          g.Block(..) -> expr
-          _ -> g.Block(z, [g.Expression(expr)])
-        }
-
-      // build & format `glance.Expression` as `String`
-      let expr_src = format_gleam_expr(expr:, indent: gen.indent)
-
-      // add magic comment back to gen'd `glance.Expression` src
-      use #(x, xs) <- result.try(case expr_src |> string.split("\n") {
-        [] | [_] -> {
-          io.println_error("`deriv/gen.run` unexpected generated expr; returning orig src")
-          Error(Nil)
-        }
-
-        [x, ..xs] -> Ok(#(x, xs))
-      })
-      let expr_src =
-        [x <> " " <> gen.comment, ..xs]
-        |> string.join("\n")
-        |> string.trim_start
-
-      // calc span to overwrite
-      let span = gen_span(gen:, src:, offset: 0) // TODO would be double offset?
-
-      // construct new src
-      let new = dg.replace(span:, in: src, with: expr_src)
-
-      // calc diff for new `offset`
-      let diff = string.length(new) - string.length(old)
-      let offset = offset + diff
-
-      let refs = list.append(old_refs, new_refs)
-
-      Ok(#(new, refs, offset))
-    }
-    |> result.unwrap(acc)
+  use path <- monad.do_ok(parse_gleam_module_path(path), fn(_err) {
+    // TODO `err`
+    Err("Invalid Gleam module path: //$ gen " <> gen.str)
   })
-  |> fn(acc) {
-    let #(src, refs, _offset) = acc
-    #(src, refs)
-  }
+
+  use var_expr <- monad.do(monad.ok(
+    gen_lookup |> dict.from_list |> dict.get(path),
+    always(Err("Found no generator registered for module: " <> string.join(path.full, "/")))
+  ))
+
+  // gen expr
+  let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
+  use GenExpr(expr:, refs: new_refs) <- monad.do(monad.ok(
+    build_expr(var_expr(), args, func, get_type, ctx),
+    always(Err("Variant expr builder failed for: //$ gen " <> gen.str))
+  ))
+
+  // persist refs
+  use <- monad.concat_(new_refs, lens_refs)
+  // TODO this could be done in `build_expr` w/o having to pass these back up
+
+  // ensure expr is wrapped in a block
+  let expr =
+    case expr {
+      g.Block(..) -> expr
+      _ -> g.Block(z, [g.Expression(expr)])
+    }
+
+  // build & format `glance.Expression` as `String`
+  let expr_src = format_gleam_expr(expr:, indent: gen.indent)
+
+  // add magic comment back to gen'd `glance.Expression` src
+  use #(x, xs) <- monad.do_ok(
+    case expr_src |> string.split("\n") {
+      [] | [_] -> Error(Nil)
+      [x, ..xs] -> Ok(#(x, xs))
+    },
+      always(Err("`deriv/gen.run` unexpected generated expr; returning orig src"))
+  )
+  let expr_src =
+    [x <> " " <> gen.comment, ..xs]
+    |> string.join("\n")
+    |> string.trim_start
+
+  // calc span to overwrite
+  let span = gen_span(gen:, src: orig, offset: 0) // TODO would be double offset?
+
+  // construct new src
+  let new = dg.replace(span:, in: orig, with: expr_src)
+
+  // calc diff for, and persist new `offset`
+  let diff = string.length(new) - string.length(orig)
+  use <- monad.add_int_(diff, lens_offset)
+
+  // persist newly gen'd src
+  use <- monad.set_(new, lens_src)
+
+  monad.pure(Nil)
 }
 
 // fn build_expr(
@@ -1178,3 +1077,114 @@ fn format_gleam_expr(
 }
 
 //
+
+// pub fn process(
+//   ctx ctx: Context,
+// ) -> #(String, List(Ref)) {
+//   let src = ctx.file.src
+
+//   let assert Ok(gen_magic_comment_start_re) =
+//     // "[/][/][$]\\s*gen([:]|\\s+)" |> re.from_string
+//     "[/][/][$]\\s*gen\\s+" |> re.from_string
+
+//   use <- bool.guard(!re.check(gen_magic_comment_start_re, src), #(src, []))
+
+//   ctx.file.ast.functions
+//   |> dict.values
+//   |> list.map(build_func_gens(func: _, src:, ctx:))
+//   |> list.sort(fn(a, b) {
+//     int.compare(
+//       a.func.definition.location.start,
+//       b.func.definition.location.start,
+//     )
+//   })
+//   |> list.fold(#(src, []), fn(acc, fg) {
+//     let #(src, old_refs) = acc
+//     let #(src, new_refs) = run(src, fg)
+//     #(src, list.append(old_refs, new_refs))
+//   })
+//   |> pair.map_second(list.unique)
+// }
+
+// fn run(
+//   src src: String,
+//   func_gens func_gens: FuncGens,
+// ) -> #(String, List(Ref)) {
+//   let _ = zero_acc
+
+//   let FuncGens(func:, gens:, ctx:) = func_gens
+
+//   gens
+//   |> list.fold(#(src, [], 0), fn(acc, gen) {
+//     let #(old, old_refs, offset) = acc
+
+//     {
+//       // offset positions based on previous code gen results
+//       let gen = Gen(..gen, pos: gen.pos + offset)
+
+//       // look up expr generator
+//       use #(path, args) <- try_fail_(case gen.str |> string.split(" ") {
+//         [] -> Error(Nil)
+//         [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
+//       }, fn(_) {
+//         io.println_error("Couldn't parse a Gleam module path from: //$ gen " <> gen.str)
+//         Error(Nil)
+//       })
+//       use path <- try_fail_(parse_gleam_module_path(path), fn(_) {
+//         io.println_error("Invalid Gleam module path: //$ gen " <> gen.str)
+//         Error(Nil)
+//       })
+//       use var_expr <- result.try(gen_lookup |> dict.from_list |> dict.get(path))
+
+//       // gen expr
+//       let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
+//       use GenExpr(expr:, refs: new_refs) <- try_fail_(build_expr(var_expr(), args, func, get_type, ctx), fn(_) {
+//         io.println_error("Variant expr builder failed for: //$ gen " <> gen.str)
+//         Error(Nil)
+//       })
+
+//       // ensure expr is wrapped in a block
+//       let expr =
+//         case expr {
+//           g.Block(..) -> expr
+//           _ -> g.Block(z, [g.Expression(expr)])
+//         }
+
+//       // build & format `glance.Expression` as `String`
+//       let expr_src = format_gleam_expr(expr:, indent: gen.indent)
+
+//       // add magic comment back to gen'd `glance.Expression` src
+//       use #(x, xs) <- result.try(case expr_src |> string.split("\n") {
+//         [] | [_] -> {
+//           io.println_error("`deriv/gen.run` unexpected generated expr; returning orig src")
+//           Error(Nil)
+//         }
+
+//         [x, ..xs] -> Ok(#(x, xs))
+//       })
+//       let expr_src =
+//         [x <> " " <> gen.comment, ..xs]
+//         |> string.join("\n")
+//         |> string.trim_start
+
+//       // calc span to overwrite
+//       let span = gen_span(gen:, src:, offset: 0) // TODO would be double offset?
+
+//       // construct new src
+//       let new = dg.replace(span:, in: src, with: expr_src)
+
+//       // calc diff for new `offset`
+//       let diff = string.length(new) - string.length(old)
+//       let offset = offset + diff
+
+//       let refs = list.append(old_refs, new_refs)
+
+//       Ok(#(new, refs, offset))
+//     }
+//     |> result.unwrap(acc)
+//   })
+//   |> fn(acc) {
+//     let #(src, refs, _offset) = acc
+//     #(src, refs)
+//   }
+// }

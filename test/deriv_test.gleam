@@ -306,7 +306,7 @@ pub fn gen_test() {
   let assert Ok(file) = gen.load_gleam_file("src/deriv/internal/dummy/gen/before.gleam")
   let ctx = gen.Context(pwd:, toml:, file:)
 
-  let #(output, _refs) = gen.process(ctx:)
+  let assert Ok(#(output, _refs)) = gen.process(ctx:)
 
   let assert Ok(after) = simplifile.read("src/deriv/internal/dummy/gen/after.gleam")
 
@@ -454,28 +454,42 @@ fn update(
             Error(_) ->
               actor.continue(state) // TODO log warn/err
 
-            Ok(ctx) -> {
-              let #(new, refs) = gen.process(ctx:)
+            Ok(ctx) ->
+              case gen.process(ctx:) {
+                Ok(#(new, refs)) -> {
+                  state.cfg.refs
+                  |> process.named_subject
+                  |> process.send(UpdateRefs(path: file.path, refs:))
 
-              state.cfg.refs
-              |> process.named_subject
-              |> process.send(UpdateRefs(path: file.path, refs:))
+                  let hash = sha256_hash(new)
 
-              let hash = sha256_hash(new)
+                  case simplifile.write(path, new) {
+                    Ok(Nil) ->
+                      Nil
 
-              case simplifile.write(path, new) {
-                Ok(Nil) ->
-                  Nil
+                    Error(err) ->
+                      io.println_error([
+                        "Failed to write new Gleam file to path: " <> path,
+                        "  " <> string.inspect(err)
+                      ] |> string.join("\n"))
+                  }
 
-                Error(err) ->
+                  actor.continue(State(..state, hashes: state.hashes |> dict.insert(path, hash)))
+                }
+
+                Error(Ok(_skip)) ->
+                  actor.continue(state)
+
+                Error(Error(err)) -> {
                   io.println_error([
-                    "Failed to write new Gleam file to path: " <> path,
-                    "  " <> string.inspect(err)
+                    { "Code gen failed..." },
+                    { "  filepath: " <> file.filepath },
+                    { "  error: " <> string.inspect(err) },
                   ] |> string.join("\n"))
-              }
 
-              actor.continue(State(..state, hashes: state.hashes |> dict.insert(path, hash)))
-            }
+                  actor.continue(state)
+                }
+              }
           }
       }
     }
