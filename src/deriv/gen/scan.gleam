@@ -1,3 +1,5 @@
+import bchase/io
+import glance_printer
 import gleam/string
 import gleam/option.{Some, None}
 import gleam/result.{try}
@@ -7,6 +9,7 @@ import shellout
 import glance as g
 import deriv/gen/types.{type GleamPath, GleamPath, type GleamFile}
 import deriv/internal/gen.{type ExprGen}
+import deriv/internal/glance.{z, call, term, dot, format_gleam_expr} as _
 
 pub fn foo() -> ExprGen {
   todo
@@ -24,10 +27,37 @@ pub fn main() -> Nil {
       let funcs = has_reference(in: file, module: "deriv/internal/gen", type_: "ExprGen")
       case funcs {
         [] -> Error(Nil)
-        _ -> Ok(#(file.filepath, funcs |> list.map(fn(func) { func.definition.name })))
+        _ -> Ok(#(
+          file.path.full |> string.join("/"),
+          funcs |> list.map(fn(func) { func.definition.name }),
+        ))
       }
     })
-    |> echo
+    |> list.map(fn(t) {
+      let #(module, func_names) = t
+      let alias = module |> string.replace("/", "_")
+      #(
+        g.Import(z, module:, alias: Some(g.Named(alias)), unqualified_types: [], unqualified_values: []),
+        func_names |> list.map(fn(func) { alias |> dot(func) })
+      )
+    })
+    |> list.each(fn(t) {
+      let #(import_, funcs) = t
+
+      g.Module([g.Definition([], import_)], [], [], [], [])
+      |> glance_printer.print
+      |> string.trim
+      |> io.println
+
+      funcs
+      |> list.each(fn(func) {
+        func
+        |> format_gleam_expr(indent: 2)
+        |> io.println
+      })
+
+      io.println("")
+    })
 
   Nil
 }

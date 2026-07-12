@@ -1,3 +1,4 @@
+import glance_printer
 import gleam/bool
 import gleam/option.{type Option, None}
 import gleam/list
@@ -162,4 +163,31 @@ pub fn read_span(
 ) -> Result(String, Nil) {
   use <- bool.guard(span.end >= string.length(src), Error(Nil))
   Ok(string.slice(src, span.start, span.end - span.start))
+}
+
+pub fn format_gleam_expr(
+  expr expr: g.Expression,
+  indent indent: Int,
+) -> String {
+  g.Module([], [], [], [], [g.Definition([], g.Function(
+    z, "main", g.Public, [], return: None, body: [g.Expression(
+      expr
+    )]
+  ))])
+  |> glance_printer.print
+  |> string.split("\n")
+  |> list.drop(1)
+  |> fn(lines) { list.take(lines, list.length(lines) - 2) }
+  |> fn(lines) {
+    case indent {
+      2 -> lines
+      0 -> lines |> list.map(string.drop_start(_, 2))
+      1 -> lines |> list.map(string.drop_start(_, 1))
+      _ -> {
+        let ws = list.repeat(" ", indent - 2) |> string.join("")
+        lines |> list.map(string.append(to: ws, suffix: _))
+      }
+    }
+  }
+  |> string.join("\n")
 }

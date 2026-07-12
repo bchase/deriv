@@ -15,7 +15,7 @@ import glance as g
 import gleam/regexp as re
 import gleam/list
 import gleam/string
-import deriv/internal/glance.{z} as dg
+import deriv/internal/glance.{z, format_gleam_expr} as dg
 import bchase/dict.{keyed as dict_keyed} as _
 import bchase/result.{try_err, try_fail, try_fail_} as _
 import bchase/function.{x, always, flip}
@@ -1099,33 +1099,6 @@ fn bracket_pos(
 ) -> Option(Int) {
   use <- bool.guard(gen.new, None)
   Some(gen.pos + 1)
-}
-
-fn format_gleam_expr(
-  expr expr: g.Expression,
-  indent indent: Int,
-) -> String {
-  g.Module([], [], [], [], [g.Definition([], g.Function(
-    z, "main", g.Public, [], return: None, body: [g.Expression(
-      expr
-    )]
-  ))])
-  |> glance_printer.print
-  |> string.split("\n")
-  |> list.drop(1)
-  |> fn(lines) { list.take(lines, list.length(lines) - 2) }
-  |> fn(lines) {
-    case indent {
-      2 -> lines
-      0 -> lines |> list.map(string.drop_start(_, 2))
-      1 -> lines |> list.map(string.drop_start(_, 1))
-      _ -> {
-        let ws = list.repeat(" ", indent - 2) |> string.join("")
-        lines |> list.map(string.append(to: ws, suffix: _))
-      }
-    }
-  }
-  |> string.join("\n")
 }
 
 //
