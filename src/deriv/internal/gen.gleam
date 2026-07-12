@@ -692,19 +692,7 @@ fn run(
   let gen = Gen(..gen, pos: gen.pos + offset)
 
   // look up expr generator
-  use #(path, args) <- monad.do_ok(case gen.str |> string.split(" ") {
-    [] -> Error(GenStrGleamModuleParseErr(gen_str: gen.str))
-    [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
-  }, function.identity)
-  use path <- monad.do_ok(
-    parse_gleam_module_path(path),
-    GleamFileErr(_, dyn.from("//$ gen " <> gen.str)),
-  )
-  use var_expr <- monad.do(monad.ok(
-    gen_lookup |> dict.from_list |> dict.get(path),
-    always(GenNotFound(path:, gen_str: gen.str))
-  ))
-  let expr_gen = VariantClauseCaseExprGen(var_expr())
+  use #(expr_gen, args, path) <- monad.do(get_expr_gen(gen:))
 
   // gen expr
   let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
@@ -754,6 +742,29 @@ fn run(
   use <- monad.set(new, lens_src)
 
   monad.pure(Nil)
+}
+
+fn get_expr_gen(
+  gen gen: Gen,
+) -> ReadWriteResult(#(ExprGen, String, GleamPath), GenErr, r, w) {
+  use #(path, args) <- monad.do_ok(case gen.str |> string.split(" ") {
+    [] -> Error(GenStrGleamModuleParseErr(gen_str: gen.str))
+    [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
+  }, function.identity)
+
+  use path <- monad.do_ok(
+    parse_gleam_module_path(path),
+    GleamFileErr(_, dyn.from("//$ gen " <> gen.str)),
+  )
+
+  use var_expr <- monad.do(monad.ok(
+    gen_lookup |> dict.from_list |> dict.get(path),
+    always(GenNotFound(path:, gen_str: gen.str))
+  ))
+
+  let expr_gen = VariantClauseCaseExprGen(var_expr())
+
+  monad.pure(#(expr_gen, args, path))
 }
 
 // fn build_expr(
