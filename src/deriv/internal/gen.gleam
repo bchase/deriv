@@ -21,14 +21,14 @@ import bchase/result.{try_err, try_fail, try_fail_} as _
 import bchase/function.{x, always, flip}
 import shellout
 //
-import deriv/gen/variant as var
 import deriv/internal/glance.{term, call, call_, pipe, dot, short} as _
 import bchase/casing
-import deriv/gen/types.{type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type Imports, type AST, AST, Imports}
+import deriv/gen/types.{type ExprGen, type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type Imports, type AST, AST, Imports}
 //
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
 import deriv/internal/monad.{type ReadWriteResult}
+import deriv/gen/defs
 
 // pieces
 //   - [erl+js]       `deriv`            >>> -- code gen defns helpers             -- `deriv`
@@ -805,24 +805,21 @@ fn get_expr_gen(
 //   }
 // }
 
-pub type ExprGen {
-  VariantClauseCaseExprGen(expr: var.VariantExpr)
-}
 pub type FuncDef = g.Definition(g.Function)
 pub type GetType = fn(Option(String), String) -> Result(TypeDef, Nil)
 pub type GetParam = fn(String) -> Result(g.Type, Nil)
-pub type CodeGen {
-  CodeGen(fn(ExprGen, String, FuncDef, GleamFile, GetType) -> Result(GenExpr, Nil))
-}
-fn code_gen(
-) {
-  CodeGen(fn(gen, args, func, file, get_type) {
-    case gen {
-      VariantClauseCaseExprGen(expr: ve) ->
-        case_expr_with_variant_clauses(ve: , args:, func:, get_type:, file:)
-    }
-  })
-}
+// pub type CodeGen {
+//   CodeGen(fn(ExprGen, String, FuncDef, GleamFile, GetType) -> Result(GenExpr, Nil))
+// }
+// fn code_gen(
+// ) {
+//   CodeGen(fn(gen, args, func, file, get_type) {
+//     case gen {
+//       VariantClauseCaseExprGen(expr: ve) ->
+//         case_expr_with_variant_clauses(ve: , args:, func:, get_type:, file:)
+//     }
+//   })
+// }
 
 pub type GenExpr {
   GenExpr(
@@ -872,13 +869,13 @@ fn build_expr(
   file file: GleamFile,
 ) -> Result(GenExpr, Nil) {
   case gen {
-    VariantClauseCaseExprGen(expr: ve) ->
+    types.VariantClauseCaseExprGen(expr: ve) ->
       case_expr_with_variant_clauses(ve:, args:, func:, get_type:, file:)
   }
 }
 
 fn case_expr_with_variant_clauses(
-  ve ve: var.VariantExpr,
+  ve ve: types.VariantExpr,
   args args: String,
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
@@ -899,7 +896,7 @@ fn case_expr_with_variant_clauses(
 }
 
 fn build_case_expr(
-  ve ve: var.VariantExpr,
+  ve ve: types.VariantExpr,
   type_ type_: TypeDef,
   args args: String,
   func func: g.Definition(g.Function),
@@ -909,7 +906,7 @@ fn build_case_expr(
 
   use clauses <- try(
     type_.def.definition.variants
-    |> list.map(fn(variant) { var.run(ve, variant:, args:, get_type:) })
+     |> list.map(fn(variant) { types.run_variant_expr(ve, variant:, args:, get_type:) })
     |> result.all
   )
 
@@ -925,16 +922,16 @@ const gen_lookup = [
   #(#("bchase/foo/bar", "test0"), test0),
 ]
 pub fn test0() -> ExprGen {
-  VariantClauseCaseExprGen(test0_())
+  types.VariantClauseCaseExprGen(test0_())
 }
 
-pub fn test0_() -> var.VariantExpr {
-  use variant <- var.variant_name()
-  use foo <- var.variant_shorthand_field("foo")
+pub fn test0_() -> types.VariantExpr {
+  use variant <- types.variant_name()
+  use foo <- types.variant_shorthand_field("foo")
 
   let func = { variant |> casing.snake <> "_func" } |> term
 
-  var.success(func |> call_([ foo, short("bar") ]))
+  types.variant_success(func |> call_([ foo, short("bar") ]))
 }
 
 type Pair {

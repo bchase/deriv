@@ -10,8 +10,8 @@ import gleam/dict.{type Dict}
 import gleam/list
 import shellout
 import glance as g
-import deriv/gen/types.{type GleamPath, GleamPath, type GleamFile}
-import deriv/internal/gen.{type ExprGen}
+import deriv/gen/types.{type ExprGen, type GleamPath, GleamPath, type GleamFile}
+import deriv/internal/gen
 import deriv/internal/glance.{z, call, term, dot, pipe, format_gleam_expr} as _
 
 pub fn foo() -> ExprGen {
@@ -103,25 +103,11 @@ pub fn main() -> Nil {
 
     src
     |> io.println
+
+    let assert Ok(_) = simplifile.write("src/deriv/gen/defs.gleam", src)
+
+    Nil
   }
-  // |> list.each(fn(t) {
-  //   let #(import_, funcs) = t
-
-  //   g.Module([g.Definition([], import_)], [], [], [], [])
-  //   |> glance_printer.print
-  //   |> string.trim
-  //   |> io.println
-
-  //   funcs
-  //   |> list.each(fn(func) {
-  //     func
-  //     |> format_gleam_expr(indent: 2)
-  //     |> io.println
-  //   })
-
-  //   io.println("")
-  // })
-
   Nil
 }
 
