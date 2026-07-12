@@ -692,7 +692,13 @@ fn run(
   let gen = Gen(..gen, pos: gen.pos + offset)
 
   // look up expr generator
-  use #(expr_gen, args, path) <- monad.do(get_expr_gen(gen:))
+  let fetch: fn(GleamPath) -> Result(ExprGen, Nil) = fn(path) {
+    gen_lookup
+    |> dict.from_list
+    |> dict.get(path)
+    |> result.map(fn(f) { f() })
+  }
+  use #(expr_gen, args, path) <- monad.do(get_expr_gen(gen:, fetch:))
 
   // gen expr
   let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
@@ -746,6 +752,7 @@ fn run(
 
 fn get_expr_gen(
   gen gen: Gen,
+  fetch fetch: fn(GleamPath) -> Result(ExprGen, Nil),
 ) -> ReadWriteResult(#(ExprGen, String, GleamPath), GenErr, r, w) {
   use #(path, args) <- monad.do_ok(case gen.str |> string.split(" ") {
     [] -> Error(GenStrGleamModuleParseErr(gen_str: gen.str))
@@ -757,12 +764,10 @@ fn get_expr_gen(
     GleamFileErr(_, dyn.from("//$ gen " <> gen.str)),
   )
 
-  use var_expr <- monad.do(monad.ok(
-    gen_lookup |> dict.from_list |> dict.get(path),
+  use expr_gen <- monad.do(monad.ok(
+    fetch(path),
     always(GenNotFound(path:, gen_str: gen.str))
   ))
-
-  let expr_gen = VariantClauseCaseExprGen(var_expr())
 
   monad.pure(#(expr_gen, args, path))
 }
@@ -925,7 +930,11 @@ const gen_lookup = [
 ]
 
 const test0_path = GleamPath(full: ["bchase", "foo", "bar", "test0"], package: "bchase", module: "test0")
-pub fn test0() -> var.VariantExpr {
+pub fn test0() -> ExprGen {
+  VariantClauseCaseExprGen(test0_())
+}
+
+pub fn test0_() -> var.VariantExpr {
   use variant <- var.variant_name()
   use foo <- var.variant_shorthand_field("foo")
 
