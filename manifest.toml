@@ -29,6 +29,7 @@ packages = [
   { name = "gsv", version = "5.1.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "glearray", "splitter"], otp_app = "gsv", source = "hex", outer_checksum = "D87707CA4802F7BFBA648DE86E89E0C2F37ABABB9C74C02F0D20019BB6F5791C" },
   { name = "houdini", version = "1.2.1", build_tools = ["gleam"], requirements = [], otp_app = "houdini", source = "hex", outer_checksum = "6F8AC2F12974567FB744BEA66AC93CEB76AAEA19AD28564623F76CDA9BC26A85" },
   { name = "lustre", version = "5.7.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_json", "gleam_otp", "gleam_stdlib", "houdini"], otp_app = "lustre", source = "hex", outer_checksum = "38C6FCBD7B7BACE994D5BF643202BB69B02576D44250B4C5DCE738387C0E8F87" },
+  { name = "radiate", version = "1.0.0", build_tools = ["gleam"], requirements = ["filespy", "gleam_erlang", "gleam_otp", "gleam_stdlib", "shellout"], otp_app = "radiate", source = "hex", outer_checksum = "AB86888E56C463641771AC21BB75464E19B848E733289BD6D78E562F6FA7C121" },
   { name = "ranger", version = "1.4.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_yielder"], otp_app = "ranger", source = "hex", outer_checksum = "C8988E8F8CDBD3E7F4D8F2E663EF76490390899C2B2885A6432E942495B3E854" },
   { name = "shellout", version = "1.7.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "shellout", source = "hex", outer_checksum = "1BDC03438FEB97A6AF3E396F4ABEB32BECF20DF2452EC9A8C0ACEB7BDDF70B14" },
   { name = "simplifile", version = "2.3.1", build_tools = ["gleam"], requirements = ["filepath", "gleam_stdlib"], otp_app = "simplifile", source = "hex", outer_checksum = "957E0E5B75927659F1D2A1B7B75D7B9BA96FAA8D0C53EA71C4AD9CD0C6B848F6" },
@@ -55,6 +56,7 @@ gleam_time = { version = ">= 1.4.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
 glint = { version = ">= 1.2.1 and < 2.0.0" }
 lustre = { version = ">= 5.3.5 and < 6.0.0" }
+radiate = { version = ">= 1.0.0 and < 2.0.0" }
 shellout = { version = ">= 1.6.0 and < 2.0.0" }
 simplifile = { version = ">= 2.2.0 and < 3.0.0" }
 tom = { version = ">= 2.0.0 and < 3.0.0" }
