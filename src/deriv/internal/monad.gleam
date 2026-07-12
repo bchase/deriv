@@ -16,8 +16,6 @@ pub opaque type ReadWriteResult(t, e, r, w) {
   )
 }
 
-// fold ...
-
 pub fn run(
   rw rw: ReadWriteResult(t, e, r, w),
   read read: r,
@@ -200,28 +198,27 @@ pub fn do_some(
 //
 
 pub fn read(
+  from lens: Lens(r, v),
+  cont cont: fn(v) -> ReadWriteResult(t, e, r, w)
+) -> ReadWriteResult(t, e, r, w) {
+  ReadWriteResult(run: fn(read, writes) {
+    #(Ok(lens.get(read)), writes)
+  })
+  |> do(cont)
+}
+
+pub fn read_(
   cont cont: fn(r) -> ReadWriteResult(t, e, r, w)
 ) -> ReadWriteResult(t, e, r, w) {
-  do(
-    ReadWriteResult(run: fn(read, writes) {
-      #(Ok(read), writes)
-    }),
-    cont,
-  )
+  ReadWriteResult(run: fn(read, writes) {
+    #(Ok(read), writes)
+  })
+  |> do(cont)
 }
 
 //
 
 pub fn writes(
-  cont cont: fn(w) -> ReadWriteResult(t, e, r, w),
-) -> ReadWriteResult(t, e, r, w) {
-  ReadWriteResult(run: fn(_read, writes) {
-    #(Ok(writes), writes)
-  })
-  |> do(cont)
-}
-
-pub fn writes_(
   at lens: Lens(w, vs),
   cont cont: fn(vs) -> ReadWriteResult(t, e, r, w),
 ) -> ReadWriteResult(t, e, r, w) {
@@ -229,6 +226,15 @@ pub fn writes_(
     #(Ok(lens.get(writes)), writes)
   })
   |> do( cont)
+}
+
+pub fn writes_(
+  cont cont: fn(w) -> ReadWriteResult(t, e, r, w),
+) -> ReadWriteResult(t, e, r, w) {
+  ReadWriteResult(run: fn(_read, writes) {
+    #(Ok(writes), writes)
+  })
+  |> do(cont)
 }
 
 pub fn write(
@@ -246,16 +252,6 @@ pub fn write(
 }
 
 pub fn set(
-  val new: w,
-  cont cont: fn() -> ReadWriteResult(t, e, r, w),
-) -> ReadWriteResult(t, e, r, w) {
-  ReadWriteResult(run: fn(_read, _write) {
-    #(Ok(Nil), new)
-  })
-  |> do(always(cont()))
-}
-
-pub fn set_(
   val new: v,
   into lens: Lens(w, v),
   cont cont: fn() -> ReadWriteResult(t, e, r, w),
@@ -267,49 +263,17 @@ pub fn set_(
   |> do(always(cont()))
 }
 
+pub fn set_(
+  val new: w,
+  cont cont: fn() -> ReadWriteResult(t, e, r, w),
+) -> ReadWriteResult(t, e, r, w) {
+  ReadWriteResult(run: fn(_read, _write) {
+    #(Ok(Nil), new)
+  })
+  |> do(always(cont()))
+}
+
 pub fn push(
-  el val: w,
-  cont cont: fn() -> ReadWriteResult(t, e, r, List(w)),
-) -> ReadWriteResult(t, e, r, List(w)) {
-  write(val:, using: list_push, into: lens.identity, cont:)
-}
-
-pub fn concat(
-  list val: List(w),
-  cont cont: fn() -> ReadWriteResult(t, e, r, List(w)),
-) -> ReadWriteResult(t, e, r, List(w)) {
-  write(val:, using: list.append, into: lens.identity, cont:)
-}
-
-pub fn append(
-  str val: String,
-  cont cont: fn() -> ReadWriteResult(t, e, r, String),
-) -> ReadWriteResult(t, e, r, String) {
-  write(val:, using: string.append, into: lens.identity, cont:)
-}
-
-pub fn add_number(
-  num val: Number,
-  cont cont: fn() -> ReadWriteResult(t, e, r, Number),
-) -> ReadWriteResult(t, e, r, Number) {
-  write(val:, using: number.add, into: lens.identity, cont:)
-}
-
-pub fn add_int(
-  int val: Int,
-  cont cont: fn() -> ReadWriteResult(t, e, r, Int),
-) -> ReadWriteResult(t, e, r, Int) {
-  write(val:, using: int.add, into: lens.identity, cont:)
-}
-
-pub fn add_float(
-  float val: Float,
-  cont cont: fn() -> ReadWriteResult(t, e, r, Float),
-) -> ReadWriteResult(t, e, r, Float) {
-  write(val:, using: float.add, into: lens.identity, cont:)
-}
-
-pub fn push_(
   el val: v,
   at into: Lens(w, List(v)),
   cont cont: fn() -> ReadWriteResult(t, e, r, w),
@@ -317,7 +281,7 @@ pub fn push_(
   write(val:, using: list_push, into:, cont:)
 }
 
-pub fn append_(
+pub fn append(
   str val: String,
   at into: Lens(w, String),
   cont cont: fn() -> ReadWriteResult(t, e, r, w),
@@ -325,7 +289,7 @@ pub fn append_(
   write(val:, using: string.append, into:, cont:)
 }
 
-pub fn concat_(
+pub fn concat(
   list val: List(v),
   at into: Lens(w, List(v)),
   cont cont: fn() -> ReadWriteResult(t, e, r, w),
@@ -333,7 +297,7 @@ pub fn concat_(
   write(val:, using: list.append, into:, cont:)
 }
 
-pub fn add_number_(
+pub fn add_number(
   num val: Number,
   at into: Lens(w, Number),
   cont cont: fn() -> ReadWriteResult(t, e, r, w),
@@ -341,7 +305,7 @@ pub fn add_number_(
   write(val:, using: number.add, into:, cont:)
 }
 
-pub fn add_int_(
+pub fn add_int(
   int val: Int,
   at into: Lens(w, Int),
   cont cont: fn() -> ReadWriteResult(t, e, r, w),
@@ -349,12 +313,54 @@ pub fn add_int_(
   write(val:, using: int.add, into:, cont:)
 }
 
-pub fn add_float_(
+pub fn add_float(
   float val: Float,
   at into: Lens(w, Float),
   cont cont: fn() -> ReadWriteResult(t, e, r, w),
 ) -> ReadWriteResult(t, e, r, w) {
   write(val:, using: float.add, into:, cont:)
+}
+
+pub fn push_(
+  el el: w,
+  cont cont: fn() -> ReadWriteResult(t, e, r, List(w)),
+) -> ReadWriteResult(t, e, r, List(w)) {
+  push(el, at: lens.identity, cont:)
+}
+
+pub fn concat_(
+  list list: List(w),
+  cont cont: fn() -> ReadWriteResult(t, e, r, List(w)),
+) -> ReadWriteResult(t, e, r, List(w)) {
+  concat(list, at: lens.identity, cont:)
+}
+
+pub fn append_(
+  str str: String,
+  cont cont: fn() -> ReadWriteResult(t, e, r, String),
+) -> ReadWriteResult(t, e, r, String) {
+  append(str, at: lens.identity, cont:)
+}
+
+pub fn add_number_(
+  num num: Number,
+  cont cont: fn() -> ReadWriteResult(t, e, r, Number),
+) -> ReadWriteResult(t, e, r, Number) {
+  add_number(num, at: lens.identity, cont:)
+}
+
+pub fn add_int_(
+  int int: Int,
+  cont cont: fn() -> ReadWriteResult(t, e, r, Int),
+) -> ReadWriteResult(t, e, r, Int) {
+  add_int(int, at: lens.identity, cont:)
+}
+
+pub fn add_float_(
+  float float: Float,
+  cont cont: fn() -> ReadWriteResult(t, e, r, Float),
+) -> ReadWriteResult(t, e, r, Float) {
+  add_float(float, at: lens.identity, cont:)
 }
 
 //
@@ -447,22 +453,22 @@ fn get_msgs(x: Log) { x.msgs }
 fn set_msgs(x: Log, msgs) { Log(..x, msgs:)}
 
 pub fn app() {
-  use <- push_("start", msgs)
+  use <- push("start", msgs)
 
-  use <- add_int_(1, total)
+  use <- add_int(1, total)
   use r <- to_result_separate_writes(zero_log, {
-    use <- push_("inner", msgs)
+    use <- push("inner", msgs)
     pure(123)
   })
   echo r
-  use <- add_int_(2, total)
+  use <- add_int(2, total)
   use _ <- do(fail("woops"))
-  use <- add_int_(3, total)
-  use writes <- writes_(at: total)
+  use <- add_int(3, total)
+  use writes <- writes(at: total)
 
-  use <- push_("end", msgs)
+  use <- push("end", msgs)
 
-  use read <- read()
+  use read <- read_()
 
   pure("success " <> read <> " " <> string.inspect(writes))
 }
