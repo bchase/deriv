@@ -3,14 +3,16 @@ import deriv/gen/types.{type ExprGen}
 import deriv/internal/glance.{term, short, call_} as _
 
 pub fn gen() -> ExprGen {
-  types.VariantClauseCaseExprGen({
-    use variant <- types.variant_name()
-    use foo <- types.variant_shorthand_field("foo")
+  types.VariantClauseCaseExprGen([
+    {
+      use variant <- types.variant_name()
+      use foo <- types.variant_shorthand_field("foo")
 
-    let func = { variant |> casing.snake <> "_func" } |> term
+      let func = { variant |> casing.snake <> "_func" } |> term
 
-    types.variant_success(func |> call_([ foo, short("bar") ]))
-  })
+      types.variant_success(func |> call_([ foo, short("bar") ]))
+    },
+  ])
 }
 
 pub type Foo {

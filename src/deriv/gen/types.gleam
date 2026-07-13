@@ -8,7 +8,7 @@ import gleam/pair
 import gleam/result
 
 pub type ExprGen {
-  VariantClauseCaseExprGen(expr: VariantExpr)
+  VariantClauseCaseExprGen(clauses: List(VariantExpr))
 }
 
 pub type TypeDef {
