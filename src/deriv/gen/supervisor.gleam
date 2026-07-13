@@ -396,7 +396,7 @@ const hot_code_reloading_target_dir =
 fn hot_code_reloading_worker(
   notify notify: process.Name(Msg),
 ) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
-  let assert [dir, ..dirs] = hot_code_reloading_target_dirs() |> echo
+  let assert [dir, ..dirs] = hot_code_reloading_target_dirs()
 
   supervision.worker(fn() {
     radiate.new()
@@ -420,19 +420,18 @@ fn hot_code_reloading_worker(
 }
 
 fn hot_code_reloading_target_dirs(
-) {
+) -> List(String) {
   let dir = hot_code_reloading_target_dir
 
   let filepath = dir <> "/gleam.toml"
 
-  let assert Ok(gt) =
-    gen.read_gleam_toml(filepath:)
+  let assert Ok(gt) = gen.read_gleam_toml(filepath:)
+    as { "Failed to find `gleam.toml` at: " <> filepath }
 
   let packages =
-    case tom.get_table(gt.toml, ["dependencies"]) {
-      Ok(dict) -> dict.keys(dict)
-      Error(_) -> panic as { filepath <> " <-- defines no dependencies"}
-    }
+    tom.get_table(gt.toml, ["dependencies"])
+    |> result.map(dict.keys)
+    |> result.unwrap([])
 
   let dep_paths =
     packages
