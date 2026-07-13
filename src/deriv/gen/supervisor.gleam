@@ -1,3 +1,6 @@
+import argv
+import glint
+import tom
 import radiate
 import gleam/option.{Some, type Option, None}
 import gleam/bool
@@ -21,6 +24,26 @@ import filespy
 import gleam/bit_array as ba
 import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
 
+pub fn main() -> Nil {
+  glint.new()
+  |> glint.with_name("gleam run -m deriv --")
+  |> glint.add(at: [], do: cmd())
+  |> glint.run(argv.load().arguments)
+}
+
+fn cmd() -> glint.Command(Nil) {
+  use <- glint.command_help("Run `deriv` code gen watcher")
+
+  use _named, _args, _flags <- glint.command()
+
+  let cfg = build_config()
+  let assert Ok(_) = supervisor.start(supervisor(names: cfg.names))
+
+  process.sleep_forever()
+}
+
+//
+
 pub type Config {
   Config(
     names: Names,
@@ -36,12 +59,23 @@ pub type Names {
   )
 }
 
+pub fn build_config() -> Config {
+  Config(
+    names: Names(
+      app: process.new_name("deriv-app"),
+      lookup: process.new_name("deriv-type-ast-lookup"),
+      refs: process.new_name("deriv-refs-listener"),
+      gens: process.new_name("deriv-code-gens-server"),
+    )
+  )
+}
+
 pub fn supervisor(
   names names: Names,
 ) -> supervisor.Builder {
   supervisor.new(supervisor.OneForOne)
-  |> supervisor.add(hot_code_reloading_worker())
-  |> supervisor.add(file_change_watching_worker(notify: names.app))
+  // |> supervisor.add(file_change_watching_worker(notify: names.app))
+  |> supervisor.add(hot_code_reloading_worker(notify: names.app))
   |> supervisor.add(worker(lookup_actor(name: names.lookup)))
   |> supervisor.add(worker(gens_actor(name: names.gens)))
   |> supervisor.add(worker(refs_actor(name: names.refs)))
@@ -55,6 +89,7 @@ pub fn supervisor(
 
 pub opaque type Msg {
   NoOp
+  GotCodeReload(path: String)
   GotFileChange(change: filespy.Change(Nil))
   ProcessQueue
   Process(path: String)
@@ -112,15 +147,17 @@ fn update(
 
   case msg {
     NoOp |
-    GotFileChange(change: filespy.Custom(Nil)) -> {
+    GotFileChange(change: filespy.Custom(Nil)) |
+    GotFileChange(change: filespy.Change(..)) -> {
       actor.continue(state)
     }
 
-    GotFileChange(change: filespy.Change(path:, ..)) -> {
+    // GotFileChange(change: filespy.Change(path:, ..)) -> {
+    GotCodeReload(path:) -> {
       let ok = Ok(actor.continue(state))
 
       use <- bool.lazy_guard(path |> string.ends_with("gleam.toml"), fn() {
-        process.send(lookup, ReloadGleamToml)
+        // process.send(lookup, ReloadGleamToml)
         ok
       })
 
@@ -323,49 +360,89 @@ fn refs_actor(
   |> actor.named(name)
 }
 
-// FILE CHANGE WATCHING WORKER
+// // FILE CHANGE WATCHING WORKER
 
-fn file_change_watching_worker(
-  notify notify: process.Name(Msg),
-) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
-  supervision.worker(fn() {
-    filespy.new()
-    |> filespy.set_initial_state(Nil)
-    |> filespy.add_dir(".")
-    |> filespy.set_actor_handler(fn(state, msg) {
-      case msg {
-        filespy.Change(..) as change -> {
-          notify
-          |> process.named_subject
-          |> process.send(GotFileChange(change:))
+// fn file_change_watching_worker(
+//   notify notify: process.Name(Msg),
+// ) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
+//   supervision.worker(fn() {
+//     filespy.new()
+//     |> filespy.set_initial_state(Nil)
+//     |> filespy.add_dir(".")
+//     |> filespy.set_actor_handler(fn(state, msg) {
+//       case msg {
+//         filespy.Change(..) as change -> {
+//           notify
+//           |> process.named_subject
+//           |> process.send(GotFileChange(change:))
 
-          actor.continue(state)
-        }
+//           actor.continue(state)
+//         }
 
-        filespy.Custom(..) ->
-          actor.continue(state)
-      }
-    })
-    |> filespy.start
-  })
-}
+//         filespy.Custom(..) ->
+//           actor.continue(state)
+//       }
+//     })
+//     |> filespy.start
+//   })
+// }
 
-// HOD CODE RELOADING ACTOR
+// HOT CODE RELOADING ACTOR
 
-const hot_code_reloading_dirs = [
-  "src"
-]
+const hot_code_reloading_target_dir =
+  // "../.." // up from `build/packages/`...
+  "../kohort"
 
 fn hot_code_reloading_worker(
+  notify notify: process.Name(Msg),
 ) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
-  let assert [dir, ..dirs] = hot_code_reloading_dirs
+  let assert [dir, ..dirs] = hot_code_reloading_target_dirs() |> echo
 
   supervision.worker(fn() {
     radiate.new()
+    |> radiate.set_initializer(fn(self) {
+      Nil
+      |> actor.initialised
+      |> actor.returning(self)
+      |> Ok
+    })
     |> radiate.add_dir(dir)
+    |> radiate.on_reload(fn(state, path) {
+      notify
+      |> process.named_subject
+      |> process.send(GotCodeReload(path:))
+
+      state
+    })
     |> list.fold(dirs, _, radiate.add_dir)
-    |> radiate.start
+    |> radiate.start_state
   })
+}
+
+fn hot_code_reloading_target_dirs(
+) {
+  let dir = hot_code_reloading_target_dir
+
+  let filepath = dir <> "/gleam.toml"
+
+  let assert Ok(gt) =
+    gen.read_gleam_toml(filepath:)
+
+  let packages =
+    case tom.get_table(gt.toml, ["dependencies"]) {
+      Ok(dict) -> dict.keys(dict)
+      Error(_) -> panic as { filepath <> " <-- defines no dependencies"}
+    }
+
+  let dep_paths =
+    packages
+    |> list.filter_map(fn(package) {
+      gen.dep_src_dir_path_(package:, in: "dependencies", toml: gt)
+    })
+    |> list.unique
+    |> list.map(string.append(dir <> "/", suffix: _))
+
+  [ dir <> "/src/", ..dep_paths ]
 }
 
 // LOOKUP ACTOR

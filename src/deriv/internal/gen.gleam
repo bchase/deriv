@@ -209,7 +209,13 @@ fn init() -> Result(Context, GleamTomlErr) {
 }
 
 pub fn gleam_toml() -> Result(GleamToml, GleamTomlErr) {
-  use src <- try_err(simplifile.read("gleam.toml"), FileReadErr)
+  read_gleam_toml(filepath: "gleam.toml")
+}
+
+pub fn read_gleam_toml(
+  filepath filepath: String
+) -> Result(GleamToml, GleamTomlErr) {
+  use src <- try_err(simplifile.read(filepath), FileReadErr)
   use toml <- try_err(tom.parse(src), TomlParseErr)
   use name <- try_err(tom.get_string(toml, ["name"]), TomlReadErr)
   Ok(GleamToml(name:, toml:))
@@ -307,6 +313,31 @@ fn dep_src_dir_path(
   use <- bool.guard(toml.name == package , Ok("src/"))
 
   use dep <- try_fail(any_dep(package, path, toml), GleamDependencyFailedToResolve(package:))
+
+  case dep {
+    DepString(..) ->
+      Ok(build_packages_path(dep:))
+
+    DepTable(table:, ..) ->
+      case tom.get_string(table, ["path"]) {
+        Ok(path) ->
+          Ok(path <> "/src/")
+
+        Error(_) ->
+          Ok(build_packages_path(dep:))
+      }
+  }
+}
+
+// skips `any_dep`
+pub fn dep_src_dir_path_(
+  package package: String,
+  in key: String,
+  toml toml: GleamToml,
+) -> Result(String, GenErr) {
+  use <- bool.guard(toml.name == package , Ok("src/"))
+
+  use dep <- try_fail(dep(package, key, toml), GleamDependencyFailedToResolve(package:))
 
   case dep {
     DepString(..) ->

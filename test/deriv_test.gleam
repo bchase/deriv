@@ -106,20 +106,8 @@ pub fn gen_test() {
   Nil
 }
 
-fn build_config() -> gs.Config {
-  gs.Config(
-    names: gs.Names(
-      app: process.new_name("deriv-app"),
-      lookup: process.new_name("deriv-type-ast-lookup"),
-      refs: process.new_name("deriv-refs-listener"),
-      gens: process.new_name("deriv-code-gens-server"),
-    )
-  )
-}
-
 pub fn custom_type_lookup_test() {
-  let cfg = build_config()
-
+  let cfg = gs.build_config()
   let assert Ok(_) = supervisor.start(gs.supervisor(cfg.names))
 
   // process.sleep_forever()
