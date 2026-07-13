@@ -381,10 +381,6 @@ fn refs_actor(
 
 // HOT CODE RELOADING ACTOR
 
-const hot_code_reloading_target_dir =
-  // "../.." // up from `build/packages/`...
-  "../kohort"
-
 fn hot_code_reloading_worker(
   notify notify: process.Name(Msg),
 ) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
@@ -413,9 +409,7 @@ fn hot_code_reloading_worker(
 
 fn hot_code_reloading_target_dirs(
 ) -> List(String) {
-  let dir = hot_code_reloading_target_dir
-
-  let filepath = dir <> "/gleam.toml"
+  let filepath = "gleam.toml"
 
   let assert Ok(gt) = gen.read_gleam_toml(filepath:)
     as { "Failed to find `gleam.toml` at: " <> filepath }
@@ -431,9 +425,8 @@ fn hot_code_reloading_target_dirs(
       gen.dep_src_dir_path_(package:, in: "dependencies", toml: gt)
     })
     |> list.unique
-    |> list.map(string.append(dir <> "/", suffix: _))
 
-  [ dir <> "/src/", ..dep_paths ]
+  [ "src/", ..dep_paths ]
 }
 
 // LOOKUP ACTOR
