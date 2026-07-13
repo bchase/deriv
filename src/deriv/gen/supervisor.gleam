@@ -1,3 +1,4 @@
+import radiate
 import gleam/option.{Some, type Option, None}
 import gleam/bool
 import gleam/set.{type Set}
@@ -39,7 +40,8 @@ pub fn supervisor(
   names names: Names,
 ) -> supervisor.Builder {
   supervisor.new(supervisor.OneForOne)
-  |> supervisor.add(filespy_worker(notify: names.app))
+  |> supervisor.add(hot_code_reloading_worker())
+  |> supervisor.add(file_change_watching_worker(notify: names.app))
   |> supervisor.add(worker(lookup_actor(name: names.lookup)))
   |> supervisor.add(worker(gens_actor(name: names.gens)))
   |> supervisor.add(worker(refs_actor(name: names.refs)))
@@ -321,9 +323,9 @@ fn refs_actor(
   |> actor.named(name)
 }
 
-// FILESPY WORKER
+// FILE CHANGE WATCHING WORKER
 
-fn filespy_worker(
+fn file_change_watching_worker(
   notify notify: process.Name(Msg),
 ) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
   supervision.worker(fn() {
@@ -345,6 +347,24 @@ fn filespy_worker(
       }
     })
     |> filespy.start
+  })
+}
+
+// HOD CODE RELOADING ACTOR
+
+const hot_code_reloading_dirs = [
+  "src"
+]
+
+fn hot_code_reloading_worker(
+) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
+  let assert [dir, ..dirs] = hot_code_reloading_dirs
+
+  supervision.worker(fn() {
+    radiate.new()
+    |> radiate.add_dir(dir)
+    |> list.fold(dirs, _, radiate.add_dir)
+    |> radiate.start
   })
 }
 
