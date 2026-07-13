@@ -154,19 +154,20 @@ fn update(
 
     // GotFileChange(change: filespy.Change(path:, ..)) -> {
     GotCodeReload(path:) -> {
-      let ok = Ok(actor.continue(state))
+      echo path
+      let noop = Ok(actor.continue(state))
 
       use <- bool.lazy_guard(path |> string.ends_with("gleam.toml"), fn() {
         // process.send(lookup, ReloadGleamToml)
-        ok
+        noop
       })
 
       use <- bool.lazy_guard(path |> string.contains("/build/packages/"), fn() {
         process.send(lookup, ReloadFilepaths)
-        ok
+        noop
       })
 
-      use <- bool.guard(!{path |> string.ends_with(".gleam")} , ok)
+      use <- bool.guard(!{path |> string.ends_with(".gleam")} , noop)
 
       use src <- try_fail_(simplifile.read(path), fn(_) {
         io.println_error("Failed to read Gleam file: " <> path)
@@ -175,12 +176,16 @@ fn update(
 
       let hash = sha256_hash(src)
 
-      use <- bool.guard({ state.hashes |> dict.get(path) } == Ok(hash), ok)
+      use <- bool.guard({ state.hashes |> dict.get(path) } == Ok(hash), noop)
 
       process.send_after(self, 1000, ProcessQueue)
 
-      Ok(actor.continue(State(..state, queue: state.queue |> set.insert(path), hashes: state.hashes |> dict.insert(path, hash))))
-    } |> result.unwrap(actor.continue(state))
+      Ok(actor.continue(State(..state,
+        queue: state.queue |> set.insert(path),
+        hashes: state.hashes |> dict.insert(path, hash)),
+      ))
+    }
+    |> result.unwrap(actor.continue(state))
 
     Process(path:) -> {
       use file <- try_fail_(gen.load_gleam_file(filepath: path), fn(err) {
