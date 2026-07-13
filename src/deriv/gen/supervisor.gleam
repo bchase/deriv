@@ -183,62 +183,49 @@ fn update(
     } |> result.unwrap(actor.continue(state))
 
     Process(path:) -> {
-      case gen.load_gleam_file(filepath: path) {
-        Error(err) -> {
-          log_err([
-            "Failed to load Gleam file at path: " <> path,
-            "  " <> string.inspect(err)
-          ])
+      use file <- try_fail_(gen.load_gleam_file(filepath: path), fn(err) {
+        log_err([ "Failed to load Gleam file at path: " <> path, "  " <> string.inspect(err) ])
+        Error(Nil)
+      })
 
-          actor.continue(state)
+      use ctx <- try_fail_(fetch_context(state.cfg.lookup, file:), fn(err) {
+        log_err([ "Failed fetch context: " <> string.inspect(err) ])
+        Error(Nil)
+      })
+
+      use #(new, refs) <- try_fail_(gen.process(ctx:), fn(err) {
+        case err {
+          Ok(gen.Skip) ->
+            Nil
+
+          Error(err) -> {
+            log_err([
+              { "Code gen failed..." },
+              { "  filepath: " <> file.filepath },
+              { "  error: " <> string.inspect(err) },
+            ])
+          }
         }
 
-        Ok(file) ->
-          case fetch_context(state.cfg.lookup, file:) {
-            Error(_) ->
-              actor.continue(state) // TODO log warn/err
+        Error(Nil)
+      })
 
-            Ok(ctx) ->
-              case gen.process(ctx:) {
-                Ok(#(new, refs)) -> {
-                  use <- bool.guard(new == file.src, actor.continue(state))
+      use <- bool.guard(new == file.src, Ok(actor.continue(state)))
 
-                  state.cfg.refs
-                  |> process.named_subject
-                  |> process.send(UpdateRefs(path: file.path, refs:))
+      state.cfg.refs
+      |> process.named_subject
+      |> process.send(UpdateRefs(path: file.path, refs:))
 
-                  let hash = sha256_hash(new)
+      let hash = sha256_hash(new)
 
-                  case simplifile.write(path, new) {
-                    Ok(Nil) ->
-                      Nil
+      use Nil <- try_fail_(simplifile.write(path, new), fn(err) {
+        log_err([ "Failed to write code gen src to Gleam file: " <> path, string.inspect(err) ])
+        Error(Nil)
+      })
 
-                    Error(err) ->
-                      log_err([
-                        "Failed to write new Gleam file to path: " <> path,
-                        "  " <> string.inspect(err)
-                      ])
-                  }
-
-                  actor.continue(State(..state, hashes: state.hashes |> dict.insert(path, hash)))
-                }
-
-                Error(Ok(_skip)) ->
-                  actor.continue(state)
-
-                Error(Error(err)) -> {
-                  log_err([
-                    { "Code gen failed..." },
-                    { "  filepath: " <> file.filepath },
-                    { "  error: " <> string.inspect(err) },
-                  ])
-
-                  actor.continue(state)
-                }
-              }
-          }
-      }
+      Ok(actor.continue(State(..state, hashes: state.hashes |> dict.insert(path, hash))))
     }
+    |> result.unwrap(actor.continue(state))
 
     ProcessQueue -> {
       state.queue

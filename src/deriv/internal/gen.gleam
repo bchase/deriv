@@ -30,6 +30,17 @@ import bchase/list.{push as list_push} as _
 import deriv/internal/monad.{type ReadWriteResult}
 import deriv/gen/defs
 
+// magic comments
+//   conv
+//     from
+//       `//$ derive ...`
+//       `//$ gen ...`
+//     to
+//       `//$ package[/module].func ...`
+//   examples
+//     `//$ deriv[e].json [encode] [decode]
+//     `//$ deriv[e].json [encode] [decode]
+
 // pieces
 //   - [erl+js]       `deriv`            >>> -- code gen defns helpers             -- `deriv`
 //   - [erl+js]       `deriv_core`       >>> -- code gen defns (`derive` & `gen`)  -- `deriv/core`
@@ -953,16 +964,14 @@ const gen_lookup = [
   #(#("bchase/foo/bar", "test0"), test0),
 ]
 pub fn test0() -> ExprGen {
-  types.VariantClauseCaseExprGen(test0_())
-}
+  types.VariantClauseCaseExprGen({
+    use variant <- types.variant_name()
+    use foo <- types.variant_shorthand_field("foo")
 
-pub fn test0_() -> types.VariantExpr {
-  use variant <- types.variant_name()
-  use foo <- types.variant_shorthand_field("foo")
+    let func = { variant |> casing.snake <> "_func" } |> term
 
-  let func = { variant |> casing.snake <> "_func" } |> term
-
-  types.variant_success(func |> call_([ foo, short("bar") ]))
+    types.variant_success(func |> call_([ foo, short("bar") ]))
+  })
 }
 
 type Pair {
