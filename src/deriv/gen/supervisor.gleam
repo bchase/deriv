@@ -78,24 +78,19 @@ fn app_actor(
   name name: process.Name(Msg),
   cfg cfg: AppConfig,
 ) -> actor.Builder(State, Msg, Nil) {
-  actor_named(name:, init:, update:, timeout: 100, return: always(Nil), flags: cfg)
+  actor_named(name:, init:, sel: None, update:, timeout: 100, return: always(Nil), flags: cfg)
 }
 
 fn init(
   cfg cfg: AppConfig,
   self self: Subject(Msg),
-) -> #(State, Selector(Msg)) {
-  let sel =
-    process.new_selector()
-    |> process.select(self)
-
+) -> State {
   State(
     self:,
     cfg:,
     queue: set.new(),
     hashes: dict.new(),
   )
-  |> pair.new(sel)
 }
 
 fn sha256_hash(
@@ -241,18 +236,14 @@ fn gens_actor(
   name name: process.Name(GensMsg),
 ) -> actor.Builder(GensState, GensMsg, Nil) {
   let flags = GensConfig
-  actor(init: gens_init, update: gens_update, timeout: 100, return: always(Nil), flags:)
+  actor(init: gens_init, sel: None, update: gens_update, timeout: 100, return: always(Nil), flags:)
   |> actor.named(name)
 }
 
 fn gens_init(
   cfg: GensConfig,
   self: Subject(GensMsg),
-) -> #(GensState, Selector(GensMsg)) {
-  let sel =
-    process.new_selector()
-    |> process.select(self)
-
+) -> GensState {
   process.send(self, GensPostInit)
 
   GensState(
@@ -260,7 +251,6 @@ fn gens_init(
     self:,
     gens: dict.new(),
   )
-  |> pair.new(sel)
 }
 
 fn gens_update(
@@ -298,16 +288,11 @@ type RefConfig {
 fn refs_init(
   _cfg: RefConfig,
   self: Subject(RefsMsg),
-) -> #(RefState, Selector(RefsMsg)) {
-  let sel =
-    process.new_selector()
-    |> process.select(self)
-
+) -> RefState {
   RefState(
     self:,
     refs: dict.new(),
   )
-  |> pair.new(sel)
 }
 
 fn refs_update(
@@ -331,7 +316,8 @@ fn refs_actor(
   name name: process.Name(RefsMsg),
 ) -> actor.Builder(RefState, RefsMsg, Nil) {
   let flags = RefConfig
-  actor(init: refs_init, update: refs_update, timeout: 100, return: always(Nil), flags:)
+
+  actor(init: refs_init, sel: None, update: refs_update, timeout: 100, return: always(Nil), flags:)
   |> actor.named(name)
 }
 
@@ -511,59 +497,43 @@ fn worker(
 
 fn actor_named(
   name name: process.Name(msg),
-  init init: fn(flags, Subject(msg)) -> #(state, Selector(msg)),
+  init init: fn(flags, Subject(msg)) -> state,
+  sel sel: Option(fn(flags, state) -> Selector(msg)),
   update update: fn(state, msg) -> actor.Next(state, msg),
   timeout timeout: Int,
   return return: fn(state) -> return,
   flags flags: flags,
 ) -> actor.Builder(state, msg, return) {
-  actor(init:, update:, timeout:, return:, flags:)
+  actor(init:, sel:, update:, timeout:, return:, flags:)
   |> actor.named(name)
 }
 
 fn actor(
-  init init: fn(flags, Subject(msg)) -> #(state, Selector(msg)),
+  init init: fn(flags, Subject(msg)) -> state,
+  sel sel: Option(fn(flags, state) -> Selector(msg)),
   update update: fn(state, msg) -> actor.Next(state, msg),
   timeout timeout: Int,
   return return: fn(state) -> return,
   flags flags: flags,
 ) -> actor.Builder(state, msg, return) {
   actor.new_with_initialiser(timeout, fn(self) {
-    let #(state, sel) = init(flags, self)
+    let state = init(flags, self)
 
     state
     |> actor.initialised
-    |> actor.selecting(sel |> process.select(self))
     |> actor.returning(return(state))
+    |> fn(actor) {
+      case sel {
+        None ->
+          actor
+
+        Some(sel) ->
+          sel(flags, state)
+          |>  process.select(self)
+          |> actor.selecting(actor, _)
+      }
+    }
     |> Ok
   })
   |> actor.on_message(update)
-}
-
-fn select(
-  map f: fn(t) -> msg,
-) -> #(Subject(t), Selector(msg)) {
-  select_(map: f, subj: process.new_subject())
-}
-
-fn select_named(
-  name name: process.Name(t),
-  map f: fn(t) -> msg,
-) -> #(Subject(t), Selector(msg)) {
-  select_(map: f, subj: process.named_subject(name))
-}
-
-fn select_(
-  map f: fn(t) -> msg,
-  subj subj: Subject(t),
-) -> #(Subject(t), Selector(msg)) {
-  process.new_selector()
-  |> process.select_map(subj, f)
-  |> pair.new(subj, _)
-}
-
-fn select_batch(
-  sels sels: List(Selector(msg)),
-) -> Selector(msg) {
-  list.fold(sels, process.new_selector(), process.merge_selector)
 }
