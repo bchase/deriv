@@ -1,4 +1,6 @@
+import gleam/set.{type Set}
 import bchase/function.{x}
+import bchase/list.{at as list_at} as _
 import deriv/internal/glance.{z} as _
 import glance as g
 import gleam/list
@@ -87,8 +89,8 @@ pub opaque type VariantExpr {
       g.Variant,
       String,
       fn(Option(String), String) -> Result(TypeDef, Nil),
-      List(String), // NOTE: fields acc, used to detect need for `with_spread`
-    ) -> Result(#(g.Expression, List(String)), Nil),
+      Set(String), // NOTE: fields acc, used to detect need for `with_spread`
+    ) -> Result(#(g.Expression, Set(String)), Nil),
   )
 }
 
@@ -117,38 +119,93 @@ pub opaque type VariantExpr {
 //   })
 // }
 
+pub fn try(
+  ve ve: VariantExpr,
+  cont cont: fn(g.Expression) -> VariantExpr,
+) -> VariantExpr {
+  VariantExpr(fn(variant, args, get_type, orig_fields) {
+    case ve.run(variant, args, get_type, orig_fields) {
+      Error(Nil) ->
+        Error(Nil)
+
+      Ok(#(expr, new_fields)) ->
+        cont(expr).run(variant, args, get_type, orig_fields |> set.union(new_fields))
+    }
+  })
+}
+
 pub fn variant_shorthand_field(
   name name: String,
   cont cont: fn(g.Field(g.Expression)) -> VariantExpr,
-) -> VariantExpr {
-  variant_shorthand_field_map(name, cont, x(short, pair.first))
+) -> VariantExpr  {
+  variant_shorthand_field_map(name, x(short, pair.first), cont)
 }
 
 pub fn variant_shorthand_type(
   name name: String,
   cont cont: fn(g.Type) -> VariantExpr,
 ) -> VariantExpr {
-  variant_shorthand_field_map(name, cont, pair.second)
+  variant_shorthand_field_map(name, pair.second, cont)
 }
+
+pub fn type_param_at(
+  type_ type_: g.Type,
+  idx idx: Int,
+  cont cont: fn(g.Type) -> VariantExpr,
+) -> VariantExpr {
+  VariantExpr(fn(variant, args, get_type, fields) {
+    case type_ {
+      g.NamedType(parameters:, ..) ->
+        parameters
+        |> list_at(idx)
+        |> result.map(fn(type_) {
+          cont(type_).run(variant, args, get_type, fields)
+        })
+        |> result.flatten
+
+      _ ->
+        Error(Nil)
+    }
+  })
+}
+
+// fn variant_foo(
+//   // name name: String,
+//   type_ type_: g.Type,
+//   apply f: fn(#(String, g.Type)) -> t,
+//   cont cont: fn(t) -> VariantExpr,
+// ) -> VariantExpr {
+//   VariantExpr(fn(variant, args, get_type, orig_fields) {
+//     use type_ <- result.try(get_named_param(variant:, name:))
+
+//     // variant_shorthand_field_map(name, function.identity)
+//     todo
+//   })
+// }
 
 fn variant_shorthand_field_map(
   name name: String,
-  cont cont: fn(t) -> VariantExpr,
   apply f: fn(#(String, g.Type)) -> t,
+  cont cont: fn(t) -> VariantExpr,
 ) -> VariantExpr {
   VariantExpr(fn(variant, args, get_type, fields) {
-    use type_ <- result.try(
-      variant.fields
-      |> list.find_map(fn(field) {
-        case field {
-          g.LabelledVariantField(label:, item:) if label == name -> Ok(item)
+    use type_ <- result.try(get_named_param(variant:, name:))
 
-          _ -> Error(Nil)
-        }
-      }),
-    )
+    cont(f(#(name, type_))).run(variant, args, get_type, fields |> set.insert(name))
+  })
+}
 
-    cont(f(#(name, type_))).run(variant, args, get_type, [name, ..fields])
+fn get_named_param(
+  variant variant: g.Variant,
+  name name: String,
+) -> Result(g.Type, Nil) {
+  variant.fields
+  |> list.find_map(fn(field) {
+    case field {
+      g.LabelledVariantField(label:, item:) if label == name -> Ok(item)
+
+      _ -> Error(Nil)
+    }
   })
 }
 
@@ -166,12 +223,12 @@ pub fn run_variant_expr(
   args args: String,
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
 ) -> Result(g.Clause, Nil) {
-  ve.run(variant, args, get_type, [])
+  ve.run(variant, args, get_type, set.new())
   |> result.map(fn(t) {
     let #(expr, fields) = t
 
-    let with_spread = list.length(variant.fields) > list.length(fields)
-    let arguments = fields |> list.map(g.ShorthandField)
+    let with_spread = list.length(variant.fields) > set.size(fields)
+    let arguments = fields |> set.map(g.ShorthandField) |> set.to_list
 
     let pattern =
       g.PatternVariant(z, None, variant.name, arguments:, with_spread:)
