@@ -120,16 +120,13 @@ pub opaque type VariantExpr {
 // }
 
 pub fn try(
-  ve ve: VariantExpr,
-  cont cont: fn(g.Expression) -> VariantExpr,
+  result result: Result(t, e),
+  cont cont: fn(t) -> VariantExpr,
 ) -> VariantExpr {
-  VariantExpr(fn(variant, args, get_type, orig_fields) {
-    case ve.run(variant, args, get_type, orig_fields) {
-      Error(Nil) ->
-        Error(Nil)
-
-      Ok(#(expr, new_fields)) ->
-        cont(expr).run(variant, args, get_type, orig_fields |> set.union(new_fields))
+  VariantExpr(fn(variant, args, get_type, fields) {
+    case result {
+      Error(_err) -> Error(Nil)
+      Ok(x) -> cont(x).run(variant, args, get_type, fields)
     }
   })
 }
@@ -146,6 +143,34 @@ pub fn variant_shorthand_type(
   cont cont: fn(g.Type) -> VariantExpr,
 ) -> VariantExpr {
   variant_shorthand_field_map(name, pair.second, cont)
+}
+
+pub fn type_params(
+  type_ type_: g.Type,
+  cont cont: fn(List(#(g.Type, Result(TypeDef, Nil)))) -> VariantExpr,
+) -> VariantExpr {
+  VariantExpr(fn(variant, args, get_type, fields) {
+    case type_ {
+      g.NamedType(parameters:, ..) ->
+        parameters
+        |> list.map(fn(type_) {
+          case type_ {
+            g.NamedType(module:, name:, ..) ->
+              get_type(module, name)
+
+            _ ->
+              Error(Nil)
+          }
+          |> pair.new(type_, _)
+        })
+        |> fn(x) {
+          cont(x).run(variant, args, get_type, fields)
+        }
+
+      _ ->
+        Error(Nil)
+    }
+  })
 }
 
 pub fn type_param_at(
