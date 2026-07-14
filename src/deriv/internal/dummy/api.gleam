@@ -46,9 +46,21 @@ pub fn handle_case() -> ExprGen {
           label: None,
           name: g.Named("req"),
           type_: Some(param_type),
+          // Some(g.NamedType(z,
+          //   module: None,
+          //   name: "Result",
+          //   parameters: [
+          //     param_type,
+          //     g.NamedType(z, "Err", None, []),
+          //   ],
+          // ),
+          // ),
         ),
       ],
-      return: Some(return_type),
+      return: Some(g.NamedType(z, "Result", None, [
+        return_type,
+        g.NamedType(z, "Err", None, []),
+      ])),
       body: [ ast.term("Nil") |> g.Expression ],
     )))
 
@@ -68,26 +80,6 @@ pub fn handle_case() -> ExprGen {
 
 //
 
-pub type Id(resource) {
-  Id(id: String)
-}
-
-pub type Record(resource) {
-  Record(
-    id: Id(resource),
-    resource: resource,
-    created_at: Timestamp,
-    updated_at: Timestamp,
-    archived_at: Option(Timestamp),
-  )
-}
-
-pub type ConfirmDelete(resource) {
-  ConfirmDelete
-}
-
-//
-
 pub type Err {
   Err(msg: String)
 }
@@ -95,29 +87,6 @@ pub type Err {
 pub type Resp {
   Resp(
     result: Result(Json, Err),
-  )
-}
-
-// fn resp(
-//   result: Result(t, Err),
-//   encode: fn(t) -> Json,
-// ) -> Resp {
-//   result
-//   |> result.map(encode)
-//   |> Resp
-// }
-
-//
-
-pub type Person {
-  Person(
-    name: String,
-  )
-}
-
-pub type PersonForm {
-  PersonForm(
-    name: String,
   )
 }
 
@@ -140,13 +109,21 @@ pub fn resp_func(
 
 //
 
-fn encode_temp(temp: Temp) -> Json {
-  todo
+pub type City {
+  Kyoto
 }
 
-fn encode_distance(distance: Distance) -> Json {
-  todo
+pub type Temp {
+  Celcius(degrees: Int)
 }
+
+pub fn encode_temp(_temp: Temp) -> Json { todo }
+
+pub type Distance {
+  Meters(meters: Float)
+}
+
+pub fn encode_distance(_distance: Distance) -> Json { todo }
 
 //
 
@@ -156,48 +133,16 @@ pub type Api {
   // GetAltitude(f: F(City, Distance))
 }
 
-// pub fn handle(
-//   req req: Req,
-// ) -> Resp {
-//   case req {
-//     GetTemp(f:) ->
-//       handle_get_temp
-//       |> resp_func(f:, encode: encode_temp)
-//   }
-// }
-
-//
-
-pub type City {
-  Kyoto
-}
-
-pub type Temp {
-  Celcius(degrees: Int)
-}
-
-pub type Distance {
-  Meters(meters: Float)
-}
-
-// fn handle_get_temp(
-//   city: City,
-// ) -> Result(Temp, Err) {
-//   case city {
-//     Kyoto ->
-//       Ok(Celcius(degrees: 38))
-//   }
-// }
-
-//  fn handle_get_altitude(
-//   city: City,
-// ) -> Result(Distance, Err) {
-//   todo
-// }
-
 pub fn handle(
   req req: Req,
 ) -> Resp {
   { //$ gen deriv/internal/dummy/api.handle_case req
+    case req {
+      GetTemp(f:) -> handle_get_temp |> resp_func(f:, encode: encode_temp)
+    }
   }
+}
+
+fn handle_get_temp(req: City) -> Result(Temp, Err) {
+  Nil
 }

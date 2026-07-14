@@ -730,7 +730,7 @@ pub fn process(
             })
 
         let src =
-          [acc.src, ..func_srcs]
+          [acc.src |> string.trim, ..func_srcs]
           |> string.join("\n\n")
 
          Ok(#(src, acc.refs))
