@@ -1,5 +1,3 @@
-import gleam/string
-import gleam/list
 import gleam/result
 import gleam/json.{type Json}
 import gleam/option.{type Option}
@@ -10,74 +8,72 @@ import deriv/internal/glance as ast
 import glance as g
 
 pub fn handle_case() -> ExprGen {
-  x.VariantClauseCaseExprGen(clauses: [
-    {
-      use var <- x.variant_name()
-      let handler_func = ast.term("handle_" <> casing.snake(var))
+  x.VariantClauseCaseExprGen(clauses: [{
+    use var <- x.variant_name()
+    let handler_func = ast.term("handle_" <> casing.snake(var))
 
-      use req <- x.variant_shorthand_field("f")
-      use req_type <- x.variant_shorthand_type("f")
+    use req <- x.variant_shorthand_field("f")
+    use req_type <- x.variant_shorthand_type("f")
 
-      use req_type_param_types <- x.type_params(req_type)
+    use req_type_param_types <- x.type_params(req_type)
 
-      use #(
-        _param_type_single_variant_all_labelled_fields,
-        encode_func,
-      ) <- x.try({case req_type_param_types {
-        [
-          #(g.NamedType(..), _param_type),
-          #(g.NamedType(name: return_type, ..), _),
-        ] -> {
-          // let handler_args =
-          //   case param_type |> result.map(fn(td) { td.def.definition }) {
-          //     Ok(g.CustomType(variants: [variant], ..)) -> {
-          //       let #(labelled_field_names, unlabelled_fields) =
-          //         variant.fields
-          //         |> list.map(fn(field) {
-          //           case field {
-          //             g.LabelledVariantField(label:, ..) -> Ok(label)
-          //             g.UnlabelledVariantField(..) -> Error(Nil)
-          //           }
-          //         })
-          //         |> result.partition
+    use #(
+      _param_type_single_variant_all_labelled_fields,
+      encode_func,
+    ) <- x.try({case req_type_param_types {
+      [
+        #(g.NamedType(..), _param_type),
+        #(g.NamedType(name: return_type, ..), _),
+      ] -> {
+        // let handler_args =
+        //   case param_type |> result.map(fn(td) { td.def.definition }) {
+        //     Ok(g.CustomType(variants: [variant], ..)) -> {
+        //       let #(labelled_field_names, unlabelled_fields) =
+        //         variant.fields
+        //         |> list.map(fn(field) {
+        //           case field {
+        //             g.LabelledVariantField(label:, ..) -> Ok(label)
+        //             g.UnlabelledVariantField(..) -> Error(Nil)
+        //           }
+        //         })
+        //         |> result.partition
 
-          //       case unlabelled_fields {
-          //         [] ->
-          //           []
+        //       case unlabelled_fields {
+        //         [] ->
+        //           []
 
-          //         _all_fields_labelled ->
-          //           labelled_field_names
-          //       }
-          //     }
+        //         _all_fields_labelled ->
+        //           labelled_field_names
+        //       }
+        //     }
 
-          //     _ ->
-          //       []
-          //   }
+        //     _ ->
+        //       []
+        //   }
 
-          let encode_func = ast.term("encode_" <> casing.snake(return_type))
+        let encode_func = ast.term("encode_" <> casing.snake(return_type))
 
-          Ok(#(Nil, encode_func))
-        }
+        Ok(#(Nil, encode_func))
+      }
 
-        _ ->
-          Error(Nil)
-      }})
+      _ ->
+        Error(Nil)
+    }})
 
-      let resp_func = ast.term("resp_func")
+    let resp_func = ast.term("resp_func")
 
-      //
+    //
 
-      handler_func
-      |> ast.pipe({
-        resp_func
-        |> ast.call_([
-          req,
-          g.LabelledField("encode", encode_func)
-        ])
-      })
-      |> x.variant_success()
-    }
-  ])
+    handler_func
+    |> ast.pipe({
+      resp_func
+      |> ast.call_([
+        req,
+        g.LabelledField("encode", encode_func)
+      ])
+    })
+    |> x.variant_success()
+  }])
 }
 
 //
