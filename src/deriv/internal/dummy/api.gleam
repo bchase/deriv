@@ -1,3 +1,5 @@
+import gleam/string
+import gleam/list
 import gleam/result
 import gleam/json.{type Json}
 import gleam/option.{type Option}
@@ -16,23 +18,58 @@ pub fn handle_case() -> ExprGen {
       use req <- x.variant_shorthand_field("f")
       use req_type <- x.variant_shorthand_type("f")
 
-      use resp_type <- x.type_param_at(req_type, idx: 1)
+      use req_type_param_types <- x.type_params(req_type)
 
-      use encode_func <- x.try({
-        case resp_type {
-          g.NamedType(name:, ..) ->
-            { "encode_" <> casing.snake(name) }
-            |> ast.term
-            |> x.variant_success
+      use #(
+        _param_type_single_variant_all_labelled_fields,
+        encode_func,
+      ) <- x.try({case req_type_param_types {
+        [
+          #(g.NamedType(..), _param_type),
+          #(g.NamedType(name: return_type, ..), _),
+        ] -> {
+          // let handler_args =
+          //   case param_type |> result.map(fn(td) { td.def.definition }) {
+          //     Ok(g.CustomType(variants: [variant], ..)) -> {
+          //       let #(labelled_field_names, unlabelled_fields) =
+          //         variant.fields
+          //         |> list.map(fn(field) {
+          //           case field {
+          //             g.LabelledVariantField(label:, ..) -> Ok(label)
+          //             g.UnlabelledVariantField(..) -> Error(Nil)
+          //           }
+          //         })
+          //         |> result.partition
 
-          _ ->
-            x.variant_failure()
+          //       case unlabelled_fields {
+          //         [] ->
+          //           []
+
+          //         _all_fields_labelled ->
+          //           labelled_field_names
+          //       }
+          //     }
+
+          //     _ ->
+          //       []
+          //   }
+
+          let encode_func = ast.term("encode_" <> casing.snake(return_type))
+
+          Ok(#(Nil, encode_func))
         }
-      })
+
+        _ ->
+          Error(Nil)
+      }})
+
+      let resp_func = ast.term("resp_func")
+
+      //
 
       handler_func
       |> ast.pipe({
-        { "resp_func" |> ast.term }
+        resp_func
         |> ast.call_([
           req,
           g.LabelledField("encode", encode_func)
@@ -130,7 +167,7 @@ fn encode_distance(distance: Distance) -> Json {
 pub type Req = Api
 pub type Api {
   GetTemp(f: F(City, Temp))
-  GetAltitude(f: F(City, Distance))
+  // GetAltitude(f: F(City, Distance))
 }
 
 pub fn handle(
@@ -139,10 +176,6 @@ pub fn handle(
   { //$ gen deriv/internal/dummy/api.handle_case req
     case req {
       GetTemp(f:) -> handle_get_temp |> resp_func(f:, encode: encode_temp)
-      GetAltitude(f:) -> handle_get_altitude |> resp_func(
-        f:,
-        encode: encode_distance,
-      )
     }
   }
 }
@@ -178,6 +211,12 @@ fn handle_get_temp(
     Kyoto ->
       Ok(Celcius(degrees: 38))
   }
+}
+
+ fn handle_get_altitude(
+  city: City,
+) -> Result(Distance, Err) {
+  todo
 }
 
 //
