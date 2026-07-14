@@ -1,3 +1,4 @@
+import shellout
 import argv
 import glint
 import tom
@@ -76,10 +77,10 @@ pub fn supervisor(
 ) -> supervisor.Builder {
   supervisor.new(supervisor.OneForOne)
   // |> supervisor.add(file_change_watching_worker(notify: names.app))
-  |> supervisor.add(hot_code_reloading_worker(notify: names.app))
-  |> supervisor.add(worker(lookup_actor(name: names.lookup)))
   |> supervisor.add(worker(gens_actor(name: names.gens)))
+  |> supervisor.add(worker(lookup_actor(name: names.lookup)))
   |> supervisor.add(worker(refs_actor(name: names.refs)))
+  |> supervisor.add(hot_code_reloading_worker(notify: names.app, gens: names.gens))
   |> supervisor.add(worker(app_actor(name: names.app, cfg: AppConfig(
     lookup: names.lookup,
     refs: names.refs,
@@ -155,13 +156,6 @@ fn update(
 
     // GotFileChange(change: filespy.Change(path:, ..)) -> {
     GotCodeReload(path:) -> {
-      let expr_gen_funcs = todo
-
-      scan.write_updated_gen_defs_gleam_file_for(
-        filepaths: [ path ],
-        expr_gen_funcs: todo,
-      )
-
       let noop = Ok(actor.continue(state))
 
       use <- bool.lazy_guard(path |> string.ends_with("gleam.toml"), fn() {
@@ -205,7 +199,7 @@ fn update(
         Error(Nil)
       })
 
-      use #(new, refs) <- try_fail_(gen.process(ctx:) |> echo, fn(err) {
+      use #(new, refs) <- try_fail_(gen.process(ctx:), fn(err) {
         case err {
           Ok(gen.Skip) ->
             Nil
@@ -255,6 +249,7 @@ fn update(
 pub opaque type GensMsg {
   GensNoOp
   GensPostInit
+  GensUpdateDirs(dirs: List(String))
 }
 
 type GensConfig {
@@ -266,7 +261,7 @@ type GensState {
   GensState(
     cfg: GensConfig,
     self: Subject(GensMsg),
-    gens: Dict(GleamPath, Nil),
+    gens: scan.ExprGenFuncs,
   )
 }
 
@@ -287,7 +282,7 @@ fn gens_init(
   GensState(
     cfg:,
     self:,
-    gens: dict.new(),
+    gens: scan.empty_expr_gen_funcs(),
   )
 }
 
@@ -302,6 +297,25 @@ fn gens_update(
     GensPostInit -> {
       actor.continue(state)
     }
+
+    GensUpdateDirs(dirs:) -> {
+      use find <- try_fail_(shellout.command(in: ".", opt: [],  run: "find", with: dirs), fn(_err) {
+        Error(Nil)
+      })
+
+      let filepaths =
+        find
+        |> string.split("\n")
+        |> list.map(string.trim)
+        |> list.filter(string.ends_with(_, ".gleam"))
+
+      let gens = scan.add_expr_gen_funcs(filepaths:, expr_gen_funcs: state.gens)
+
+      scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gens)
+
+      Ok(actor.continue(GensState(..state, gens:)))
+    }
+    |> result.unwrap(actor.continue(state))
   }
 }
 
@@ -342,7 +356,6 @@ fn refs_update(
       actor.continue(state)
 
     UpdateRefs(path:, refs:) -> {
-      echo { "GOT REFS " <> string.inspect(refs) }
       actor.continue(RefState(..state,
         refs: state.refs |> dict.insert(path, refs)
       ))
@@ -390,16 +403,21 @@ fn refs_actor(
 
 fn hot_code_reloading_worker(
   notify notify: process.Name(Msg),
+  gens gens: process.Name(GensMsg),
 ) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
-  let assert [dir, ..dirs] = hot_code_reloading_target_dirs()
-  |> fn(xs) {
-    list.each(xs, io.println)
-    xs
-    }
+  let assert [dir, ..dirs] as watched_dirs = watched_dirs() // TODO cache globally
+    // |> fn(xs) {
+    //   list.each(xs, io.println)
+    //   xs
+    // }
 
   supervision.worker(fn() {
     radiate.new()
     |> radiate.set_initializer(fn(self) {
+      gens
+      |> process.named_subject
+      |> process.send(GensUpdateDirs(dirs: watched_dirs))
+
       Nil
       |> actor.initialised
       |> actor.returning(self)
@@ -418,7 +436,7 @@ fn hot_code_reloading_worker(
   })
 }
 
-fn hot_code_reloading_target_dirs(
+fn watched_dirs(
 ) -> List(String) {
   let filepath = "gleam.toml"
 

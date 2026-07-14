@@ -717,7 +717,7 @@ fn run(
 ) -> ReadWriteResult(Nil, GenErr, Nil, Acc) {
   let #(gen, func, ctx) = gen_func_ctx
 
-  use orig <- monad.writes(at: lens_src)
+  use orig <- monad.writes(at: lens_src) // TODO unneeded...?
   use offset <- monad.writes(at: lens_offset)
 
   // use <- monad.add_int_(1, lens_offset)
@@ -930,33 +930,39 @@ fn case_expr_with_variant_clauses(
 
   let ref = Ref(from: file.path, to: type_.path, type_: type_.def.definition.name)
 
-  use expr <- try(
-    list.find_map(ves, build_case_expr(ve: _, type_:, args:, func:, get_type:))
+  use clauses <- try(
+    type_.def.definition.variants
+    |> list.map(
+      build_case_clause_expr(variant:_, ves:, type_:, args:, func:, get_type:)
+    )
+    |> result.all
   )
+
+  use subject <- try(args |> re.split(ws_re, _) |> list.first |> result.map(term))
+
+  let expr = g.Case(z, subjects: [subject], clauses:)
 
   Ok(GenExpr(expr:, refs: [ref]))
 }
 
-fn build_case_expr(
-  ve ve: types.VariantExpr,
+fn build_case_clause_expr(
+  variant variant: g.Variant,
+  ves ves: List(types.VariantExpr),
   type_ type_: TypeDef,
   args args: String,
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-) -> Result(g.Expression, Nil) {
+) -> Result(g.Clause, Nil) {
   // TODO better errs
 
-  use clauses <- try(
-    type_.def.definition.variants
-     |> list.map(fn(variant) { types.run_variant_expr(ve, variant:, args:, get_type:) })
-    |> result.all
+  use clause <- try(
+    ves
+    |> list.find_map(fn(ve) {
+      types.run_variant_expr(ve, variant:, args:, get_type:)
+    })
   )
 
-  let assert Ok(ws_re) = "\\s+" |> re.from_string
-
-  use subject <- try(args |> re.split(ws_re, _) |> list.first |> result.map(term))
-
-  Ok(g.Case(z, subjects: [subject], clauses: ))
+  Ok(clause)
 }
 
 

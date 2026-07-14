@@ -16,20 +16,19 @@ import glance as g
 import deriv/gen/types.{type GleamFile}
 import deriv/internal/gen
 import deriv/internal/glance.{z, call, dot, pipe} as _
-import radiate
 import deriv/gen/defs
 
 const func_name = "expr_gens"
 
-pub fn main() -> Nil {
-  let assert Ok(output) = shellout.command(in: ".", opt: [],  run: "find", with: ["src/"])
-  let filepaths = output |> string.split("\n")
+// pub fn main() -> Nil {
+//   let assert Ok(output) = shellout.command(in: ".", opt: [],  run: "find", with: ["src/"])
+//   let filepaths = output |> string.split("\n")
 
-  let expr_gen_funcs =
-    ExprGenFuncs(dict: dict.new())
+//   let expr_gen_funcs =
+//     ExprGenFuncs(dict: dict.new())
 
-  write_updated_gen_defs_gleam_file_for(filepaths:, expr_gen_funcs:)
-}
+//   write_expr_gens_to_gleam_file(filepaths:, expr_gen_funcs:)
+// }
 
 pub fn print(
   subj subj: process.Subject(Nil),
@@ -84,7 +83,11 @@ pub opaque type ExprGenFuncs {
   )
 }
 
-fn update(
+pub fn empty_expr_gen_funcs() -> ExprGenFuncs {
+  ExprGenFuncs(dict: dict.new())
+}
+
+pub fn update(
   xs xs: ExprGenFuncs,
   module module: String,
   funcs funcs: Set(String),
@@ -170,15 +173,10 @@ pub fn gen_defs_gleam_file(
   }
 }
 
-pub fn write_updated_gen_defs_gleam_file_for(
-  filepaths filepaths: List(String),
+pub fn write_expr_gens_to_gleam_file(
   expr_gen_funcs expr_gen_funcs,
 ) -> Nil {
-  let src =
-    filepaths
-    |> add_expr_gen_funcs(expr_gen_funcs:)
-    |> echo
-    |> gen_defs_gleam_file
+  let src = gen_defs_gleam_file(expr_gen_funcs:)
 
   let _ = simplifile.write("src/deriv/gen/defs.gleam", src)
 

@@ -1,3 +1,4 @@
+import gleam/int
 import deriv/internal/dummy/lookup_other.{type OtherImport}
 import deriv/internal/dummy/lookup_other_other as oo
 import glance
@@ -19,9 +20,9 @@ pub fn to_str() -> ExprGen {
       })
     },
     {
-      use int <- types.variant_shorthand_field("int")
+      use _int <- types.variant_shorthand_field("int")
       types.variant_success({
-        "int" |> ast.dot("to_string") |> ast.call_([ int ])
+        "int" |> ast.dot("to_string") |> ast.call([ ast.term("int") ])
       })
     },
   ])
@@ -31,6 +32,10 @@ fn test0(
   thing thing: Thing,
 ) -> String {
   { //$ gen deriv/internal/dummy/lookup.to_str thing
+    case thing {
+      Var1(str:) -> str
+      Var2(int:) -> int.to_string(int)
+    }
   }
 }
 
