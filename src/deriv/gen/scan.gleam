@@ -1,3 +1,4 @@
+import gleam/set.{type Set}
 import gleam/erlang/process
 import gleam/bool
 import simplifile
@@ -8,7 +9,7 @@ import glance_printer
 import gleam/string
 import gleam/option.{Some, None}
 import gleam/result.{try}
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/list
 import shellout
 import glance as g
@@ -24,7 +25,10 @@ pub fn main() -> Nil {
   let assert Ok(output) = shellout.command(in: ".", opt: [],  run: "find", with: ["src/"])
   let filepaths = output |> string.split("\n")
 
-  update_gen_defs_gleam_file(filepaths:)
+  let expr_gen_funcs =
+    ExprGenFuncs(dict: dict.new())
+
+  write_updated_gen_defs_gleam_file_for(filepaths:, expr_gen_funcs:)
 }
 
 pub fn print(
@@ -40,30 +44,68 @@ pub fn print(
   print(subj, every: ms)
 }
 
-pub fn update_gen_defs_gleam_file(
+pub fn add_expr_gen_funcs(
+  expr_gen_funcs egfs: ExprGenFuncs,
   filepaths filepaths: List(String),
-) -> Nil {
+) -> ExprGenFuncs {
   filepaths
-  |> list.map(gen.load_gleam_file)
-  |> result.values
-  |> list.filter_map(fn(file) {
-    let funcs = has_reference(in: file, module: "deriv/gen/types", type_: "ExprGen")
-    case funcs {
-      [] ->
+  |> list.fold([], fn(acc, filepath) {
+    case gen.load_gleam_file(filepath:) {
+      Error(_err) ->
         Error(Nil)
 
-      _ -> Ok(#(
-        file.path.full |> string.join("/"),
-        funcs |> list.map(fn(func) { func.definition.name }),
-      ))
+      Ok(file) -> {
+        let funcs = has_reference(in: file, module: "deriv/gen/types", type_: "ExprGen")
+
+        case funcs {
+          [] ->
+            Error(Nil)
+
+          _ -> Ok(#(
+            file.path.full |> string.join("/"),
+            funcs |> list.map(fn(func) { func.definition.name }),
+          ))
+        }
+      }
     }
+    |> list.wrap
+    |> list.append(acc, _)
   })
+  |> result.values
+  |> list.fold(egfs, fn(egfs, t) {
+    let #(module, funcs) = t
+    egfs |> update(module, set.from_list(funcs))
+  })
+}
+
+pub opaque type ExprGenFuncs {
+  ExprGenFuncs(
+    dict: Dict(String, Set(String)),
+  )
+}
+
+fn update(
+  xs xs: ExprGenFuncs,
+  module module: String,
+  funcs funcs: Set(String),
+) -> ExprGenFuncs {
+  xs.dict
+  |> dict.insert(module, funcs)
+  |> ExprGenFuncs
+}
+
+pub fn gen_defs_gleam_file(
+  expr_gen_funcs xs: ExprGenFuncs
+) -> String {
+  xs.dict
+  |> dict.to_list
   |> list.map(fn(t) {
     let #(module, func_names) = t
     let alias = module |> string.replace("/", "_")
 
     let func_tuple_expr =
       func_names
+      |> set.to_list
       |> list.map(fn(func) {
         g.Tuple(z, [
           g.Tuple(z, [
@@ -125,12 +167,21 @@ pub fn update_gen_defs_gleam_file(
       |> common.gleam_format
 
     src
-    |> io.println
-
-    let assert Ok(_) = simplifile.write("src/deriv/gen/defs.gleam", src)
-
-    Nil
   }
+}
+
+pub fn write_updated_gen_defs_gleam_file_for(
+  filepaths filepaths: List(String),
+  expr_gen_funcs expr_gen_funcs,
+) -> Nil {
+  let src =
+    filepaths
+    |> add_expr_gen_funcs(expr_gen_funcs:)
+    |> echo
+    |> gen_defs_gleam_file
+
+  let _ = simplifile.write("src/deriv/gen/defs.gleam", src)
+
   Nil
 }
 

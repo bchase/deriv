@@ -3,15 +3,41 @@ import deriv/internal/dummy/lookup_other_other as oo
 import glance
 import bchase/id
 import gleam/option
-import deriv/gen/types
+import deriv/gen/types.{type ExprGen}
+import deriv/internal/glance as ast
 
-// pub fn foo() -> types.ExprGen {
-//   types.VariantClauseCaseExprGen({
-//     use str <- types.variant_shorthand_field("str")
-//     use str <- types.variant_shorthand_field("str")
-//     types.variant_success(todo)
-//   })
-// }
+pub fn to_str() -> ExprGen {
+  types.VariantClauseCaseExprGen([
+    // todo
+    //   - register (ensure) import
+    //     * avoid name collision / duplicate import diff name
+    //   - check type
+    {
+      use _str <- types.variant_shorthand_field("str")
+      types.variant_success({
+        "str" |> ast.term
+      })
+    },
+    {
+      use int <- types.variant_shorthand_field("int")
+      types.variant_success({
+        "int" |> ast.dot("to_string") |> ast.call_([ int ])
+      })
+    },
+  ])
+}
+
+fn test0(
+  thing thing: Thing,
+) -> String {
+  { //$ gen deriv/internal/dummy/lookup.to_str thing
+  }
+}
+
+type Thing {
+  Var1(str: String)
+  Var2(int: Int)
+}
 
 pub fn bar() -> String {
 
@@ -27,14 +53,14 @@ pub type Foo {
 
 pub type LocalAlias = Local
 
-pub fn gen() {
-  let foo = todo
+// pub fn gen() {
+//   let foo = todo
 
-  // some other comment
+//   // some other comment
 
-  { //$ gen target
-    case foo {
-      _ -> foo
-    }
-  }
-}
+//   { //$ gen target
+//     case foo {
+//       _ -> foo
+//     }
+//   }
+// }

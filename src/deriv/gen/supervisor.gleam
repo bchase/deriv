@@ -23,6 +23,7 @@ import gleam/crypto
 import filespy
 import gleam/bit_array as ba
 import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
+import deriv/gen/scan
 
 pub fn main() -> Nil {
   glint.new()
@@ -154,7 +155,13 @@ fn update(
 
     // GotFileChange(change: filespy.Change(path:, ..)) -> {
     GotCodeReload(path:) -> {
-      echo path
+      let expr_gen_funcs = todo
+
+      scan.write_updated_gen_defs_gleam_file_for(
+        filepaths: [ path ],
+        expr_gen_funcs: todo,
+      )
+
       let noop = Ok(actor.continue(state))
 
       use <- bool.lazy_guard(path |> string.ends_with("gleam.toml"), fn() {
@@ -198,7 +205,7 @@ fn update(
         Error(Nil)
       })
 
-      use #(new, refs) <- try_fail_(gen.process(ctx:), fn(err) {
+      use #(new, refs) <- try_fail_(gen.process(ctx:) |> echo, fn(err) {
         case err {
           Ok(gen.Skip) ->
             Nil
@@ -385,6 +392,10 @@ fn hot_code_reloading_worker(
   notify notify: process.Name(Msg),
 ) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
   let assert [dir, ..dirs] = hot_code_reloading_target_dirs()
+  |> fn(xs) {
+    list.each(xs, io.println)
+    xs
+    }
 
   supervision.worker(fn() {
     radiate.new()
