@@ -727,10 +727,8 @@ fn run(
 
   // look up expr generator
   let fetch: fn(String, String) -> Result(ExprGen, Nil) = fn(module, func) {
-    gen_lookup
-    |> dict.from_list
+    defs.expr_gens()
     |> dict.get(#(module, func))
-    |> result.map(fn(f) { f() })
   }
   use #(expr_gen, args, path) <- monad.do(get_expr_gen(gen:, fetch:))
 
