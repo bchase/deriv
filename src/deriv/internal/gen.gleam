@@ -1,4 +1,5 @@
-import gleam/io
+import deriv/internal/common
+import bchase/io
 import bchase/unsafe
 import bchase/dynamic as dyn
 import gleam/dynamic.{type Dynamic, nil}
@@ -658,6 +659,7 @@ const skip: Result(#(String, List(Ref)), Result(Skip, GenErr)) =
 type Acc {
   Acc(
     src: String,
+    funcs: List(types.EnsureFunc),
     offset: Int,
     refs: List(Ref),
   )
@@ -665,6 +667,9 @@ type Acc {
 const lens_src = lens.Lens(get: get_src, set: set_src)
 fn get_src(x: Acc) { x.src }
 fn set_src(x: Acc, src) { Acc(..x, src:)}
+const lens_funcs = lens.Lens(get: get_funcs, set: set_funcs)
+fn get_funcs(x: Acc) { x.funcs }
+fn set_funcs(x: Acc, funcs) { Acc(..x, funcs:)}
 const lens_offset = lens.Lens(get: get_offset, set: set_offset)
 fn get_offset(x: Acc) { x.offset }
 fn set_offset(x: Acc, offset) { Acc(..x, offset:)}
@@ -700,15 +705,40 @@ pub fn process(
   })
   |> list.map(run)
   |> monad.sequence
-  |> monad.run_(Nil, Acc(src: ctx.file.src, offset: 0, refs: []))
+  |> monad.run_(Nil, Acc(src: ctx.file.src, funcs: [], offset: 0, refs: []))
   |> fn(t) {
-    case t {
-      #(Ok(_), acc) ->
-        Ok(#(acc.src, acc.refs))
+      case t {
+        #(Ok(_), acc) -> {
+          let func_srcs =
+            acc.funcs
+            |> list.group(fn(f) { f.def.definition.name })
+            |> dict.to_list
+            |> list.filter_map(fn(t) {
+              case t.1 {
+                [] -> Error(Nil)
+                [f] -> Ok(f)
+                _ -> {
+                  io.log_err([
+                    "An expression generator is trying to define multiple functions with the name: " <> t.0
+                  ])
+                  Error(Nil)
+                }
+              }
+            })
+            |> list.map(fn(f) {
+              common.func_str(f.def)
+            })
 
-      #(Error(err), _acc) ->
-        Error(Error(err))
-    }
+        let src =
+          [acc.src, ..func_srcs]
+          |> string.join("\n\n")
+
+         Ok(#(src, acc.refs))
+       }
+
+       #(Error(err), _acc) ->
+         Error(Error(err))
+     }
   }
 }
 
@@ -719,8 +749,6 @@ fn run(
 
   use orig <- monad.writes(at: lens_src) // TODO unneeded...?
   use offset <- monad.writes(at: lens_offset)
-
-  // use <- monad.add_int_(1, lens_offset)
 
   // offset positions based on previous code gen results
   let gen = Gen(..gen, pos: gen.pos + offset)
@@ -734,10 +762,13 @@ fn run(
 
   // gen expr
   let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
-  use GenExpr(expr:, refs: new_refs) <- monad.do(monad.ok(
+  use GenExpr(expr:, funcs:, refs: new_refs) <- monad.do(monad.ok(
     build_expr(expr_gen, args, func, get_type, ctx.file),
     always(GenExprErr(path:, gen_str: gen.str))
   ))
+
+  // register funcs to be added to src
+  use <- monad.concat(funcs, lens_funcs)
 
   // persist refs
   use <- monad.concat(new_refs, lens_refs)
@@ -864,6 +895,7 @@ pub type GetParam = fn(String) -> Result(g.Type, Nil)
 pub type GenExpr {
   GenExpr(
     expr: g.Expression,
+    funcs: List(types.EnsureFunc),
     refs: List(Ref),
   )
 }
@@ -930,19 +962,24 @@ fn case_expr_with_variant_clauses(
 
   let ref = Ref(from: file.path, to: type_.path, type_: type_.def.definition.name)
 
-  use clauses <- try(
+  use #(clauses, funcs) <- try(
     type_.def.definition.variants
     |> list.map(
       build_case_clause_expr(variant:_, ves:, type_:, args:, func:, get_type:)
-    )
+     )
     |> result.all
+    |> result.map(fn(t) {
+      t
+      |> list.unzip
+      |> pair.map_second(list.flatten)
+    })
   )
 
   use subject <- try(args |> re.split(ws_re, _) |> list.first |> result.map(term))
 
   let expr = g.Case(z, subjects: [subject], clauses:)
 
-  Ok(GenExpr(expr:, refs: [ref]))
+  Ok(GenExpr(expr:, funcs:, refs: [ref]))
 }
 
 fn build_case_clause_expr(
@@ -952,17 +989,17 @@ fn build_case_clause_expr(
   args args: String,
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-) -> Result(g.Clause, Nil) {
+) -> Result(#(g.Clause, List(types.EnsureFunc)), Nil) {
   // TODO better errs
 
-  use clause <- try(
+  use #(clause, ensure_funcs) <- try(
     ves
     |> list.find_map(fn(ve) {
       types.run_variant_expr(ve, variant:, args:, get_type:)
     })
   )
 
-  Ok(clause)
+  Ok(#(clause, ensure_funcs))
 }
 
 

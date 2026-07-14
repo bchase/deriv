@@ -90,7 +90,14 @@ pub opaque type VariantExpr {
       String,
       fn(Option(String), String) -> Result(TypeDef, Nil),
       Set(String), // NOTE: fields acc, used to detect need for `with_spread`
-    ) -> Result(#(g.Expression, Set(String)), Nil),
+      List(EnsureFunc), // NOTE: fields acc, used to detect need for `with_spread`
+    ) -> Result(#(g.Expression, Set(String), List(EnsureFunc)), Nil),
+  )
+}
+
+pub type EnsureFunc {
+  EnsureFunc(
+    def: g.Definition(g.Function),
   )
 }
 
@@ -123,11 +130,20 @@ pub fn try(
   result result: Result(t, e),
   cont cont: fn(t) -> VariantExpr,
 ) -> VariantExpr {
-  VariantExpr(fn(variant, args, get_type, fields) {
+  VariantExpr(fn(variant, args, get_type, fields, funcs) {
     case result {
       Error(_err) -> Error(Nil)
-      Ok(x) -> cont(x).run(variant, args, get_type, fields)
+      Ok(x) -> cont(x).run(variant, args, get_type, fields, funcs)
     }
+  })
+}
+
+pub fn ensure_func(
+  def def: g.Definition(g.Function),
+  cont cont: fn() -> VariantExpr,
+) -> VariantExpr {
+  VariantExpr(fn(variant, args, get_type, fields, funcs) {
+    cont().run(variant, args, get_type, fields, funcs |> list.append([EnsureFunc(def:)]))
   })
 }
 
@@ -149,7 +165,7 @@ pub fn type_params(
   type_ type_: g.Type,
   cont cont: fn(List(#(g.Type, Result(TypeDef, Nil)))) -> VariantExpr,
 ) -> VariantExpr {
-  VariantExpr(fn(variant, args, get_type, fields) {
+  VariantExpr(fn(variant, args, get_type, fields, funcs) {
     case type_ {
       g.NamedType(parameters:, ..) ->
         parameters
@@ -164,7 +180,7 @@ pub fn type_params(
           |> pair.new(type_, _)
         })
         |> fn(x) {
-          cont(x).run(variant, args, get_type, fields)
+          cont(x).run(variant, args, get_type, fields, funcs)
         }
 
       _ ->
@@ -178,13 +194,13 @@ pub fn type_param_at(
   idx idx: Int,
   cont cont: fn(g.Type) -> VariantExpr,
 ) -> VariantExpr {
-  VariantExpr(fn(variant, args, get_type, fields) {
+  VariantExpr(fn(variant, args, get_type, fields, funcs) {
     case type_ {
       g.NamedType(parameters:, ..) ->
         parameters
         |> list_at(idx)
         |> result.map(fn(type_) {
-          cont(type_).run(variant, args, get_type, fields)
+          cont(type_).run(variant, args, get_type, fields, funcs)
         })
         |> result.flatten
 
@@ -213,10 +229,10 @@ fn variant_shorthand_field_map(
   apply f: fn(#(String, g.Type)) -> t,
   cont cont: fn(t) -> VariantExpr,
 ) -> VariantExpr {
-  VariantExpr(fn(variant, args, get_type, fields) {
+  VariantExpr(fn(variant, args, get_type, fields, funcs) {
     use type_ <- result.try(get_named_param(variant:, name:))
 
-    cont(f(#(name, type_))).run(variant, args, get_type, fields |> set.insert(name))
+    cont(f(#(name, type_))).run(variant, args, get_type, fields |> set.insert(name), funcs)
   })
 }
 
@@ -235,11 +251,11 @@ fn get_named_param(
 }
 
 pub fn variant_failure() -> VariantExpr {
-  VariantExpr(fn(_, _, _, _) { Error(Nil) })
+  VariantExpr(fn(_, _, _, _, _) { Error(Nil) })
 }
 
 pub fn variant_success(expr expr: g.Expression) -> VariantExpr {
-  VariantExpr(fn(_, _, _, fields) { Ok(#(expr, fields)) })
+  VariantExpr(fn(_, _, _, fields, funcs) { Ok(#(expr, fields, funcs)) })
 }
 
 pub fn run_variant_expr(
@@ -247,10 +263,10 @@ pub fn run_variant_expr(
   variant variant: g.Variant,
   args args: String,
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-) -> Result(g.Clause, Nil) {
-  ve.run(variant, args, get_type, set.new())
+) -> Result(#(g.Clause, List(EnsureFunc)), Nil) {
+  ve.run(variant, args, get_type, set.new(), [])
   |> result.map(fn(t) {
-    let #(expr, fields) = t
+    let #(expr, fields, funcs) = t
 
     let with_spread = list.length(variant.fields) > set.size(fields)
     let arguments = fields |> set.map(g.ShorthandField) |> set.to_list
@@ -258,15 +274,15 @@ pub fn run_variant_expr(
     let pattern =
       g.PatternVariant(z, None, variant.name, arguments:, with_spread:)
 
-    g.Clause(patterns: [[pattern]], guard: None, body: expr)
+    #(g.Clause(patterns: [[pattern]], guard: None, body: expr), funcs)
   })
 }
 
 pub fn variant_name(
   cont cont: fn(String) -> VariantExpr,
 ) -> VariantExpr {
-  VariantExpr(fn(variant, args, get_type, fields) {
-    cont(variant.name).run(variant, args, get_type, fields)
+  VariantExpr(fn(variant, args, get_type, fields, funcs) {
+    cont(variant.name).run(variant, args, get_type, fields, funcs)
   })
 }
 
