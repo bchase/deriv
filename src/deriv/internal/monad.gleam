@@ -187,6 +187,13 @@ pub fn do_ok(
   do(ok(result:, err:), cont:)
 }
 
+pub fn do_ok_(
+  result result: Result(a, e),
+  cont cont: fn(a) -> ReadWriteResult(b, e, r, w),
+) -> ReadWriteResult(b, e, r, w) {
+  do(ok(result:, err: function.identity), cont:)
+}
+
 pub fn do_some(
   option option: Option(a),
   err err: fn() -> e,

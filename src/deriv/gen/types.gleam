@@ -1,3 +1,4 @@
+import gleam/string
 import gleam/set.{type Set}
 import bchase/function.{x}
 import bchase/list.{at as list_at} as _
@@ -94,12 +95,13 @@ pub fn all_imports(
 pub opaque type VariantExpr {
   VariantExpr(
     run: fn(
+      #(GleamPath,String),
       g.Variant,
       String,
       fn(Option(String), String) -> Result(TypeDef, Nil),
       Set(String), // NOTE: fields acc, used to detect need for `with_spread`
       List(EnsureFunc),
-    ) -> Result(#(g.Expression, Set(String), List(EnsureFunc)), Nil),
+    ) -> Result(#(g.Expression, Set(String), List(EnsureFunc)), String),
   )
 }
 
@@ -135,13 +137,13 @@ pub type EnsureFunc {
 // }
 
 pub fn try(
-  result result: Result(t, e),
+  result result: Result(t, String),
   cont cont: fn(t) -> VariantExpr,
 ) -> VariantExpr {
-  VariantExpr(fn(variant, args, get_type, fields, funcs) {
+  VariantExpr(fn(mf, variant, args, get_type, fields, funcs) {
     case result {
-      Error(_err) -> Error(Nil)
-      Ok(x) -> cont(x).run(variant, args, get_type, fields, funcs)
+      Error(err) -> Error(err)
+      Ok(x) -> cont(x).run(mf, variant, args, get_type, fields, funcs)
     }
   })
 }
@@ -150,8 +152,8 @@ pub fn ensure_func(
   def def: g.Definition(g.Function),
   cont cont: fn() -> VariantExpr,
 ) -> VariantExpr {
-  VariantExpr(fn(variant, args, get_type, fields, funcs) {
-    cont().run(variant, args, get_type, fields, funcs |> list.append([EnsureFunc(def:)]))
+  VariantExpr(fn(mf, variant, args, get_type, fields, funcs) {
+    cont().run(mf, variant, args, get_type, fields, funcs |> list.append([EnsureFunc(def:)]))
   })
 }
 
@@ -173,7 +175,7 @@ pub fn type_params(
   type_ type_: g.Type,
   cont cont: fn(List(#(g.Type, Result(TypeDef, Nil)))) -> VariantExpr,
 ) -> VariantExpr {
-  VariantExpr(fn(variant, args, get_type, fields, funcs) {
+  VariantExpr(fn(mf, variant, args, get_type, fields, funcs) {
     case type_ {
       g.NamedType(parameters:, ..) ->
         parameters
@@ -188,11 +190,11 @@ pub fn type_params(
           |> pair.new(type_, _)
         })
         |> fn(x) {
-          cont(x).run(variant, args, get_type, fields, funcs)
+          cont(x).run(mf, variant, args, get_type, fields, funcs)
         }
 
       _ ->
-        Error(Nil)
+        Error("variant param types needs `NamedType`, got: " <> string.inspect(type_))
     }
   })
 }
@@ -202,18 +204,21 @@ pub fn type_param_at(
   idx idx: Int,
   cont cont: fn(g.Type) -> VariantExpr,
 ) -> VariantExpr {
-  VariantExpr(fn(variant, args, get_type, fields, funcs) {
+  let err = "couldn't find type param at index " <> string.inspect(idx) <> ", got: " <> string.inspect(type_)
+
+  VariantExpr(fn(mf, variant, args, get_type, fields, funcs) {
     case type_ {
       g.NamedType(parameters:, ..) ->
         parameters
         |> list_at(idx)
+        |> result.replace_error(err)
         |> result.map(fn(type_) {
-          cont(type_).run(variant, args, get_type, fields, funcs)
+          cont(type_).run(mf, variant, args, get_type, fields, funcs)
         })
         |> result.flatten
 
       _ ->
-        Error(Nil)
+        Error(err)
     }
   })
 }
@@ -237,10 +242,12 @@ fn variant_shorthand_field_map(
   apply f: fn(#(String, g.Type)) -> t,
   cont cont: fn(t) -> VariantExpr,
 ) -> VariantExpr {
-  VariantExpr(fn(variant, args, get_type, fields, funcs) {
-    use type_ <- result.try(get_named_param(variant:, name:))
+  VariantExpr(fn(gen_name, variant, args, get_type, fields, funcs) {
+    use type_ <- result.try(get_named_param(variant:, name:) |> result.map_error(fn(_) {
+      "couldn't fine named param " <> string.inspect(name) <> " in: " <> string.inspect(variant)
+    }))
 
-    cont(f(#(name, type_))).run(variant, args, get_type, fields |> set.insert(name), funcs)
+    cont(f(#(name, type_))).run(gen_name, variant, args, get_type, fields |> set.insert(name), funcs)
   })
 }
 
@@ -258,21 +265,22 @@ fn get_named_param(
   })
 }
 
-pub fn variant_failure() -> VariantExpr {
-  VariantExpr(fn(_, _, _, _, _) { Error(Nil) })
+pub fn variant_failure(msg: String) -> VariantExpr {
+  VariantExpr(fn(_, _, _, _, _, _) { Error(msg) })
 }
 
 pub fn variant_success(expr expr: g.Expression) -> VariantExpr {
-  VariantExpr(fn(_, _, _, fields, funcs) { Ok(#(expr, fields, funcs)) })
+  VariantExpr(fn(_, _, _, _, fields, funcs) { Ok(#(expr, fields, funcs)) })
 }
 
 pub fn run_variant_expr(
   ve: VariantExpr,
+  mf mf: #(GleamPath, String),
   variant variant: g.Variant,
   args args: String,
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-) -> Result(#(g.Clause, List(EnsureFunc)), Nil) {
-  ve.run(variant, args, get_type, set.new(), [])
+) -> Result(#(g.Clause, List(EnsureFunc)), String) {
+  ve.run(mf, variant, args, get_type, set.new(), [])
   |> result.map(fn(t) {
     let #(expr, fields, funcs) = t
 
@@ -289,8 +297,8 @@ pub fn run_variant_expr(
 pub fn variant_name(
   cont cont: fn(String) -> VariantExpr,
 ) -> VariantExpr {
-  VariantExpr(fn(variant, args, get_type, fields, funcs) {
-    cont(variant.name).run(variant, args, get_type, fields, funcs)
+  VariantExpr(fn(mf, variant, args, get_type, fields, funcs) {
+    cont(variant.name).run(mf, variant, args, get_type, fields, funcs)
   })
 }
 

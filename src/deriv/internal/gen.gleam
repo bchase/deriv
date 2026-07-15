@@ -144,6 +144,8 @@ pub type GenErr {
   GenExprErr(path: GleamPath, gen_str: String)
   GenExprCommentSpliceErr(path: GleamPath, gen_str: String, expr: g.Expression, expr_src: String)
   //
+  GenAllFailedToMatch(expr_gen: #(GleamPath, String), errs: List(String), detail: Dynamic)
+  //
   Failed(msg: String)
 }
 
@@ -765,14 +767,13 @@ fn run(
     defs.expr_gens()
     |> dict.get(#(module, func))
   }
-  use #(expr_gen, args, path) <- monad.do(get_expr_gen(gen:, fetch:))
+  use #(expr_gen, args, #(path, _func) as mf) <- monad.do(get_expr_gen(gen:, fetch:))
 
   // gen expr
   let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
-  use GenExpr(expr:, funcs:, refs: new_refs) <- monad.do(monad.ok(
-    build_expr(expr_gen, args, func, get_type, ctx.file),
-    always(GenExprErr(path:, gen_str: gen.str))
-  ))
+  use GenExpr(expr:, funcs:, refs: new_refs) <- monad.do_ok_(
+    build_expr(mf, expr_gen, args, func, get_type, ctx.file),
+  )
 
   // register funcs to be added to src
   use <- monad.concat(funcs, lens_funcs)
@@ -823,7 +824,7 @@ fn run(
 fn get_expr_gen(
   gen gen: Gen,
   fetch fetch: fn(String, String) -> Result(ExprGen, Nil),
-) -> ReadWriteResult(#(ExprGen, String, GleamPath), GenErr, r, w) {
+) -> ReadWriteResult(#(ExprGen, String, #(GleamPath, String)), GenErr, r, w) {
   use #(str, args) <- monad.do_ok(case gen.str |> string.split(" ") {
     [] -> Error(GenStrGleamModuleParseErr(gen_str: gen.str))
     [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
@@ -844,7 +845,7 @@ fn get_expr_gen(
     always(GenNotFound(path:, func:, gen_str: gen.str))
   ))
 
-  monad.pure(#(expr_gen, args, path))
+  monad.pure(#(expr_gen, args, #(path, func)))
 }
 
 // fn build_expr(
@@ -881,22 +882,6 @@ fn get_expr_gen(
 //     _ ->
 //       Error(Nil)
 //   }
-// }
-
-pub type FuncDef = g.Definition(g.Function)
-pub type GetType = fn(Option(String), String) -> Result(TypeDef, Nil)
-pub type GetParam = fn(String) -> Result(g.Type, Nil)
-// pub type CodeGen {
-//   CodeGen(fn(ExprGen, String, FuncDef, GleamFile, GetType) -> Result(GenExpr, Nil))
-// }
-// fn code_gen(
-// ) {
-//   CodeGen(fn(gen, args, func, file, get_type) {
-//     case gen {
-//       VariantClauseCaseExprGen(expr: ve) ->
-//         case_expr_with_variant_clauses(ve: , args:, func:, get_type:, file:)
-//     }
-//   })
 // }
 
 pub type GenExpr {
@@ -941,48 +926,47 @@ fn get_named_param_type(
 }
 
 fn build_expr(
+  mf mf: #(GleamPath, String),
   gen gen: ExprGen,
   args args: String,
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   file file: GleamFile,
-) -> Result(GenExpr, Nil) {
+) -> Result(GenExpr, GenErr) {
   case gen {
     types.VariantClauseCaseExprGen(clauses: ves) ->
-      case_expr_with_variant_clauses(ves:, args:, func:, get_type:, file:)
+      case_expr_with_variant_clauses(mf:, ves:, args:, func:, get_type:, file:)
   }
 }
 
 fn case_expr_with_variant_clauses(
+  mf mf: #(GleamPath, String),
   ves ves: List(types.VariantExpr),
   args args: String,
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   file file: GleamFile,
-) -> Result(GenExpr, Nil) {
+) -> Result(GenExpr, GenErr) {
   let assert Ok(ws_re) = "\\s+" |> re.from_string
 
-  use str <- try(args |> re.split(ws_re, _) |> list.first)
+  use str <- try(args |> re.split(ws_re, _) |> list.first |> result.map_error(fn(_) {
+    Failed("[variant clause expr] was expecting an initial gen arg, but found none")
+  }))
 
-  use #(mod, type_) <- try(get_named_param_type(str:, func:))
-  // use #(mod, type_) <- try(
-  //   str
-  //   |> string.split(".")
-  //   |> fn(xs) { case xs {
-  //     [type_] -> Ok(#(None, type_))
-  //     [mod, type_] -> Ok(#(Some(mod), type_))
-  //     _ -> Error(Nil)
-  //   } }
-  // )
+  use #(mod, type_) <- try(get_named_param_type(str:, func:) |> result.map_error(fn(_) {
+    Failed("[variant clause expr] couldn't find named param: " <> str)
+  }))
 
-  use type_ <- try(get_type(mod, type_))
+  use type_ <- try(get_type(mod, type_) |> result.map_error(fn(_) {
+    Failed("[variant clause expr] failed type lookup: " <> string.inspect(#(mod, type_)))
+  }))
 
   let ref = Ref(from: file.path, to: type_.path, type_: type_.def.definition.name)
 
   use #(clauses, funcs) <- try(
     type_.def.definition.variants
     |> list.map(
-      build_case_clause_expr(variant:_, ves:, type_:, args:, func:, get_type:)
+      build_case_clause_expr(mf:, variant:_, ves:, type_:, args:, func:, get_type:)
      )
     |> result.all
     |> result.map(fn(t) {
@@ -992,27 +976,43 @@ fn case_expr_with_variant_clauses(
     })
   )
 
-  use subject <- try(args |> re.split(ws_re, _) |> list.first |> result.map(term))
+  let subject = term(str)
+  // use subject <- try(args |> re.split(ws_re, _) |> list.first |> result.map(term) |> result.map_error(fn(_) {
+  //   Failed("[variant clause expr] couldn't find subject param: " <> string.inspect(#(mod, type_)))
+  // }))
 
   let expr = g.Case(z, subjects: [subject], clauses:)
-
   Ok(GenExpr(expr:, funcs:, refs: [ref]))
 }
 
 fn build_case_clause_expr(
+  mf mf: #(GleamPath, String),
   variant variant: g.Variant,
   ves ves: List(types.VariantExpr),
   type_ type_: TypeDef,
   args args: String,
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-) -> Result(#(g.Clause, List(types.EnsureFunc)), Nil) {
-  // TODO better errs
-
+) -> Result(#(g.Clause, List(types.EnsureFunc)), GenErr) {
   use #(clause, ensure_funcs) <- try(
     ves
     |> list.find_map(fn(ve) {
-      types.run_variant_expr(ve, variant:, args:, get_type:)
+      types.run_variant_expr(ve, mf:, variant:, args:, get_type:)
+    })
+    |> result.map_error(fn(_) {
+      let #(_, errs) =
+        ves
+        |> list.map(fn(ve) {
+          types.run_variant_expr(ve, mf:, variant:, args:, get_type:)
+        })
+        |> result.partition
+
+      GenAllFailedToMatch(expr_gen: mf, errs:, detail: dyn.from(#(
+        args,
+        variant,
+        type_,
+        func,
+      )))
     })
   )
 
@@ -1186,116 +1186,3 @@ fn bracket_pos(
   use <- bool.guard(gen.new, None)
   Some(gen.pos + 1)
 }
-
-//
-
-// pub fn process(
-//   ctx ctx: Context,
-// ) -> #(String, List(Ref)) {
-//   let src = ctx.file.src
-
-//   let assert Ok(gen_magic_comment_start_re) =
-//     // "[/][/][$]\\s*gen([:]|\\s+)" |> re.from_string
-//     "[/][/][$]\\s*gen\\s+" |> re.from_string
-
-//   use <- bool.guard(!re.check(gen_magic_comment_start_re, src), #(src, []))
-
-//   ctx.file.ast.functions
-//   |> dict.values
-//   |> list.map(build_func_gens(func: _, src:, ctx:))
-//   |> list.sort(fn(a, b) {
-//     int.compare(
-//       a.func.definition.location.start,
-//       b.func.definition.location.start,
-//     )
-//   })
-//   |> list.fold(#(src, []), fn(acc, fg) {
-//     let #(src, old_refs) = acc
-//     let #(src, new_refs) = run(src, fg)
-//     #(src, list.append(old_refs, new_refs))
-//   })
-//   |> pair.map_second(list.unique)
-// }
-
-// fn run(
-//   src src: String,
-//   func_gens func_gens: FuncGens,
-// ) -> #(String, List(Ref)) {
-//   let _ = zero_acc
-
-//   let FuncGens(func:, gens:, ctx:) = func_gens
-
-//   gens
-//   |> list.fold(#(src, [], 0), fn(acc, gen) {
-//     let #(old, old_refs, offset) = acc
-
-//     {
-//       // offset positions based on previous code gen results
-//       let gen = Gen(..gen, pos: gen.pos + offset)
-
-//       // look up expr generator
-//       use #(path, args) <- try_fail_(case gen.str |> string.split(" ") {
-//         [] -> Error(Nil)
-//         [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
-//       }, fn(_) {
-//         io.println_error("Couldn't parse a Gleam module path from: //$ gen " <> gen.str)
-//         Error(Nil)
-//       })
-//       use path <- try_fail_(parse_gleam_module_path(path), fn(_) {
-//         io.println_error("Invalid Gleam module path: //$ gen " <> gen.str)
-//         Error(Nil)
-//       })
-//       use var_expr <- result.try(gen_lookup |> dict.from_list |> dict.get(path))
-
-//       // gen expr
-//       let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
-//       use GenExpr(expr:, refs: new_refs) <- try_fail_(build_expr(var_expr(), args, func, get_type, ctx), fn(_) {
-//         io.println_error("Variant expr builder failed for: //$ gen " <> gen.str)
-//         Error(Nil)
-//       })
-
-//       // ensure expr is wrapped in a block
-//       let expr =
-//         case expr {
-//           g.Block(..) -> expr
-//           _ -> g.Block(z, [g.Expression(expr)])
-//         }
-
-//       // build & format `glance.Expression` as `String`
-//       let expr_src = format_gleam_expr(expr:, indent: gen.indent)
-
-//       // add magic comment back to gen'd `glance.Expression` src
-//       use #(x, xs) <- result.try(case expr_src |> string.split("\n") {
-//         [] | [_] -> {
-//           io.println_error("`deriv/gen.run` unexpected generated expr; returning orig src")
-//           Error(Nil)
-//         }
-
-//         [x, ..xs] -> Ok(#(x, xs))
-//       })
-//       let expr_src =
-//         [x <> " " <> gen.comment, ..xs]
-//         |> string.join("\n")
-//         |> string.trim_start
-
-//       // calc span to overwrite
-//       let span = gen_span(gen:, src:, offset: 0) // TODO would be double offset?
-
-//       // construct new src
-//       let new = dg.replace(span:, in: src, with: expr_src)
-
-//       // calc diff for new `offset`
-//       let diff = string.length(new) - string.length(old)
-//       let offset = offset + diff
-
-//       let refs = list.append(old_refs, new_refs)
-
-//       Ok(#(new, refs, offset))
-//     }
-//     |> result.unwrap(acc)
-//   })
-//   |> fn(acc) {
-//     let #(src, refs, _offset) = acc
-//     #(src, refs)
-//   }
-// }

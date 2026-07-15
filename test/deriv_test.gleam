@@ -37,19 +37,28 @@ import gleam/bit_array as ba
 import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
 import deriv/gen/supervisor as gs
 
+// convention
+//   - `func` takes extra, e.g. lens, mapping func
+//   - `func_` drops, e.g. whole value instead of lens into, no need to map result err
+
 // todo
 // X fix
 //   X - ensure func instead of replace func
 // X code reload
 //   X - watch all src paths with `filespy`
 //   X - only code reload `defs.gleam`
-//   tests
+// X tests
 //   X - fix
-//   errs
-//     - `gen`
-//     - `VariantExpr`
+// X errs
+//   X - `gen`
+//   X - `VariantExpr`
+//   organize
+//     - figure out modules
+//     - rename types & funcs
 //   next
 //     - finish `refs` tracking
+//       * ensure general ref tracking inits & updates correctly
+//       * force regen of all refs upon successful code gen write
 //   improve
 //     - add code gen notices to `defs.gleam`
 //     - gen str helpers
@@ -61,13 +70,21 @@ import deriv/gen/supervisor as gs
 //     - write tests for code reloading / file changes
 //       * saved changes with new `ExprGen` (overwrite `defs.gleam`)
 //       * saved changes with `//$ gen` (overwrite src w/ gen'd code)
+
+// consumer-side
 //   expr gen
 //     server-side
-//       - `f` type
+//     X - `f` type
 //       - `crud` & `sub` types
 //     client-side
 //       - decode returns
 //       - req funcs
+//   derive
+//     - impl with `ExprGen`
+//     ? * ... rework `VariantExpr` to `Expr(glance.Variant)`?
+//     - try defining something simple, e.g. `zero`, `enum`
+//   forms
+//     - ...
 
 // todo
 //   - rework from hashes to file modified times?

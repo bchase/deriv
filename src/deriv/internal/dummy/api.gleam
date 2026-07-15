@@ -1,3 +1,4 @@
+import gleam/string
 import gleam/result
 import gleam/json.{type Json}
 import gleam/option.{type Option, Some, None}
@@ -33,7 +34,7 @@ pub fn handle_case() -> ExprGen {
       }
 
       _ ->
-        Error(Nil)
+        Error("needs `NamedType` for req/resp types, but got: " <> string.inspect(req_type_param_types))
     }})
 
     let resp_func = ast.term("resp_func")
