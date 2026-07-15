@@ -13,10 +13,9 @@ import gleam/dict.{type Dict}
 import gleam/list
 import shellout
 import glance as g
-import deriv/gen/types.{type GleamFile}
+import deriv/gen/types.{type GleamFile, relative_code_gen_defs_path}
 import deriv/internal/gen
 import deriv/internal/glance.{z, call, dot, pipe} as _
-import deriv/gen/defs
 
 const func_name = "expr_gens"
 
@@ -30,18 +29,18 @@ const func_name = "expr_gens"
 //   write_expr_gens_to_gleam_file(filepaths:, expr_gen_funcs:)
 // }
 
-pub fn print(
-  subj subj: process.Subject(Nil),
-  every ms: Int,
-) -> Nil {
-  process.send_after(subj, ms, Nil)
+// pub fn print(
+//   subj subj: process.Subject(Nil),
+//   every ms: Int,
+// ) -> Nil {
+//   process.send_after(subj, ms, Nil)
 
-  let _ = process.receive(subj, ms)
+//   let _ = process.receive(subj, ms)
 
-  io.println(defs.expr_gens() |> dict.keys |> string.inspect)
+//   io.println(defs.expr_gens() |> dict.keys |> string.inspect)
 
-  print(subj, every: ms)
-}
+//   print(subj, every: ms)
+// }
 
 pub fn add_expr_gen_funcs(
   expr_gen_funcs egfs: ExprGenFuncs,
@@ -178,7 +177,7 @@ pub fn write_expr_gens_to_gleam_file(
 ) -> Nil {
   let src = gen_defs_gleam_file(expr_gen_funcs:)
 
-  let _ = simplifile.write("src/deriv/gen/defs.gleam", src)
+  let _ = simplifile.write(relative_code_gen_defs_path(), src)
 
   Nil
 }

@@ -29,7 +29,7 @@ import deriv/gen/types.{type ExprGen, type TypeDef, TypeDef, type GleamPath, Gle
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
 import deriv/internal/monad.{type ReadWriteResult}
-import deriv/gen/defs
+import deriv/gen/reload/defs
 
 // magic comments
 //   conv
@@ -965,6 +965,16 @@ fn case_expr_with_variant_clauses(
   use str <- try(args |> re.split(ws_re, _) |> list.first)
 
   use #(mod, type_) <- try(get_named_param_type(str:, func:))
+  // use #(mod, type_) <- try(
+  //   str
+  //   |> string.split(".")
+  //   |> fn(xs) { case xs {
+  //     [type_] -> Ok(#(None, type_))
+  //     [mod, type_] -> Ok(#(Some(mod), type_))
+  //     _ -> Error(Nil)
+  //   } }
+  // )
+
   use type_ <- try(get_type(mod, type_))
 
   let ref = Ref(from: file.path, to: type_.path, type_: type_.def.definition.name)

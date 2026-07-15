@@ -25,6 +25,7 @@ import filespy
 import gleam/bit_array as ba
 import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
 import deriv/gen/scan
+import deriv/gen/types.{relative_hot_code_reload_dir_path, relative_code_gen_defs_path} as _
 
 pub fn main() -> Nil {
   glint.new()
@@ -76,7 +77,7 @@ pub fn supervisor(
   names names: Names,
 ) -> supervisor.Builder {
   supervisor.new(supervisor.OneForOne)
-  // |> supervisor.add(file_change_watching_worker(notify: names.app))
+  |> supervisor.add(file_change_watching_worker(notify: names.app))
   |> supervisor.add(worker(gens_actor(name: names.gens)))
   |> supervisor.add(worker(lookup_actor(name: names.lookup)))
   |> supervisor.add(worker(refs_actor(name: names.refs)))
@@ -91,7 +92,6 @@ pub fn supervisor(
 
 pub opaque type Msg {
   NoOp
-  GotCodeReload(path: String)
   GotFileChange(change: filespy.Change(Nil))
   ProcessQueue
   Process(path: String)
@@ -149,13 +149,13 @@ fn update(
 
   case msg {
     NoOp |
-    GotFileChange(change: filespy.Custom(Nil)) |
-    GotFileChange(change: filespy.Change(..)) -> {
+    GotFileChange(change: filespy.Custom(Nil)) -> {
+    // GotFileChange(change: filespy.Change(..)) -> {
       actor.continue(state)
     }
 
-    // GotFileChange(change: filespy.Change(path:, ..)) -> {
-    GotCodeReload(path:) -> {
+    // GotCodeReload(path:) -> {
+    GotFileChange(change: filespy.Change(path:, ..)) -> {
       let noop = Ok(actor.continue(state))
 
       use <- bool.lazy_guard(path |> string.ends_with("gleam.toml"), fn() {
@@ -309,6 +309,8 @@ fn gens_update(
     |> result.unwrap(actor.continue(state))
 
     GensUpdateDirs(dirs:) -> {
+      let assert [_, ..] = watched_dirs() as "specify at least one watched dir"
+
       use find <- try_fail_(shellout.command(in: ".", opt: [],  run: "find", with: dirs), fn(_err) {
         Error(Nil)
       })
@@ -382,32 +384,38 @@ fn refs_actor(
   |> actor.named(name)
 }
 
-// // FILE CHANGE WATCHING WORKER
+// FILE CHANGE WATCHING WORKER
 
-// fn file_change_watching_worker(
-//   notify notify: process.Name(Msg),
-// ) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
-//   supervision.worker(fn() {
-//     filespy.new()
-//     |> filespy.set_initial_state(Nil)
-//     |> filespy.add_dir(".")
-//     |> filespy.set_actor_handler(fn(state, msg) {
-//       case msg {
-//         filespy.Change(..) as change -> {
-//           notify
-//           |> process.named_subject
-//           |> process.send(GotFileChange(change:))
+fn file_change_watching_worker(
+  notify notify: process.Name(Msg),
+) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
+  supervision.worker(fn() {
+    let assert [dir, ..dirs] = watched_dirs()
+      as "specify at least one watched dir" // TODO cache globally
 
-//           actor.continue(state)
-//         }
+    filespy.new()
+    |> filespy.set_initial_state(Nil)
+    |> filespy.add_dir(dir)
+    |> list.fold(dirs, _, fn(actor, dir) {
+      filespy.add_dir(actor, dir)
+    })
+    |> filespy.set_actor_handler(fn(state, msg) {
+      case msg {
+        filespy.Change(..) as change -> {
+          notify
+          |> process.named_subject
+          |> process.send(GotFileChange(change:))
 
-//         filespy.Custom(..) ->
-//           actor.continue(state)
-//       }
-//     })
-//     |> filespy.start
-//   })
-// }
+          actor.continue(state)
+        }
+
+        filespy.Custom(..) ->
+          actor.continue(state)
+      }
+    })
+    |> filespy.start
+  })
+}
 
 // HOT CODE RELOADING ACTOR
 
@@ -415,41 +423,36 @@ fn hot_code_reloading_worker(
   notify notify: process.Name(Msg),
   gens gens: process.Name(GensMsg),
 ) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
-  let assert [dir, ..dirs] as watched_dirs = watched_dirs() // TODO cache globally
-    // |> fn(xs) {
-    //   list.each(xs, io.println)
-    //   xs
-    // }
-
   supervision.worker(fn() {
     radiate.new()
     |> radiate.set_initializer(fn(self) {
       gens
       |> process.named_subject
-      |> process.send(GensUpdateDirs(dirs: watched_dirs))
+      |> process.send(GensUpdateDirs(dirs: watched_dirs()))
+      // TODO tk on gens init
 
       Nil
       |> actor.initialised
       |> actor.returning(self)
       |> Ok
     })
-    |> radiate.add_dir(dir)
+    |> radiate.add_dir(relative_hot_code_reload_dir_path())
     |> radiate.on_reload(fn(state, path) {
       {
-        use <- bool.guard(path |> string.ends_with("deriv/gen/defs.gleam"), Nil)
+        use <- bool.guard(path |> string.ends_with(relative_code_gen_defs_path()), Nil)
 
         gens
         |> process.named_subject
         |> process.send(GensUpdateFile(path:))
       }
 
-      notify
-      |> process.named_subject
-      |> process.send(GotCodeReload(path:))
+      // notify
+      // |> process.named_subject
+      // |> process.send(GotCodeReload(path:))
 
       state
     })
-    |> list.fold(dirs, _, radiate.add_dir)
+    // |> list.fold(dirs, _, radiate.add_dir)
     |> radiate.start_state
   })
 }

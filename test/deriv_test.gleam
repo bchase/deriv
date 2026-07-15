@@ -38,25 +38,30 @@ import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
 import deriv/gen/supervisor as gs
 
 // todo
-//   fix
-//     - ensure func instead of replace func
-//   code reload
-//     - watch all src paths with `filespy`
-//     - only code reload `defs.gleam`
+// X fix
+//   X - ensure func instead of replace func
+// X code reload
+//   X - watch all src paths with `filespy`
+//   X - only code reload `defs.gleam`
 //   tests
 //     - fix
 //     - test code reload
 //   errs
 //     - `gen`
 //     - `VariantExpr`
+//   next
+//     - finish `refs` tracking
+//   improve
+//     - gen str helpers
+//       * shorthand  -- //$ gen                func foo bar
+//       * named args -- //$ gen package/module.func target:Foo:type dest:bar:function
 //   expr gen
 //     server-side
+//       - `f` type
 //       - `crud` & `sub` types
 //     client-side
 //       - decode returns
 //       - req funcs
-//   next
-//     - use refs actor
 
 // todo
 //   - rework from hashes to file modified times?
