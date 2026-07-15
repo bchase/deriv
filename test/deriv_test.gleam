@@ -38,6 +38,27 @@ import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
 import deriv/gen/supervisor as gs
 
 // todo
+//   fix
+//     - ensure func instead of replace func
+//   code reload
+//     - watch all src paths with `filespy`
+//     - only code reload `defs.gleam`
+//   tests
+//     - fix
+//     - test code reload
+//   errs
+//     - `gen`
+//     - `VariantExpr`
+//   expr gen
+//     server-side
+//       - `crud` & `sub` types
+//     client-side
+//       - decode returns
+//       - req funcs
+//   next
+//     - use refs actor
+
+// todo
 //   - rework from hashes to file modified times?
 //     * persist last `filespy` event time (file)
 //   - ignore refs w/ modules `from == to`, also don't write to monad or send

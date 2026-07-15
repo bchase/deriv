@@ -46,22 +46,16 @@ pub fn handle_case() -> ExprGen {
           label: None,
           name: g.Named("req"),
           type_: Some(param_type),
-          // Some(g.NamedType(z,
-          //   module: None,
-          //   name: "Result",
-          //   parameters: [
-          //     param_type,
-          //     g.NamedType(z, "Err", None, []),
-          //   ],
-          // ),
-          // ),
         ),
       ],
       return: Some(g.NamedType(z, "Result", None, [
         return_type,
         g.NamedType(z, "Err", None, []),
       ])),
-      body: [ ast.term("Nil") |> g.Expression ],
+      body: [
+        // ast.term("Nil") |> g.Expression,
+        g.Todo(z, None) |> g.Expression,
+      ],
     )))
 
     //
@@ -144,5 +138,5 @@ pub fn handle(
 }
 
 fn handle_get_temp(req: City) -> Result(Temp, Err) {
-  Nil
+  todo
 }

@@ -709,8 +709,15 @@ pub fn process(
   |> fn(t) {
       case t {
         #(Ok(_), acc) -> {
+          let existing_func_names =
+            ctx.file.ast.functions
+            |> dict.keys
+
           let func_srcs =
             acc.funcs
+            |> list.filter(fn(f) {
+              !list.contains(existing_func_names, f.def.definition.name)
+            })
             |> list.group(fn(f) { f.def.definition.name })
             |> dict.to_list
             |> list.filter_map(fn(t) {

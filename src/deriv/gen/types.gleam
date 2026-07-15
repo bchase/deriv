@@ -90,7 +90,7 @@ pub opaque type VariantExpr {
       String,
       fn(Option(String), String) -> Result(TypeDef, Nil),
       Set(String), // NOTE: fields acc, used to detect need for `with_spread`
-      List(EnsureFunc), // NOTE: fields acc, used to detect need for `with_spread`
+      List(EnsureFunc),
     ) -> Result(#(g.Expression, Set(String), List(EnsureFunc)), Nil),
   )
 }

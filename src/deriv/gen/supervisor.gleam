@@ -250,6 +250,7 @@ pub opaque type GensMsg {
   GensNoOp
   GensPostInit
   GensUpdateDirs(dirs: List(String))
+  GensUpdateFile(path: String)
 }
 
 type GensConfig {
@@ -297,6 +298,15 @@ fn gens_update(
     GensPostInit -> {
       actor.continue(state)
     }
+
+    GensUpdateFile(path:) -> {
+      let gens = scan.add_expr_gen_funcs(filepaths: [path], expr_gen_funcs: state.gens)
+
+      scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gens)
+
+      Ok(actor.continue(GensState(..state, gens:)))
+    }
+    |> result.unwrap(actor.continue(state))
 
     GensUpdateDirs(dirs:) -> {
       use find <- try_fail_(shellout.command(in: ".", opt: [],  run: "find", with: dirs), fn(_err) {
@@ -425,6 +435,14 @@ fn hot_code_reloading_worker(
     })
     |> radiate.add_dir(dir)
     |> radiate.on_reload(fn(state, path) {
+      {
+        use <- bool.guard(path |> string.ends_with("deriv/gen/defs.gleam"), Nil)
+
+        gens
+        |> process.named_subject
+        |> process.send(GensUpdateFile(path:))
+      }
+
       notify
       |> process.named_subject
       |> process.send(GotCodeReload(path:))
