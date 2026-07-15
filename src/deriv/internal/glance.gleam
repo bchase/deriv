@@ -161,7 +161,7 @@ pub fn read_span(
   src src: String,
   span span: g.Span,
 ) -> Result(String, Nil) {
-  use <- bool.guard(span.end >= string.length(src), Error(Nil))
+  use <- bool.guard(span.end > string.length(src), Error(Nil))
   Ok(string.slice(src, span.start, span.end - span.start))
 }
 

@@ -20,6 +20,10 @@ pub fn expr_gens() -> Dict(#(String, String), ExprGen) {
       deriv_internal_dummy_gen_before.gen(),
     ),
     #(
+      #("deriv/internal/dummy/lookup", "test0"),
+      deriv_internal_dummy_lookup.test0(),
+    ),
+    #(
       #("deriv/internal/dummy/lookup", "to_str"),
       deriv_internal_dummy_lookup.to_str(),
     ),

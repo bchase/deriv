@@ -1020,22 +1020,6 @@ fn build_case_clause_expr(
 }
 
 
-const gen_lookup = [
-  #(#("bchase/foo/bar", "test0"), test0),
-]
-pub fn test0() -> ExprGen {
-  types.VariantClauseCaseExprGen(clauses: [
-    {
-      use variant <- types.variant_name()
-      use foo <- types.variant_shorthand_field("foo")
-
-      let func = { variant |> casing.snake <> "_func" } |> term
-
-      types.variant_success(func |> call_([ foo, short("bar") ]))
-    }
-  ])
-}
-
 type Pair {
   Pair(
     open: String,

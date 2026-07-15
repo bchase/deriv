@@ -44,17 +44,23 @@ import deriv/gen/supervisor as gs
 //   X - watch all src paths with `filespy`
 //   X - only code reload `defs.gleam`
 //   tests
-//     - fix
-//     - test code reload
+//   X - fix
 //   errs
 //     - `gen`
 //     - `VariantExpr`
 //   next
 //     - finish `refs` tracking
 //   improve
+//     - add code gen notices to `defs.gleam`
 //     - gen str helpers
 //       * shorthand  -- //$ gen                func foo bar
 //       * named args -- //$ gen package/module.func target:Foo:type dest:bar:function
+//       * named args -- //$ gen package/module.func target:Foo      dest:bar
+//         - ^ would need helpers like `use type_: #(g.Type, Result(g.CustomType), Nil) <- type_for_gen_param(name: "target")`
+//   tests
+//     - write tests for code reloading / file changes
+//       * saved changes with new `ExprGen` (overwrite `defs.gleam`)
+//       * saved changes with `//$ gen` (overwrite src w/ gen'd code)
 //   expr gen
 //     server-side
 //       - `f` type

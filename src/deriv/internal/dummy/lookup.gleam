@@ -1,3 +1,4 @@
+import bchase/casing
 import gleam/int
 import deriv/internal/dummy/lookup_other.{type OtherImport}
 import deriv/internal/dummy/lookup_other_other as oo
@@ -28,15 +29,17 @@ pub fn to_str() -> ExprGen {
   ])
 }
 
-fn test0(
-  thing thing: Thing,
-) -> String {
-  { //$ gen deriv/internal/dummy/lookup.to_str thing
-    case thing {
-      Var1(str:) -> str
-      Var2(int:) -> int.to_string(int)
+pub fn test0() -> ExprGen {
+  types.VariantClauseCaseExprGen(clauses: [
+    {
+      use variant <- types.variant_name()
+      use foo <- types.variant_shorthand_field("foo")
+
+      let func = { variant |> casing.snake <> "_func" } |> ast.term
+
+      types.variant_success(func |> ast.call_([ foo, ast.short("bar") ]))
     }
-  }
+  ])
 }
 
 type Thing {
