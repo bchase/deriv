@@ -1,3 +1,4 @@
+import bchase/lens.{type Lens}
 import gleam/string
 import gleam/set.{type Set}
 import bchase/function.{x}
@@ -9,6 +10,7 @@ import gleam/dict.{type Dict}
 import gleam/option.{None, type Option}
 import gleam/pair
 import gleam/result
+import deriv/internal/monad
 
 pub fn relative_hot_code_reload_dir_path() -> String {
   "src/deriv/gen/reload/"
@@ -105,6 +107,118 @@ pub opaque type VariantExpr {
   )
 }
 
+pub opaque type Gen(t, expr) {
+  Gen(monad: monad.ReadWriteResult(t, String, GenRead(expr), GenWrite))
+}
+
+pub opaque type GenRead(expr) {
+  GenRead(
+    expr: expr,
+    args: String,
+    module_func: #(GleamPath, String),
+    get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
+  )
+}
+
+pub opaque type GenWrite {
+  GenWrite(
+    fields: Set(String), // NOTE: fields acc, used to detect need for `with_spread`
+    funcs: List(EnsureFunc),
+  )
+}
+
+const lens_expr = lens.Lens(get: get_expr, set: set_expr)
+fn get_expr(x: GenRead(expr)) { x.expr }
+fn set_expr(x: GenRead(expr), expr) { GenRead(..x, expr:)}
+const lens_args = lens.Lens(get: get_args, set: set_args)
+fn get_args(x: GenRead(expr)) { x.args }
+fn set_args(x: GenRead(expr), args) { GenRead(..x, args:)}
+const lens_module_func = lens.Lens(get: get_module_func, set: set_module_func)
+fn get_module_func(x: GenRead(expr)) { x.module_func }
+fn set_module_func(x: GenRead(expr), module_func) { GenRead(..x, module_func:)}
+const lens_get_type = lens.Lens(get: get_get_type, set: set_get_type)
+fn get_get_type(x: GenRead(expr)) { x.get_type }
+fn set_get_type(x: GenRead(expr), get_type) { GenRead(..x, get_type:)}
+
+const lens_fields = lens.Lens(get: get_fields, set: set_fields)
+fn get_fields(x: GenWrite) { x.fields }
+fn set_fields(x: GenWrite, fields) { GenWrite(..x, fields:)}
+const lens_funcs = lens.Lens(get: get_funcs, set: set_funcs)
+fn get_funcs(x: GenWrite) { x.funcs }
+fn set_funcs(x: GenWrite, funcs) { GenWrite(..x, funcs:)}
+
+fn bind(
+  gen gen: Gen(a, expr),
+  cont cont: fn(a) -> Gen(b, expr),
+) -> Gen(b, expr) {
+  Gen(monad.bind(gen.monad, fn(x) { cont(x).monad }))
+}
+
+fn pure(
+  val val: val,
+) -> Gen(val, expr) {
+  Gen(monad.pure(val))
+}
+
+fn fail(
+  err err: String,
+) -> Gen(val, expr) {
+  Gen(monad.fail(err))
+}
+
+fn read(
+  from lens: Lens(GenRead(expr), v),
+  cont cont: fn(v) -> Gen(t, expr)
+) -> Gen(t, expr) {
+  Gen(monad.read(lens, fn(v) { cont(v).monad }))
+}
+
+fn writes(
+  at lens: Lens(GenWrite, vs),
+  cont cont: fn(vs) -> Gen(t, expr)
+) -> Gen(t, expr) {
+  Gen(monad.writes(lens, fn(w) { cont(w).monad }))
+}
+
+fn write(
+  val new: v,
+  into lens: Lens(GenWrite, vs),
+  using f: fn(vs, v) -> vs,
+  cont cont: fn() -> Gen(t, expr),
+) -> Gen(t, expr) {
+  Gen(monad.write(new, lens, f, fn() { cont().monad }))
+}
+
+fn map(
+  gen gen: Gen(a, expr),
+  apply f: fn(a) -> b,
+) -> Gen(b, expr) {
+  Gen(monad.map(gen.monad, f))
+}
+
+fn map_m(
+  list xs: List(a),
+  apply f: fn(a) -> Gen(b, expr),
+) -> Gen(List(b), expr) {
+  Gen(monad.map_m(xs, fn(x) { f(x).monad }))
+}
+
+fn run_gen(
+  gen gen: Gen(g.Expression, expr),
+  expr expr: expr,
+  args args: String,
+  module_func module_func: #(GleamPath, String),
+  get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
+) -> #(Result(g.Expression, String), GenWrite) {
+  gen.monad
+  |> monad.run_(
+    read: GenRead(expr:, args:, module_func:, get_type:),
+    write: GenWrite(fields: set.new(), funcs: []),
+  )
+}
+
+//
+
 pub type EnsureFunc {
   EnsureFunc(
     def: g.Definition(g.Function),
@@ -199,30 +313,6 @@ pub fn type_params(
   })
 }
 
-pub fn type_param_at(
-  type_ type_: g.Type,
-  idx idx: Int,
-  cont cont: fn(g.Type) -> VariantExpr,
-) -> VariantExpr {
-  let err = "couldn't find type param at index " <> string.inspect(idx) <> ", got: " <> string.inspect(type_)
-
-  VariantExpr(fn(mf, variant, args, get_type, fields, funcs) {
-    case type_ {
-      g.NamedType(parameters:, ..) ->
-        parameters
-        |> list_at(idx)
-        |> result.replace_error(err)
-        |> result.map(fn(type_) {
-          cont(type_).run(mf, variant, args, get_type, fields, funcs)
-        })
-        |> result.flatten
-
-      _ ->
-        Error(err)
-    }
-  })
-}
-
 // fn variant_foo(
 //   // name name: String,
 //   type_ type_: g.Type,
@@ -265,12 +355,12 @@ fn get_named_param(
   })
 }
 
-pub fn variant_failure(msg: String) -> VariantExpr {
-  VariantExpr(fn(_, _, _, _, _, _) { Error(msg) })
-}
-
 pub fn variant_success(expr expr: g.Expression) -> VariantExpr {
   VariantExpr(fn(_, _, _, _, fields, funcs) { Ok(#(expr, fields, funcs)) })
+}
+
+pub fn variant_failure(msg: String) -> VariantExpr {
+  VariantExpr(fn(_, _, _, _, _, _) { Error(msg) })
 }
 
 pub fn run_variant_expr(
@@ -304,4 +394,112 @@ pub fn variant_name(
 
 pub fn short(field: String) -> g.Field(t) {
   g.ShorthandField(field)
+}
+
+//
+
+pub fn run_variant_expr_(
+  gen: Gen(g.Expression, g.Variant),
+  variant variant: g.Variant,
+  args args: String,
+  mf mf: #(GleamPath, String),
+  get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
+) -> Result(#(g.Clause, List(EnsureFunc)), String) {
+  let #(result, GenWrite(fields:, funcs:)) =
+    run_gen(gen, variant, args, mf, get_type)
+
+  result
+  |> result.map(fn(expr) {
+    let with_spread = list.length(variant.fields) > set.size(fields)
+    let arguments = fields |> set.map(g.ShorthandField) |> set.to_list
+
+    let pattern =
+      g.PatternVariant(z, None, variant.name, arguments:, with_spread:)
+
+    #(g.Clause(patterns: [[pattern]], guard: None, body: expr), funcs)
+  })
+}
+
+pub fn success(val: t) -> Gen(t, expr) {
+  pure(val)
+}
+
+pub fn failure(msg: String) -> Gen(t, expr) {
+  fail(msg)
+}
+
+pub fn variant(
+) -> Gen(g.Variant, g.Variant) {
+  use g.Variant(..) as var <- read(lens_expr)
+  pure(var)
+}
+
+pub fn type_params_(
+  type_ type_: g.Type,
+) -> Gen(List(#(g.Type, Result(TypeDef, Nil))), expr) {
+  use params <- bind(for_named_type(type_, fn(nt) { nt.parameters }))
+
+  params
+  |> map_m(fn(t) {
+    get_type_def_for(t)
+    |> map(pair.new(t, _))
+  })
+}
+
+pub type NamedType {
+  NamedType(
+    name: String,
+    module: Option(String),
+    parameters: List(g.Type),
+  )
+}
+
+fn for_named_type(
+  type_ type_: g.Type,
+  apply f: fn(NamedType) -> t,
+) -> Gen(t, expr) {
+  case type_ {
+    g.NamedType(name:, module:, parameters:, ..) ->
+      pure(f(NamedType( name:, module:, parameters:)))
+
+    _ ->
+      fail("expected a `glance.NamedType`, but got: " <> string.inspect(type_))
+  }
+}
+
+fn get_named_param_(
+  name name: String,
+) -> Gen(#(g.Type, Result(TypeDef, Nil)), g.Variant) {
+  use var <- bind(variant())
+
+  use t <- bind(get_named_param(var, name) |> fn(result) {
+    case result {
+      Ok(x) -> pure(x)
+      Error(_err) -> fail("no parameter named " <> string.inspect(name) <> " on: " <> string.inspect(var))
+    }
+  })
+
+  use td <- bind(get_type_def_for(t))
+
+  pure(#(t, td))
+}
+
+fn get_type_def_by(
+  mod mod: Option(String),
+  type_ type_: String,
+) -> Gen(Result(TypeDef, Nil), a) {
+  use get_type <- read(lens_get_type)
+  pure(get_type(mod, type_))
+}
+
+fn get_type_def_for(
+  type_ type_: g.Type,
+) -> Gen(Result(TypeDef, Nil), a) {
+  case type_ {
+    g.NamedType(module:, name:, ..) ->
+      get_type_def_by(module, name)
+
+    _ ->
+      pure(Error(Nil))
+  }
 }

@@ -53,6 +53,9 @@ import deriv/gen/supervisor as gs
 //   X - `gen`
 //   X - `VariantExpr`
 //   organize
+//     - mv `monad` to `bchase`
+//       * rename...
+//       * mv
 //     - figure out modules
 //     - rename types & funcs
 //   next
@@ -66,10 +69,16 @@ import deriv/gen/supervisor as gs
 //       * named args -- //$ gen package/module.func target:Foo:type dest:bar:function
 //       * named args -- //$ gen package/module.func target:Foo      dest:bar
 //         - ^ would need helpers like `use type_: #(g.Type, Result(g.CustomType), Nil) <- type_for_gen_param(name: "target")`
+//   ? - maybe type/variant/field attributes
+//     * e.g. for routes gen, `//$ app/mod.gen:route:"/api/parent/:parent_id/things"` on endpoint variant
 //   tests
 //     - write tests for code reloading / file changes
 //       * saved changes with new `ExprGen` (overwrite `defs.gleam`)
 //       * saved changes with `//$ gen` (overwrite src w/ gen'd code)
+//   derive
+//     - impl with `ExprGen`
+//     ? * ... rework `VariantExpr` to `Expr(glance.Variant)`?
+//     - try defining something simple, e.g. `zero`, `enum`
 
 // consumer-side
 //   expr gen
@@ -79,10 +88,6 @@ import deriv/gen/supervisor as gs
 //     client-side
 //       - decode returns
 //       - req funcs
-//   derive
-//     - impl with `ExprGen`
-//     ? * ... rework `VariantExpr` to `Expr(glance.Variant)`?
-//     - try defining something simple, e.g. `zero`, `enum`
 //   forms
 //     - ...
 

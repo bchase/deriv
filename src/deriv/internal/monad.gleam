@@ -388,11 +388,26 @@ pub fn fold(
   }
 }
 
-// pub fn map_m(
-//   arg arg: a,
-//   cont cont: fn(a) ->  ReadWriteResult(b, e, r, w),
-// ) -> ReadWriteResult(b, e, r, w) {
-// }
+pub fn map_m(
+  list xs: List(a),
+  cont cont: fn(a) ->  ReadWriteResult(b, e, r, w),
+) -> ReadWriteResult(List(b), e, r, w) {
+  case xs {
+    [] ->
+      pure([])
+
+    [x, ..xs] -> {
+      use y <- bind(cont(x))
+
+      list.fold(xs, pure([y]), fn(ys, x) {
+        use y <- bind(cont(x))
+        use ys <- bind(ys)
+        pure([y, ..ys])
+      })
+      |> map(list.reverse)
+    }
+  }
+}
 
 // pub fn map_m_(
 //   arg arg: a,
