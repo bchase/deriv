@@ -52,6 +52,9 @@ import deriv/gen/supervisor as gs
 // X errs
 //   X - `gen`
 //   X - `VariantExpr`
+// X expr gen
+//   X - rework work `ReadWriteResult`
+//   X - use `Gen` monad
 //   organize
 //     - mv `monad` to `bchase`
 //       * rename...
@@ -79,6 +82,9 @@ import deriv/gen/supervisor as gs
 //     - impl with `ExprGen`
 //     ? * ... rework `VariantExpr` to `Expr(glance.Variant)`?
 //     - try defining something simple, e.g. `zero`, `enum`
+//   gen ideas
+//     - top-level `//$ foo.reexport module:foo/bar/baz`
+//       * reexports target module consts, types, aliases, & funcs *w/ params*
 
 // consumer-side
 //   expr gen
@@ -153,6 +159,9 @@ pub fn gen_test() {
 
   log_("AFTER", after)
   log_("OUTPUT", output)
+
+  let output = string.trim(output)
+  let after = string.trim(after)
 
   output
   |> should.equal(after)

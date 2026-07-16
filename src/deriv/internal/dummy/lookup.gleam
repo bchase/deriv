@@ -10,35 +10,35 @@ import deriv/internal/glance as ast
 
 pub fn to_str() -> ExprGen {
   types.VariantClauseCaseExprGen([
-    // todo
-    //   - register (ensure) import
-    //     * avoid name collision / duplicate import diff name
-    //   - check type
-    {
-      use _str <- types.variant_shorthand_field("str")
-      types.variant_success({
-        "str" |> ast.term
-      })
-    },
-    {
-      use _int <- types.variant_shorthand_field("int")
-      types.variant_success({
-        "int" |> ast.dot("to_string") |> ast.call([ ast.term("int") ])
-      })
-    },
+    // // todo
+    // //   - register (ensure) import
+    // //     * avoid name collision / duplicate import diff name
+    // //   - check type
+    // {
+    //   use _str <- types.variant_shorthand_field("str")
+    //   types.variant_success({
+    //     "str" |> ast.term
+    //   })
+    // },
+    // {
+    //   use _int <- types.variant_shorthand_field("int")
+    //   types.variant_success({
+    //     "int" |> ast.dot("to_string") |> ast.call([ ast.term("int") ])
+    //   })
+    // },
   ])
 }
 
 pub fn test0() -> ExprGen {
   types.VariantClauseCaseExprGen(clauses: [
     {
-      use variant <- types.variant_name()
-      use foo <- types.variant_shorthand_field("foo")
+      use variant, _type_def <- types.variant()
+      use foo, _type, _type_def <- types.pun_variant_named_param("foo")
 
-      let func = { variant |> casing.snake <> "_func" } |> ast.term
+      let func = { variant.name |> casing.snake <> "_func" } |> ast.term
 
-      types.variant_success(func |> ast.call_([ foo, ast.short("bar") ]))
-    }
+      types.variant_clause_success(func |> ast.call_([ foo, ast.short("bar") ]))
+    },
   ])
 }
 
