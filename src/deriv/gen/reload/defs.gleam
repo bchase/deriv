@@ -1,3 +1,11 @@
+//
+//  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//  !!!                                                          !!!
+//  !!!                  !!! CODE GEN !!!                        !!!
+//  !!! THE CONTENTS OF THIS FILE WILL BE COMPLETELY OVERWRITTEN !!!
+//  !!!                                                          !!!
+//  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
 import deriv/gen/types.{type ExprGen}
 import deriv/internal/dummy/api as deriv_internal_dummy_api
 import deriv/internal/dummy/gen/after as deriv_internal_dummy_gen_after

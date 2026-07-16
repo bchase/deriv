@@ -65,7 +65,7 @@ import deriv/gen/supervisor as gs
 //       * ensure general ref tracking inits & updates correctly
 //       * force regen of all refs upon successful code gen write
 //   improve
-//     - add code gen notices to `defs.gleam`
+//   X - add code gen notices to `defs.gleam`
 //     - gen str helpers
 //       * shorthand  -- //$ gen                func foo bar
 //       * named args -- //$ gen package/module.func target:Foo:type dest:bar:function

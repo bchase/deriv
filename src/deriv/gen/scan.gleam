@@ -177,7 +177,17 @@ pub fn write_expr_gens_to_gleam_file(
 ) -> Nil {
   let src = gen_defs_gleam_file(expr_gen_funcs:)
 
-  let _ = simplifile.write(relative_code_gen_defs_path(), src)
+  let _ = simplifile.write(relative_code_gen_defs_path(), [
+    "//",
+    "//  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+    "//  !!!                                                          !!!",
+    "//  !!!                  !!! CODE GEN !!!                        !!!",
+    "//  !!! THE CONTENTS OF THIS FILE WILL BE COMPLETELY OVERWRITTEN !!!",
+    "//  !!!                                                          !!!",
+    "//  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+    "//",
+    src,
+  ] |> string.join("\n"))
 
   Nil
 }
