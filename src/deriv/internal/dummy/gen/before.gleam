@@ -22,7 +22,7 @@ pub type Foo {
 pub fn f1(foo: Foo) {
   let bar = Nil
 
-  { //$ deriv/internal/dummy/lookup.test0 arg:foo
+  { //$ deriv/internal/dummy/lookup.test0 subject:foo
     case foo {
       Foo(foo:) -> foo_func(foo:, bar:)
     }
