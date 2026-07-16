@@ -13,6 +13,7 @@ import gleam/pair
 import gleam/result
 import bchase/monad/read_write_result as monad
 import bchase/list.{push as list_push} as _
+import deriv/internal/parser
 
 pub fn relative_hot_code_reload_dir_path() -> String {
   "src/deriv/gen/reload/"
@@ -146,6 +147,12 @@ pub type Args {
     raw: String,
     named: Dict(String, String),
   )
+}
+
+pub fn build_args(
+  raw raw: String,
+) -> Args {
+  Args(raw:, named: parser.parse_named_params(raw))
 }
 
 pub opaque type GenWrite {

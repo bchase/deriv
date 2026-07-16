@@ -1052,6 +1052,8 @@ fn build_expr(
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   file file: GleamFile,
 ) -> Result(GenExpr, GenErr) {
+  let args = types.build_args(raw: args)
+
   case gen {
     types.VariantClauseCaseExprGen(clauses: gens) ->
       case_expr_with_variant_clauses(mf:, gens:, args:, func:, get_type:, file:)
@@ -1061,17 +1063,15 @@ fn build_expr(
 fn case_expr_with_variant_clauses(
   mf mf: #(GleamPath, String),
   gens gens: List(types.GenVariantCaseClause(g.Clause)),
-  args args: String,
+  args args: types.Args,
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   file file: GleamFile,
 ) -> Result(GenExpr, GenErr) {
   let fail = fn(msg) { Failed("[variant clause expr] " <> msg) }
 
-  let assert Ok(ws_re) = "\\s+" |> re.from_string
-
-  use str <- try(args |> re.split(ws_re, _) |> list.first |> result.map_error(fn(_) {
-    fail("was expecting an initial gen arg, but found none")
+  use str <- try(args.named |> dict.get("arg") |> result.map_error(fn(_) {
+    fail("requires an `arg` (fn param reference) to be specified, but none was found")
   }))
 
   use #(mod, type_) <- try(get_named_param_type(str:, func:) |> result.map_error(fn(_) {
@@ -1088,7 +1088,7 @@ fn case_expr_with_variant_clauses(
     type_.def.definition.variants
     |> list.map(
       build_case_clause_expr(gens:, mf:, variant:_,type_:, file:, args:, func:, get_type:)
-     )
+    )
     |> result.all
     |> result.map(fn(t) {
       t
@@ -1109,19 +1109,13 @@ fn build_case_clause_expr(
   gens gens: List(types.GenVariantCaseClause(g.Clause)),
   type_ type_: TypeDef,
   file file: GleamFile,
-  args args: String,
+  args args: types.Args,
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
 ) -> Result(#(g.Clause, List(types.EnsureFunc)), GenErr) {
   use #(clause, ensure_funcs) <- try({
     gens
     |> list.map(fn(gen) { // TODO perf `fold_until`
-      let args =
-        types.Args(
-          raw: args,
-          named: parser.parse_named_params(args),
-        )
-
       let #(result, write) =
         types.run_gen(gen:, expr: #(variant, type_), file:, args:, module_func: mf, get_type:)
 
