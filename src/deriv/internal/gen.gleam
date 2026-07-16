@@ -1070,12 +1070,12 @@ fn case_expr_with_variant_clauses(
 ) -> Result(GenExpr, GenErr) {
   let fail = fn(msg) { Failed("[variant clause expr] " <> msg) }
 
-  use str <- try(args.named |> dict.get("arg") |> result.map_error(fn(_) {
+  use subject <- try(args.named |> dict.get("arg") |> result.map_error(fn(_) {
     fail("requires an `arg` (fn param reference) to be specified, but none was found")
   }))
 
-  use #(mod, type_) <- try(get_named_param_type(str:, func:) |> result.map_error(fn(_) {
-    fail("couldn't find named param: " <> str)
+  use #(mod, type_) <- try(get_named_param_type(str: subject, func:) |> result.map_error(fn(_) {
+    fail("couldn't find named param in containing function: " <> subject)
   }))
 
   use type_ <- try(get_type(mod, type_) |> result.map_error(fn(_) {
@@ -1097,9 +1097,7 @@ fn case_expr_with_variant_clauses(
     })
   )
 
-  let subject = term(str)
-
-  let expr = g.Case(z, subjects: [subject], clauses:)
+  let expr = g.Case(z, subjects: [term(subject)], clauses:)
   Ok(GenExpr(expr:, funcs:, refs: [ref]))
 }
 

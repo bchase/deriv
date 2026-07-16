@@ -52,9 +52,10 @@ import deriv/gen/supervisor as gs
 //       - def rework
 //       - change
 //     magic comments
+//     ? - rework to `//$ package/module.func ...`, i.e. not `//$ gen ...`
 //       - gen str helpers
+//       X * named args -- //$ gen package/module.func target:Foo      dest:bar
 //         * shorthand  -- //$ gen                func foo bar
-//         * named args -- //$ gen package/module.func target:Foo:type dest:bar:function
 
 // app consumer-side
 //   expr gen
@@ -91,7 +92,6 @@ import deriv/gen/supervisor as gs
 //     magic comments
 //       - gen str helpers
 //         * named args -- //$ gen package/module.func target:Foo:type dest:bar:function
-//         * named args -- //$ gen package/module.func target:Foo      dest:bar
 //           - ^ would need helpers like `use type_: #(g.Type, Result(g.CustomType), Nil) <- type_for_gen_param(name: "target")`
 //     ? - maybe type/variant/field attributes
 //       * e.g. for routes gen, `//$ app/mod.gen:route:"/api/parent/:parent_id/things"` on endpoint variant
