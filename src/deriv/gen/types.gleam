@@ -11,7 +11,7 @@ import gleam/dict.{type Dict}
 import gleam/option.{None, type Option, Some}
 import gleam/pair
 import gleam/result
-import deriv/internal/monad
+import bchase/monad/read_write_result as monad
 
 pub fn relative_hot_code_reload_dir_path() -> String {
   "src/deriv/gen/reload/"

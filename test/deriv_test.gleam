@@ -55,10 +55,9 @@ import deriv/gen/supervisor as gs
 // X expr gen
 //   X - rework work `ReadWriteResult`
 //   X - use `Gen` monad
+// X monad
+//   X - mv `monad` to `bchase`
 //   organize
-//     - mv `monad` to `bchase`
-//       * rename...
-//       * mv
 //     - figure out modules
 //     - rename types & funcs
 //   next
@@ -74,10 +73,7 @@ import deriv/gen/supervisor as gs
 //         - ^ would need helpers like `use type_: #(g.Type, Result(g.CustomType), Nil) <- type_for_gen_param(name: "target")`
 //   ? - maybe type/variant/field attributes
 //     * e.g. for routes gen, `//$ app/mod.gen:route:"/api/parent/:parent_id/things"` on endpoint variant
-//   tests
-//     - write tests for code reloading / file changes
-//       * saved changes with new `ExprGen` (overwrite `defs.gleam`)
-//       * saved changes with `//$ gen` (overwrite src w/ gen'd code)
+
 //   derive
 //     - impl with `ExprGen`
 //     ? * ... rework `VariantExpr` to `Expr(glance.Variant)`?
@@ -85,6 +81,11 @@ import deriv/gen/supervisor as gs
 //   gen ideas
 //     - top-level `//$ foo.reexport module:foo/bar/baz`
 //       * reexports target module consts, types, aliases, & funcs *w/ params*
+
+//   tests
+//     - write tests for code reloading / file changes
+//       * saved changes with new `ExprGen` (overwrite `defs.gleam`)
+//       * saved changes with `//$ gen` (overwrite src w/ gen'd code)
 
 // consumer-side
 //   expr gen

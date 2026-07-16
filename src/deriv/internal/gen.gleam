@@ -28,8 +28,8 @@ import deriv/gen/types.{type ExprGen, type TypeDef, TypeDef, type GleamPath, Gle
 //
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
-import deriv/internal/monad.{type ReadWriteResult}
 import deriv/gen/reload/defs
+import bchase/monad/read_write_result.{type ReadWriteResult} as monad
 
 // magic comments
 //   conv
