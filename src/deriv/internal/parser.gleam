@@ -337,11 +337,7 @@ fn lexer() -> lexer.Lexer(Token, Nil) {
   lexer.simple([
     lexer.token(":", Colon),
 
-    // lexer.custom(fn(_, s1, s2) {
-    //   todo
-    // }),
-
-    lexer.identifier("[a-z]", "[-_a-zA-Z0-9]", set.new(), Bare),
+    lexer.identifier("[a-z]", "[-_a-zA-Z0-9./]", set.new(), Bare),
     lexer.string("\"", Str),
 
     lexer.whitespace(Nil) |> lexer.ignore,

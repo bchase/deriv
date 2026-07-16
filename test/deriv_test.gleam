@@ -64,23 +64,20 @@ import deriv/gen/supervisor as gs
 //     client-side
 //       - decode returns
 //       - req funcs
-//   forms
-//     - ...
-
-// todo
-//   organize
-//     - figure out modules
-//     - rename types & funcs
 
 //   derive
 //     - impl with `ExprGen`
 //     ? * ... rework `VariantExpr` to `Expr(glance.Variant)`?
 //     - try defining something simple, e.g. `zero`, `enum`
 
+// todo
+//   organize
+//     - figure out modules
+//     - rename types & funcs
 //   other gen ideas
+//     - forms...
 //     - top-level `//$ foo.reexport module:foo/bar/baz`
 //       * reexportsgen  target module consts, types, aliases, & funcs *w/ params*
-
 //   tests
 //     - write tests for code reloading / file changes
 //       * saved changes with new `ExprGen` (overwrite `defs.gleam`)
@@ -148,13 +145,14 @@ fn log_(str, s) {
 
 pub fn gen_named_params_test() {
   // let str = "foo:\"123\" hoge:\"fuka \\\"piyo\\\" bar:\"baz_boo\""
-  let str = "foo:\"123\" hoge:\"fuka piyo\"  bar:\"baz_boo\""
+  let str = "foo:\"123\" hoge:\"fuka piyo\"  bar:\"baz_boo\" ident:pkg/mod/sub.func"
 
   dict.from_list([
     #("foo", "123"),
     // #("hoge", "\"fuka \\\"piyo\\\""),
     #("hoge", "fuka piyo"),
     #("bar", "baz_boo"),
+    #("ident", "pkg/mod/sub.func"),
   ])
   |> should.equal(parser.parse_named_params(str), _)
 }
