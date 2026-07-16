@@ -12,6 +12,7 @@ import gleam/option.{None, type Option, Some}
 import gleam/pair
 import gleam/result
 import bchase/monad/read_write_result as monad
+import bchase/list.{push as list_push} as _
 
 pub fn relative_hot_code_reload_dir_path() -> String {
   "src/deriv/gen/reload/"
@@ -134,9 +135,16 @@ pub opaque type GenRead(expr) {
     expr: expr,
     //
     file: GleamFile,
-    args: String,
+    args: Args,
     module_func: #(GleamPath, String),
     get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
+  )
+}
+
+pub type Args {
+  Args(
+    raw: String,
+    named: Dict(String, String),
   )
 }
 
@@ -239,11 +247,25 @@ fn map_m(
   Gen(monad.map_m(xs, fn(x) { f(x).monad }))
 }
 
+fn bind_ok(
+  result result: Result(a, String),
+  cont cont: fn(a) -> Gen(b, expr),
+) -> Gen(b, expr) {
+  Gen(monad.do_ok(result, function.identity, fn(x) { cont(x).monad }))
+}
+
+fn ok(
+  result result: Result(t, e),
+  err err: fn(e) -> String
+) -> Gen(t, expr) {
+  Gen(monad.ok(result, err))
+}
+
 pub fn run_gen(
   gen gen: Gen(t, expr),
   expr expr: expr,
   file file: GleamFile,
-  args args: String,
+  args args: Args,
   module_func module_func: #(GleamPath, String),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
 ) -> #(Result(t, String), GenWrite) {
@@ -287,14 +309,13 @@ pub type EnsureFunc {
 //   })
 // }
 
-// pub fn ensure_func(
-//   def def: g.Definition(g.Function),
-//   cont cont: fn() -> VariantExpr,
-// ) -> VariantExpr {
-//   VariantExpr(fn(mf, variant, args, get_type, fields, funcs) {
-//     cont().run(mf, variant, args, get_type, fields, funcs |> list.append([EnsureFunc(def:)]))
-//   })
-// }
+pub fn ensure_func(
+  def def: g.Definition(g.Function),
+  cont cont: fn() -> Gen(t, expr),
+) -> Gen(t, expr) {
+  use <- write(def, lens_funcs, fn(defs, def) { list_push(defs, EnsureFunc(def:)) })
+  cont()
+}
 
 // pub fn variant_shorthand_field(
 //   name name: String,
@@ -409,11 +430,46 @@ pub fn short(field: String) -> g.Field(t) {
 
 //
 
+pub fn named_gen_param(
+  name name: String,
+  parse f: fn(String) -> Result(t, e),
+) -> Gen(Result(t, e), expr) {
+  use str <- bind(ensure_named_gen_param_str(name))
+  pure(f(str))
+}
+
+pub fn ensure_named_gen_param(
+  name name: String,
+  parse f: fn(String) -> Result(t, String),
+) -> Gen(t, expr) {
+  use str <- bind(ensure_named_gen_param_str(name))
+  ok(f(str), fn(err) {
+    "named gen param " <> string.inspect(#(name, str)) <> " parse failed with err: " <> string.inspect(err)
+  })
+}
+
+pub fn named_gen_param_str(
+  name name: String,
+) -> Gen(Result(String, Nil), expr) {
+  use args <- read(lens_args)
+  pure(dict.get(args.named, name))
+}
+
+pub fn ensure_named_gen_param_str(
+  name name: String,
+) -> Gen(String, expr) {
+  use args <- read(lens_args)
+  use result <- bind(named_gen_param_str(name))
+  ok(result, fn(_err) {
+    "named gen param " <> string.inspect(name) <> " but got: " <> string.inspect(args)
+  })
+}
+
 pub fn run_variant_expr_(
   gen: Gen(g.Expression, g.Variant),
   variant variant: g.Variant,
   file file: GleamFile,
-  args args: String,
+  args args: Args,
   mf mf: #(GleamPath, String),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
 ) -> Result(#(g.Clause, List(EnsureFunc)), String) {
@@ -447,16 +503,21 @@ pub fn variant(
   cont(var, td)
 }
 
-pub fn type_params_(
+pub fn type_params(
   type_ type_: g.Type,
-) -> Gen(List(#(g.Type, Result(TypeDef, Nil))), expr) {
+  cont cont: fn(List(#(g.Type, Result(TypeDef, Nil)))) -> Gen(t, expr),
+) -> Gen(t, expr) {
   use params <- bind(for_named_type(type_, fn(nt) { nt.parameters }))
 
-  params
-  |> map_m(fn(t) {
-    get_type_def_for(t)
-    |> map(pair.new(t, _))
-  })
+  use types <- bind(
+    params
+    |> map_m(fn(t) {
+      get_type_def_for(t)
+      |> map(pair.new(t, _))
+    })
+  )
+
+  cont(types)
 }
 
 pub type NamedType {

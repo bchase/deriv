@@ -11,71 +11,66 @@ import glance as g
 
 pub fn handle_case() -> ExprGen {
   x.VariantClauseCaseExprGen(clauses: [{
-    types.failure("fix")
+    use var, _type_def <- x.variant()
+    let handler_func_name = "handle_" <> casing.snake(var.name)
+    let handler_func = ast.term(handler_func_name)
+
+    use req, req_type, _req_type_def <- x.pun_variant_named_param("f")
+
+    use req_type_param_types <- x.type_params(req_type)
+
+    use #(
+      param_type,
+      return_type,
+      encode_func,
+    ) <- x.try({case req_type_param_types {
+      [
+        #(g.NamedType(..) as param_type, _param_custom_type),
+        #(g.NamedType(name: return_type_name, ..) as return_type, _),
+      ] -> {
+        let encode_func = ast.term("encode_" <> casing.snake(return_type_name))
+
+        x.success(#(param_type, return_type, encode_func))
+      }
+
+      _ ->
+        x.failure("needs `NamedType` for req/resp types, but got: " <> string.inspect(req_type_param_types))
+    }})
+
+    let resp_func = ast.term("resp_func")
+
+    use <- x.ensure_func(g.Definition([], g.Function(z,
+      name: handler_func_name,
+      publicity: g.Private,
+      parameters: [
+        g.FunctionParameter(
+          label: None,
+          name: g.Named("req"),
+          type_: Some(param_type),
+        ),
+      ],
+      return: Some(g.NamedType(z, "Result", None, [
+        return_type,
+        g.NamedType(z, "Err", None, []),
+      ])),
+      body: [
+        // ast.term("Nil") |> g.Expression,
+        g.Todo(z, None) |> g.Expression,
+      ],
+    )))
+
+    //
+
+    handler_func
+    |> ast.pipe({
+      resp_func
+      |> ast.call_([
+        req,
+        g.LabelledField("encode", encode_func)
+      ])
+    })
+    |> x.variant_clause_success()
   }])
-
-  // x.VariantClauseCaseExprGen(clauses: [{
-  //   use var <- x.variant_name()
-  //   let handler_func_name = "handle_" <> casing.snake(var)
-  //   let handler_func = ast.term(handler_func_name)
-
-  //   use req <- x.variant_shorthand_field("f")
-  //   use req_type <- x.variant_shorthand_type("f")
-
-  //   use req_type_param_types <- x.type_params(req_type)
-
-  //   use #(
-  //     param_type,
-  //     return_type,
-  //     encode_func,
-  //   ) <- x.try({case req_type_param_types {
-  //     [
-  //       #(g.NamedType(..) as param_type, _param_custom_type),
-  //       #(g.NamedType(name: return_type_name, ..) as return_type, _),
-  //     ] -> {
-  //       let encode_func = ast.term("encode_" <> casing.snake(return_type_name))
-
-  //       Ok(#(param_type, return_type, encode_func))
-  //     }
-
-  //     _ ->
-  //       Error("needs `NamedType` for req/resp types, but got: " <> string.inspect(req_type_param_types))
-  //   }})
-
-  //   let resp_func = ast.term("resp_func")
-
-  //   use <- x.ensure_func(g.Definition([], g.Function(z,
-  //     name: handler_func_name,
-  //     publicity: g.Private,
-  //     parameters: [
-  //       g.FunctionParameter(
-  //         label: None,
-  //         name: g.Named("req"),
-  //         type_: Some(param_type),
-  //       ),
-  //     ],
-  //     return: Some(g.NamedType(z, "Result", None, [
-  //       return_type,
-  //       g.NamedType(z, "Err", None, []),
-  //     ])),
-  //     body: [
-  //       // ast.term("Nil") |> g.Expression,
-  //       g.Todo(z, None) |> g.Expression,
-  //     ],
-  //   )))
-
-  //   //
-
-  //   handler_func
-  //   |> ast.pipe({
-  //     resp_func
-  //     |> ast.call_([
-  //       req,
-  //       g.LabelledField("encode", encode_func)
-  //     ])
-  //   })
-  //   |> x.variant_success()
-  // }])
 }
 
 //

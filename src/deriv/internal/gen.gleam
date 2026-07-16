@@ -1,3 +1,4 @@
+import deriv/internal/parser
 import deriv/internal/common
 import bchase/io
 import bchase/unsafe
@@ -1117,6 +1118,12 @@ fn build_case_clause_expr(
   use #(clause, ensure_funcs) <- try({
     gens
     |> list.map(fn(gen) { // TODO perf `fold_until`
+      let args =
+        types.Args(
+          raw: args,
+          named: parser.parse_named_params(args),
+        )
+
       let #(result, write) =
         types.run_gen(gen:, expr: #(variant, type_), file:, args:, module_func: mf, get_type:)
 
