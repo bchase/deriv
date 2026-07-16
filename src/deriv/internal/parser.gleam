@@ -1,3 +1,4 @@
+import gleam/set
 import gleam/pair
 import gleam/option.{type Option, Some, None}
 import gleam/dict
@@ -7,6 +8,8 @@ import gleam/string
 import gleam/regexp.{Match}
 import glance.{type CustomType, type TypeAlias}
 import deriv/internal/types.{type Derivation, Derivation, DerivField, type DerivFieldOpt, DerivFieldOpt, type DerivFieldOpts}
+import nibble
+import nibble/lexer
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
@@ -320,4 +323,68 @@ fn parse_deriv_field_opts(str: String) -> List(DerivFieldOpt) {
     _ ->
       []
   }
+}
+
+//
+
+type Token {
+  Bare(String)
+  Colon
+  Str(String)
+}
+
+fn lexer() -> lexer.Lexer(Token, Nil) {
+  lexer.simple([
+    lexer.token(":", Colon),
+
+    // lexer.custom(fn(_, s1, s2) {
+    //   todo
+    // }),
+
+    lexer.identifier("[a-z]", "[-_a-zA-Z0-9]", set.new(), Bare),
+    lexer.string("\"", Str),
+
+    lexer.whitespace(Nil) |> lexer.ignore,
+  ])
+}
+
+fn parser() {
+  use key <- nibble.do(nibble.take_map("key bare", fn(t) {
+    case t {
+      Bare(key) -> Some(key)
+      _ -> None
+    }
+  }))
+
+  use _ <- nibble.do(nibble.token(Colon))
+
+  use val <- nibble.do(
+    nibble.one_of([
+      nibble.take_map("val str", fn(t) {
+        case t {
+          Str(val) -> Some(val)
+          _ -> None
+        }
+      }),
+      nibble.take_map("val bare", fn(t) {
+        case t {
+          Bare(val) -> Some(val)
+          _ -> None
+        }
+      }),
+    ])
+  )
+
+  nibble.return(#(key, val))
+}
+
+pub fn parse_named_params(
+  str str: String,
+) -> dict.Dict(String, String) {
+  {
+    use tokens <- result.try(str |> lexer.run(lexer()) |> result.replace_error(Nil))
+    use pairs <- result.try(nibble.run(tokens, nibble.many(parser())) |> result.replace_error(Nil))
+    Ok(dict.from_list(pairs))
+  }
+  |> result.unwrap(dict.new())
 }

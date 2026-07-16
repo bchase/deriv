@@ -41,53 +41,22 @@ import deriv/gen/supervisor as gs
 //   - `func` takes extra, e.g. lens, mapping func
 //   - `func_` drops, e.g. whole value instead of lens into, no need to map result err
 
-// todo
-// X fix
-//   X - ensure func instead of replace func
-// X code reload
-//   X - watch all src paths with `filespy`
-//   X - only code reload `defs.gleam`
-// X tests
-//   X - fix
-// X errs
-//   X - `gen`
-//   X - `VariantExpr`
-// X expr gen
-//   X - rework work `ReadWriteResult`
-//   X - use `Gen` monad
-// X monad
-//   X - mv `monad` to `bchase`
-//   organize
-//     - figure out modules
-//     - rename types & funcs
+// finish
 //   next
 //     - finish `refs` tracking
 //       * ensure general ref tracking inits & updates correctly
 //       * force regen of all refs upon successful code gen write
 //   improve
-//   X - add code gen notices to `defs.gleam`
-//     - gen str helpers
-//       * shorthand  -- //$ gen                func foo bar
-//       * named args -- //$ gen package/module.func target:Foo:type dest:bar:function
-//       * named args -- //$ gen package/module.func target:Foo      dest:bar
-//         - ^ would need helpers like `use type_: #(g.Type, Result(g.CustomType), Nil) <- type_for_gen_param(name: "target")`
-//   ? - maybe type/variant/field attributes
-//     * e.g. for routes gen, `//$ app/mod.gen:route:"/api/parent/:parent_id/things"` on endpoint variant
+//     external api (types/funcs)
+//       - review naming
+//       - def rework
+//       - change
+//     magic comments
+//       - gen str helpers
+//         * shorthand  -- //$ gen                func foo bar
+//         * named args -- //$ gen package/module.func target:Foo:type dest:bar:function
 
-//   derive
-//     - impl with `ExprGen`
-//     ? * ... rework `VariantExpr` to `Expr(glance.Variant)`?
-//     - try defining something simple, e.g. `zero`, `enum`
-//   gen ideas
-//     - top-level `//$ foo.reexport module:foo/bar/baz`
-//       * reexports target module consts, types, aliases, & funcs *w/ params*
-
-//   tests
-//     - write tests for code reloading / file changes
-//       * saved changes with new `ExprGen` (overwrite `defs.gleam`)
-//       * saved changes with `//$ gen` (overwrite src w/ gen'd code)
-
-// consumer-side
+// app consumer-side
 //   expr gen
 //     server-side
 //     X - `f` type
@@ -97,6 +66,35 @@ import deriv/gen/supervisor as gs
 //       - req funcs
 //   forms
 //     - ...
+
+// todo
+//   organize
+//     - figure out modules
+//     - rename types & funcs
+
+//   derive
+//     - impl with `ExprGen`
+//     ? * ... rework `VariantExpr` to `Expr(glance.Variant)`?
+//     - try defining something simple, e.g. `zero`, `enum`
+
+//   other gen ideas
+//     - top-level `//$ foo.reexport module:foo/bar/baz`
+//       * reexports target module consts, types, aliases, & funcs *w/ params*
+
+//   tests
+//     - write tests for code reloading / file changes
+//       * saved changes with new `ExprGen` (overwrite `defs.gleam`)
+//       * saved changes with `//$ gen` (overwrite src w/ gen'd code)
+
+// MAYBE
+//   improve
+//     magic comments
+//       - gen str helpers
+//         * named args -- //$ gen package/module.func target:Foo:type dest:bar:function
+//         * named args -- //$ gen package/module.func target:Foo      dest:bar
+//           - ^ would need helpers like `use type_: #(g.Type, Result(g.CustomType), Nil) <- type_for_gen_param(name: "target")`
+//     ? - maybe type/variant/field attributes
+//       * e.g. for routes gen, `//$ app/mod.gen:route:"/api/parent/:parent_id/things"` on endpoint variant
 
 // todo
 //   - rework from hashes to file modified times?
@@ -146,6 +144,19 @@ fn log_(str, s) {
   io.println("")
   io.println(str)
   io.println(s)
+}
+
+pub fn gen_named_params_test() {
+  // let str = "foo:\"123\" hoge:\"fuka \\\"piyo\\\" bar:\"baz_boo\""
+  let str = "foo:\"123\" hoge:\"fuka piyo\"  bar:\"baz_boo\""
+
+  dict.from_list([
+    #("foo", "123"),
+    // #("hoge", "\"fuka \\\"piyo\\\""),
+    #("hoge", "fuka piyo"),
+    #("bar", "baz_boo"),
+  ])
+  |> should.equal(parser.parse_named_params(str), _)
 }
 
 pub fn gen_test() {
