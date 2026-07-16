@@ -666,7 +666,8 @@ pub fn process(
 
   let assert Ok(gen_magic_comment_start_re) =
     // "[/][/][$]\\s*gen([:]|\\s+)" |> re.from_string
-    "[/][/][$]\\s*gen\\s+" |> re.from_string
+    // "[/][/][$]\\s*gen\\s+" |> re.from_string
+    "[/][/][$]" |> re.from_string
 
   use <- bool.guard(!re.check(gen_magic_comment_start_re, src), skip)
 
@@ -837,7 +838,7 @@ fn get_expr_gen_(
 
   use path <- monad.do_ok(
     parse_gleam_module_path(path),
-    GleamFileErr(_, dyn.from("//$ gen " <> gen.str)),
+    GleamFileErr(_, dyn.from("//$ " <> gen.str)),
   )
 
   use expr_gen <- monad.do(monad.ok(
@@ -959,7 +960,7 @@ fn build_func_gens(
   let lines = func_src |> string.split("\n")
 
   let assert Ok(start_re) =
-    "^((\\s*)([{]\\s*)?)([/][/][$]\\s*?gen\\s+(.+)$)"
+    "^((\\s*)([{]\\s*)?)([/][/][$]\\s*(.+)$)"
     |> re.from_string
 
   list.fold(lines, #(None, [], span.start), fn(acc, line) {
@@ -971,7 +972,7 @@ fn build_func_gens(
         case re.scan(start_re, line) {
           [re.Match(_, [pre_comment, indent, bracket, Some(comment), Some(gen_str)])] ->
             Ok(#(
-              gen_str,
+              gen_str |> string.trim_start,
               comment,
               bracket |> option.is_some,
               indent |> option.unwrap("") |> string.length,

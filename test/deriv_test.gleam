@@ -42,20 +42,19 @@ import deriv/gen/supervisor as gs
 //   - `func_` drops, e.g. whole value instead of lens into, no need to map result err
 
 // finish
+//   improve
+//   X magic comments
+//     X - rework to `//$ package/module.func ...`, i.e. not `//$ gen ...`
+//     X - gen str named args
+//       X * named args -- //$ gen package/module.func target:Foo      dest:bar
 //   next
 //     - finish `refs` tracking
 //       * ensure general ref tracking inits & updates correctly
 //       * force regen of all refs upon successful code gen write
-//   improve
-//     external api (types/funcs)
-//       - review naming
-//       - def rework
-//       - change
-//     magic comments
-//     ? - rework to `//$ package/module.func ...`, i.e. not `//$ gen ...`
-//       - gen str helpers
-//       X * named args -- //$ gen package/module.func target:Foo      dest:bar
-//         * shorthand  -- //$ gen                func foo bar
+//   external api (types/funcs)
+//     - review naming
+//     - def rework
+//     - change
 
 // app consumer-side
 //   expr gen
@@ -80,7 +79,7 @@ import deriv/gen/supervisor as gs
 
 //   other gen ideas
 //     - top-level `//$ foo.reexport module:foo/bar/baz`
-//       * reexports target module consts, types, aliases, & funcs *w/ params*
+//       * reexportsgen  target module consts, types, aliases, & funcs *w/ params*
 
 //   tests
 //     - write tests for code reloading / file changes
@@ -91,6 +90,7 @@ import deriv/gen/supervisor as gs
 //   improve
 //     magic comments
 //       - gen str helpers
+//         * shorthand  -- //$ gen                func foo bar
 //         * named args -- //$ gen package/module.func target:Foo:type dest:bar:function
 //           - ^ would need helpers like `use type_: #(g.Type, Result(g.CustomType), Nil) <- type_for_gen_param(name: "target")`
 //     ? - maybe type/variant/field attributes
