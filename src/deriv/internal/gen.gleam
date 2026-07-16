@@ -1066,18 +1066,20 @@ fn case_expr_with_variant_clauses(
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   file file: GleamFile,
 ) -> Result(GenExpr, GenErr) {
+  let fail = fn(msg) { Failed("[variant clause expr] " <> msg) }
+
   let assert Ok(ws_re) = "\\s+" |> re.from_string
 
   use str <- try(args |> re.split(ws_re, _) |> list.first |> result.map_error(fn(_) {
-    Failed("[variant clause expr] was expecting an initial gen arg, but found none")
+    fail("was expecting an initial gen arg, but found none")
   }))
 
   use #(mod, type_) <- try(get_named_param_type(str:, func:) |> result.map_error(fn(_) {
-    Failed("[variant clause expr] couldn't find named param: " <> str)
+    fail("couldn't find named param: " <> str)
   }))
 
   use type_ <- try(get_type(mod, type_) |> result.map_error(fn(_) {
-    Failed("[variant clause expr] failed type lookup: " <> string.inspect(#(mod, type_)))
+    fail("failed type lookup: " <> string.inspect(#(mod, type_)))
   }))
 
   let ref = Ref(from: file.path, to: type_.path, type_: type_.def.definition.name)
@@ -1096,10 +1098,6 @@ fn case_expr_with_variant_clauses(
   )
 
   let subject = term(str)
-  echo subject
-  // use subject <- try(args |> re.split(ws_re, _) |> list.first |> result.map(term) |> result.map_error(fn(_) {
-  //   Failed("[variant clause expr] couldn't find subject param: " <> string.inspect(#(mod, type_)))
-  // }))
 
   let expr = g.Case(z, subjects: [subject], clauses:)
   Ok(GenExpr(expr:, funcs:, refs: [ref]))
