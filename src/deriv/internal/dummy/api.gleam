@@ -131,7 +131,7 @@ pub type Api {
 pub fn handle(
   req req: Req,
 ) -> Resp {
-  { //$ gen deriv/internal/dummy/api.handle_case req
+  { //$ deriv/internal/dummy/api.handle_case subject:req
     case req {
       GetTemp(f:) -> handle_get_temp |> resp_func(f:, encode: encode_temp)
     }
