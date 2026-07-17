@@ -218,9 +218,15 @@ fn update(
 
       use <- bool.guard(new == file.src, Ok(actor.continue(state)))
 
-      state.cfg.refs
-      |> process.named_subject
-      |> process.send(UpdateRefs(path: file.path, refs:))
+      {
+        let refs = refs |> list.filter(fn(ref) { ref.from != ref.to })
+
+        use <- bool.guard(list.is_empty(refs), Nil)
+
+        state.cfg.refs
+        |> process.named_subject
+        |> process.send(RefsUpdate(path: file.path, refs:))
+      }
 
       let hash = sha256_hash(new)
 
@@ -335,7 +341,9 @@ fn gens_update(
 
 pub opaque type RefsMsg {
   RefNoOp
-  UpdateRefs(path: GleamPath, refs: List(Ref))
+  RefsUpdate(path: GleamPath, refs: List(Ref))
+  RefsInit
+  RefsFetch(path: GleamPath, reply: Subject(List(Ref)))
 }
 
 type RefState {
@@ -353,6 +361,8 @@ fn refs_init(
   _cfg: RefConfig,
   self: Subject(RefsMsg),
 ) -> RefState {
+  process.send(self, RefsInit)
+
   RefState(
     self:,
     refs: dict.new(),
@@ -367,10 +377,37 @@ fn refs_update(
     RefNoOp ->
       actor.continue(state)
 
-    UpdateRefs(path:, refs:) -> {
+    RefsUpdate(path:, refs:) -> {
       actor.continue(RefState(..state,
-        refs: state.refs |> dict.insert(path, refs)
+        refs: state.refs |> dict.insert(path, refs),
       ))
+    }
+
+    RefsInit -> {
+      let files = all_gleam_files()
+
+      let modules = files |> list.map(fn(file) { file.path })
+
+      let refs =
+        list.flat_map(files, fn(file) {
+          scan.scan_for_refs(src: file.src, modules:)
+          |> list.map(fn(t) {
+            gen.Ref(from: file.path, to: t.0, ident: t.1)
+          })
+        })
+        |> list.filter(fn(ref) { ref.from != ref.to })
+        |> list.group(fn(ref) { ref.to })
+
+      actor.continue(RefState(..state, refs:))
+    }
+
+    RefsFetch(path:, reply:) -> {
+      state.refs
+      |> dict.get(path)
+      |> result.unwrap([])
+      |> process.send(reply, _)
+
+      actor.continue(state)
     }
   }
 }
@@ -477,6 +514,37 @@ fn watched_dirs(
     |> list.unique
 
   [ "src/", ..dep_paths ]
+}
+
+fn all_gleam_files(
+) -> List(GleamFile) {
+  let dirs = watched_dirs()
+
+  case shellout.command(in: ".", opt: [], run: "find", with: dirs) {
+    Error(_) -> {
+      io.log_err(["failed to `find` gleam files in dirs: ", ..dirs])
+      []
+    }
+
+    Ok(output) -> {
+      let #(files, errs) =
+        output
+        |> string.split("\n")
+        |> list.filter(string.ends_with(_, ".gleam"))
+        |> list.map(gen.load_gleam_file)
+        |> result.partition
+
+      {
+        use <- bool.guard(list.is_empty(errs), Nil)
+        io.log_err([
+          "Failed to load gleam files: ",
+          ..list.map(errs, string.inspect)
+        ])
+      }
+
+      files
+    }
+  }
 }
 
 // LOOKUP ACTOR

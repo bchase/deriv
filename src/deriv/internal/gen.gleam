@@ -451,7 +451,7 @@ pub fn all_build_package_gleam_src_filepaths(
 }
 
 // TODO mv generic
-fn parse_gleam_module_path_from(
+pub fn parse_gleam_module_path_from(
   filepath filepath: String,
 ) -> Result(GleamPath, GleamFileErr) {
   let err = GleamFilepathInvalid(filepath:)
@@ -752,7 +752,7 @@ fn run(
     defs.expr_gens()
     |> dict.get(#(module, func))
   }
-  use #(expr_gen, args, #(path, _func) as mf) <- monad.do(get_expr_gen_(gen:, fetch:))
+  use #(expr_gen, args, #(path, _func) as mf) <- monad.do(get_expr_gen(gen:, fetch:))
 
   // gen expr
   let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
@@ -818,11 +818,11 @@ pub type Ref {
   Ref(
     from: GleamPath,
     to: GleamPath,
-    type_: String,
+    ident: Option(String),
   )
 }
 
-fn get_expr_gen_(
+fn get_expr_gen(
   gen gen: Gen,
   fetch fetch: fn(String, String) -> Result(ExprGen, Nil),
 ) -> ReadWriteResult(#(ExprGen, String, #(GleamPath, String)), GenErr, r, w) {
@@ -1083,7 +1083,7 @@ fn case_expr_with_variant_clauses(
     fail("failed type lookup: " <> string.inspect(#(mod, type_)))
   }))
 
-  let ref = Ref(from: file.path, to: type_.path, type_: type_.def.definition.name)
+  let ref = Ref(from: file.path, to: type_.path, ident: Some(type_.def.definition.name))
 
   use #(clauses, funcs) <- try(
     type_.def.definition.variants
@@ -1134,4 +1134,32 @@ fn build_case_clause_expr(
   })
 
   Ok(#(clause, ensure_funcs))
+}
+
+//
+
+fn scan_for_magic_comment_refs_to_other_modules(
+  filepaths filepaths: List(String),
+) -> List(Ref) {
+  filepaths
+  |> monad.map_m(fn(filepath) {
+    case load_gleam_file(filepath:) {
+      Error(err) -> {
+        io.log_err([
+          { "ref scan failed for `" <> filepath <> "` with:" },
+          string.inspect(err)
+        ])
+
+        monad.pure(Nil)
+      }
+
+      Ok(file) -> {
+        file.src
+
+        monad.pure(Nil)
+      }
+    }
+  })
+  |> monad.run_(Nil, [])
+  |> pair.second
 }
