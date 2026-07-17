@@ -36,6 +36,7 @@ import gleam/crypto
 import gleam/bit_array as ba
 import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
 import deriv/gen/supervisor as gs
+import deriv/gen/scan
 
 // convention
 //   - `func` takes extra, e.g. lens, mapping func
@@ -141,6 +142,55 @@ fn log_(str, s) {
   io.println("")
   io.println(str)
   io.println(s)
+}
+
+pub fn ref_scan_test() {
+  let src = "
+import foo/bar
+import hoge/fuka
+
+fn foo(str) {
+  { //$ foo/bar.baz other str/arg/mod pkg.func ignore str/arg.func other:named named1:arg/mod named2:arg/mod.func
+    case str {
+      _ -> Nil
+    }
+  }
+}
+
+type Foo {
+  //$ derive from foo/bar.Baz
+  //$ derive into hoge/fuka.Piyo
+  Foo(
+    bar: String,
+  )
+}
+  " |> string.trim
+
+  let modules = [
+    "pkg",
+    "foo/bar",
+    "str/arg",
+    "str/arg/mod",
+    "arg/mod",
+  ]
+  |> list.map(fn(str) {
+    let assert Ok(path) = gen.parse_gleam_module_path(str)
+    path
+  })
+
+  scan.scan_for_refs(src:, modules:)
+  |> list.map(fn(ref) {
+    #(ref.0.full |> string.join("/"), ref.1)
+  })
+  |> should.equal([
+    #("foo/bar", Some("baz")),
+    #("str/arg/mod", None),
+    #("pkg", Some("func")),
+    #("str/arg", Some("func")),
+    #("arg/mod", None),
+    #("arg/mod", Some("func")),
+    #("foo/bar", Some("Baz")),
+  ])
 }
 
 pub fn gen_named_params_test() {

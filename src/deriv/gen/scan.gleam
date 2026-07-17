@@ -1,3 +1,4 @@
+import gleam/regexp as re
 import gleam/set.{type Set}
 import gleam/erlang/process
 import gleam/bool
@@ -7,13 +8,13 @@ import gleam/pair
 import bchase/io
 import glance_printer
 import gleam/string
-import gleam/option.{Some, None}
+import gleam/option.{Some, None, type Option}
 import gleam/result.{try}
 import gleam/dict.{type Dict}
 import gleam/list
 import shellout
 import glance as g
-import deriv/gen/types.{type GleamFile, relative_code_gen_defs_path}
+import deriv/gen/types.{type GleamPath, type GleamFile, relative_code_gen_defs_path}
 import deriv/internal/gen
 import deriv/internal/glance.{z, call, dot, pipe} as _
 
@@ -230,4 +231,57 @@ fn has_reference(
       False -> Error(Nil)
     }
   })
+}
+
+//
+
+pub fn scan_for_refs(
+  src src: String,
+  modules modules: List(GleamPath)
+// ) -> List(gen.Ref) {
+) -> List(#(GleamPath, Option(String))) {
+  let assert Ok(magic_comment_re) =
+    "[/][/][$]\\s*(.+)\n" |> re.from_string
+
+  let strs =
+    re.scan(magic_comment_re, src)
+    |> list.filter_map(fn(match) {
+      case match {
+        re.Match(_, [Some(str)]) -> Ok(str)
+        re.Match(..) -> Error(Nil)
+      }
+    })
+
+  let assert Ok(ref_re) = re.from_string(
+  // 1               2                     3    4                     5
+    "([a-z][_a-z0-9]*([/][a-z][_a-z0-9]*)*)([.]?([a-zA-Z][_a-zA-Z0-9]*([/][a-zA-Z][_a-zA-Z0-9]*)*))?"
+  )
+
+  list.flat_map(strs, fn(str) {
+    re.scan(ref_re, str)
+    |> list.filter_map(fn(match) {
+      case match {
+        re.Match(_, [Some(module), _, _, Some(ident), ..]) -> {
+          case gen.parse_gleam_module_path(module) {
+            Ok(module) -> Ok(#(module, Some(ident)))
+            Error(_) -> Error(Nil)
+          }
+        }
+
+        re.Match(_, [Some(module), ..]) -> {
+          case gen.parse_gleam_module_path(module) {
+            Ok(module) -> Ok(#(module, None))
+            Error(_) -> Error(Nil)
+          }
+        }
+
+        _ ->
+          Error(Nil)
+      }
+    })
+  })
+  |> list.filter(fn(ref) {
+    modules |> list.contains(ref.0)
+  })
+  |> list.unique
 }
