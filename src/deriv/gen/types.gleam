@@ -391,11 +391,9 @@ pub fn ensure_imports(
   cont cont: fn() -> Gen(t, expr),
 ) -> Gen(t, expr) {
   use <- write(def, lens_imports, fn(orig, new) {
-    orig
-    |> list.append(
-      new
-      |> list.map(fn(def) { Generated(def:, overwrite: False)})
-    )
+    new
+    |> list.map(fn(def) { Generated(def:, overwrite: False)})
+    |> list.append(orig, _)
   })
   cont()
 }

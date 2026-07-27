@@ -614,6 +614,8 @@ const skip: Result(#(String, List(Ref)), Result(Skip, GenErr)) =
 type Acc {
   Acc(
     src: String,
+    imports: List(g.Definition(g.Import)),
+    types: List(types.Generated(g.CustomType)),
     funcs: List(types.Generated(g.Function)),
     offset: Int,
     refs: List(Ref),
@@ -661,7 +663,7 @@ pub fn process(
   })
   |> list.map(run)
   |> monad.sequence
-  |> monad.run_(Nil, Acc(src: ctx.file.src, funcs: [], offset: 0, refs: []))
+  |> monad.run_(Nil, Acc(src: ctx.file.src, imports: [], types: [], funcs: [], offset: 0, refs: []))
   |> fn(t) {
       case t {
         #(Ok(_), acc) -> {
@@ -669,10 +671,17 @@ pub fn process(
             ctx.file.ast.functions
             |> dict.keys
 
+          let existing_type_names =
+            ctx.file.ast.custom_types
+            |> dict.keys
+
           let func_srcs =
             acc.funcs
             |> list.filter(fn(f) {
-              !list.contains(existing_func_names, f.def.definition.name)
+              case f.overwrite {
+                True -> True
+                False -> !list.contains(existing_func_names, f.def.definition.name)
+              }
             })
             |> list.group(fn(f) { f.def.definition.name })
             |> dict.to_list
@@ -692,16 +701,54 @@ pub fn process(
               common.func_str(f.def)
             })
 
-        let src =
-          [acc.src |> string.trim, ..func_srcs]
-          |> string.join("\n\n")
+          let type_srcs =
+            acc.types
+            |> list.filter(fn(f) {
+              case f.overwrite {
+                True -> True
+                False -> !list.contains(existing_type_names, f.def.definition.name)
+              }
+            })
+            |> list.group(fn(f) { f.def.definition.name })
+            |> dict.to_list
+            |> list.filter_map(fn(t) {
+              case t.1 {
+                [] -> Error(Nil)
+                [f] -> Ok(f)
+                _ -> {
+                  io.log_err([
+                    "An expression generator is trying to define multiple functions with the name: " <> t.0
+                  ])
+                  Error(Nil)
+                }
+              }
+            })
+            |> list.map(fn(f) {
+              common.type_str(f.def)
+            })
 
-         Ok(#(src, acc.refs))
-       }
+          let src =
+            [
+              [acc.src |> string.trim],
+              type_srcs,
+              func_srcs,
+            ]
+            |> list.flatten
+            |> string.join("\n\n")
 
-       #(Error(err), _acc) ->
-         Error(Error(err))
-     }
+          let imports =
+            acc.imports
+            |> list.map(fn(def) { def.definition })
+
+          let src =
+            common.consolidate_imports_for(src, imports)
+
+          Ok(#(src, acc.refs))
+        }
+
+      #(Error(err), _acc) ->
+        Error(Error(err))
+    }
   }
 }
 
