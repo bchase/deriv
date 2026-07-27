@@ -166,7 +166,7 @@ const x = 1337
   let ast = gen.ast(module)
 
   let raw_type_gen =
-    RawTypeGen(
+    parser.RawTypeGen(
       gens: ["pkg/mod/gen.func foo bar:baz"],
       opts: dict.from_list([
         #(#("Bar", None), ["variant k01:v1 k02:v2"]),
@@ -175,7 +175,7 @@ const x = 1337
     )
 
   let type_gen =
-    TypeGen(
+    parser.TypeGen(
       gens: [
         #(
           GleamPath(full: ["pkg", "mod", "gen"], package: "pkg", module: "gen"),
@@ -193,7 +193,7 @@ const x = 1337
 
   let raw =
     type_.definition
-    |> parse_raw_type_gens(src:, ast:)
+    |> parser.parse_raw_type_gens(src:, ast:)
 
   raw
   |> should.be_ok
@@ -201,206 +201,12 @@ const x = 1337
 
   raw
   |> should.be_ok
-  |> from_raw
-  |> should.equal(type_gen)
-}
-
-fn parse_type_gens(
-  type_ type_: g.CustomType,
-  src src: String,
-  ast ast: AST
-) -> Result(TypeGen, Nil) {
-  use raw <- result.try(parse_raw_type_gens(type_:, src:, ast:))
-  Ok(from_raw(raw))
-}
-
-fn parse_raw_type_gens(
-  type_ type_: g.CustomType,
-  src src: String,
-  ast ast: AST
-) -> Result(RawTypeGen, Nil) {
-  use g.Definition(_, ct) <- result.try(dict.get(ast.custom_types, type_.name))
-
-  use src <- result.try(dg.read_span(src:, span: ct.location))
-
-  use rest <- result.try(src |> string.split("{") |> list.rest)
-
-  let lines =
-    rest
-    |> string.join("{")
-    |> string.split("\n")
-    |> list.map(string.trim)
-
-  Ok(parse_type_gens_(lines:))
-}
-
-type RawTypeGen {
-  RawTypeGen(
-    gens: List(String),
-    opts: Dict(#(String, Option(String)), List(String)),
-  )
-}
-
-type TypeGen {
-  TypeGen(
-    gens: List(#(GleamPath, String, String)),
-    opts: Dict(#(String, Option(String), String), String),
-  )
-}
-
-fn from_raw(
-  gen gen: RawTypeGen,
-) -> TypeGen {
-  let gens =
-    gen.gens
-    |> list.filter_map(fn(str) {
-      let #(gen_str, rest_str) =
-        case string.split(str, " ") {
-          [] -> #(str, "")
-          [str, ..rest] -> #(str, rest |> string.join(" ") |> string.trim)
-        }
-
-      case string.split(gen_str, ".") {
-        [] | [_] | [_, _, _, ..] -> {
-          io.log_err([
-            "failed to parse type gen:",
-            string.inspect(gen),
-          ])
-          Error(Nil)
-        }
-
-        [str, func] ->
-          case gen.parse_gleam_module_path(str) {
-            Error(err) -> {
-              log_err([
-                "failed to parse type gen gleam module path:",
-                string.inspect(err),
-              ])
-              Error(Nil)
-            }
-
-            Ok(path) -> Ok(#(path, func, rest_str))
-          }
-      }
-    })
-
-  let opts =
-    gen.opts
-    |> dict.to_list
-    |> list.flat_map(fn(t) {
-      let #(#(var, field), strs) = t
-
-      strs
-      |> list.map(fn(str) {
-        let #(key, val) =
-          case string.split(str, " ") {
-            [] -> #(str, "")
-            [key, ..rest] -> #(key, rest |> string.join(" "))
-          }
-
-        #(#(var, field, key), val)
-      })
-    })
-    // |> list.group(fn(t) {
-    //   let #(#(_var, _field, _key), _str) = t
-    //   todo
-    // })
-    |> dict.from_list
-
-  TypeGen(gens:, opts:)
-}
-
-type Match {
-  MagicComment
-  Variant
-  Field
-}
-
-fn parse_type_gens_(
-  lines lines: List(String),
-) {
-  let assert Ok(magic_comment_re) =
-    "^[/][/][$]\\s*(.+)" |> re.from_string
-
-  let magic_comment = fn(str) {
-    case re.scan(magic_comment_re, str) {
-      [re.Match(_, submatches: [Some(str)])] -> Ok(#(MagicComment, str))
-      _ -> Error(Nil)
-    }
-  }
-
-  let assert Ok(variant_re) =
-    "^([A-Z][A-Za-z0-9]+)" |> re.from_string
-
-  let variant = fn(str) {
-    case re.scan(variant_re, str) {
-      [re.Match(_, submatches: [Some(str)])] -> Ok(#(Variant, str))
-      _ -> Error(Nil)
-    }
-  }
-
-  let assert Ok(field_re) =
-    "^([a-z][_a-z0-9]+)" |> re.from_string
-
-  let field = fn(str) {
-    case re.scan(field_re, str) {
-      [re.Match(_, submatches: [Some(str)])] -> Ok(#(Field, str))
-      _ -> Error(Nil)
-    }
-  }
-
-  let scan = fn(str) {
-    [
-      magic_comment,
-      variant,
-      field
-    ]
-    |> list.find_map(fn(f) { f(str) })
-  }
-
-  let opts: List(#(String, Option(String), String)) = []
-
-  list.fold(lines, #(None, None, [], opts), fn(acc, line) {
-    let #(var, field, gens, opts) = acc
-
-    case scan(line) {
-      Error(Nil) ->
-        acc
-
-      Ok(#(MagicComment, str)) ->
-        case var {
-          None ->
-            #(var, field, gens |> list.append([str]), opts)
-
-          Some(var) ->
-            #(Some(var), field, gens, opts |> list.append([#(var, field, str)]))
-        }
-
-      Ok(#(Variant, var)) ->
-        #(Some(var), None, gens, opts)
-
-      Ok(#(Field, field)) ->
-        #(var, Some(field), gens, opts)
-    }
+  |> parser.from_raw(parse: fn(str) {
+    str
+    |> gen.parse_gleam_module_path
+    |> result.map_error(string.inspect)
   })
-  |> fn(acc) {
-    let #(_var, _field, gens, opts) = acc
-
-    let opts =
-      opts
-      |> list.group(fn(t) {
-        let #(var, field, _str) = t
-        #(var, field)
-      })
-      |> dict.map_values(fn(_, vals) {
-        list.map(vals, fn(val) {
-          let #(_var, _field, str) = val
-          str
-        })
-      })
-
-    RawTypeGen(gens:, opts:)
-  }
+  |> should.equal(type_gen)
 }
 
 pub fn ref_scan_test() {

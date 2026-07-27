@@ -1108,7 +1108,7 @@ fn build_expr(
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   ctx ctx: Context,
 ) -> Result(GenExpr, GenErr) {
-  let args = types.build_args(raw: args)
+  let args = types.Args(raw: args, named: parser.parse_named_params(args))
 
   case gen {
     types.VariantClauseCaseExprGen(clauses: gens) ->
