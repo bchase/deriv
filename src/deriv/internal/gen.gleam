@@ -306,11 +306,12 @@ fn dep_table(
   Ok(DepTable(name:, table:))
 }
 
-fn dep_src_dir_path(
-  package package: String,
+pub fn dep_src_dir_path(
   path path: GleamPath,
   toml toml: GleamToml,
 ) -> Result(String, GenErr) {
+  let package = path.package
+
   use <- bool.guard(toml.name == package , Ok("src/"))
 
   use dep <- try_fail(any_dep(package, path, toml), GleamDependencyFailedToResolve(package:))
@@ -495,7 +496,7 @@ fn load_context(
   pwd pwd: Pwd,
   toml toml: GleamToml,
 ) -> Result(Context, GenErr) {
-  use dep_src_dir_path <- try(dep_src_dir_path(package: path.package, path:, toml:))
+  use dep_src_dir_path <- try(dep_src_dir_path(path:, toml:))
   let filepath = dep_src_dir_path <> { path |> to_relative_src_filepath }
   use file <- try_err(load_gleam_file(filepath:), GleamFileErr(_, nil()))
 

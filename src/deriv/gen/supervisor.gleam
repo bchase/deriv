@@ -15,7 +15,7 @@ import gleam/dict.{type Dict}
 import gleam/string
 import bchase/io.{log_err}
 import simplifile
-import deriv/internal/gen.{type Ref}
+import deriv/internal/gen.{type Ref, type GleamToml, type Pwd}
 import gleam/otp/actor
 import gleam/otp/supervision
 import gleam/otp/static_supervisor as supervisor
@@ -183,8 +183,8 @@ fn update(
 
       Ok(actor.continue(State(..state,
         queue: state.queue |> set.insert(path),
-        hashes: state.hashes |> dict.insert(path, hash)),
-      ))
+        hashes: state.hashes |> dict.insert(path, hash),
+      )))
     }
     |> result.unwrap(actor.continue(state))
 
@@ -218,15 +218,30 @@ fn update(
 
       use <- bool.guard(new == file.src, Ok(actor.continue(state)))
 
-      {
-        let refs = refs |> list.filter(fn(ref) { ref.from != ref.to })
+      let refs = refs |> list.filter(fn(ref) { ref.from != ref.to })
 
-        use <- bool.guard(list.is_empty(refs), Nil)
+      state.cfg.refs
+      |> process.named_subject
+      |> process.send(RefsUpdate(path: file.path, refs:))
 
-        state.cfg.refs
-        |> process.named_subject
-        |> process.send(RefsUpdate(path: file.path, refs:))
-      }
+      // {
+      //   use <- bool.guard(list.is_empty(refs), Nil)
+
+      //   let #(filepaths, errs) =
+      //     refs
+      //     |> list.map(fn(ref) {
+      //       build_filepath(actor: state.cfg.lookup, path: ref.to)
+      //     })
+      //     |> result.partition
+
+      //   errs
+      //   |> list.map(fn(err) { "ref build filepath err: " <> string.inspect(err) })
+      //   |> log_err
+
+      //   list.each(filepaths, fn(path) {
+      //     process.send(state.self, Process(path:))
+      //   })
+      // }
 
       let hash = sha256_hash(new)
 
@@ -341,8 +356,8 @@ fn gens_update(
 
 pub opaque type RefsMsg {
   RefNoOp
-  RefsUpdate(path: GleamPath, refs: List(Ref))
   RefsInit
+  RefsUpdate(path: GleamPath, refs: List(Ref))
   RefsFetch(path: GleamPath, reply: Subject(List(Ref)))
 }
 
@@ -557,10 +572,25 @@ fn fetch_context(
 
   actor
   |> process.named_subject
-  |> actor.send(Context(file:, reply: self))
+  |> actor.send(BuildContext(file:, reply: self))
 
   process.receive(self, lookup_timeout_ms)
   |> result.replace_error(gen.Failed("context lookup timed out (" <> string.inspect(actor) <> ")"))
+}
+
+fn build_filepath(
+  actor actor: process.Name(LookupMsg),
+  path path: GleamPath,
+) -> Result(String, gen.GenErr) {
+  let self = process.new_subject()
+
+  actor
+  |> process.named_subject
+  |> actor.send(BuildFilepath(path:, reply: self))
+
+  process.receive(self, lookup_timeout_ms)
+  |> result.replace_error(gen.Failed("build filepath timed out (" <> string.inspect(actor) <> ")"))
+  |> result.flatten
 }
 
 @internal
@@ -592,17 +622,21 @@ pub opaque type LookupMsg {
     file: GleamFile,
     reply: Subject(Result(TypeDef, gen.GenErr)),
   )
-  Context(
+  BuildContext(
     file: GleamFile,
     reply: Subject(gen.Context),
+  )
+  BuildFilepath(
+    path: GleamPath,
+    reply: Subject(Result(String, gen.GenErr)),
   )
 }
 
 type LookupState {
   LookupState(
     self: Subject(LookupMsg),
-    pwd: gen.Pwd,
-    toml: gen.GleamToml,
+    pwd: Pwd,
+    toml: GleamToml,
     filepaths: List(String),
     changes: Dict(String, List(filespy.Change(Nil))),
   )
@@ -674,14 +708,31 @@ fn lookup_actor(
         actor.continue(state)
       }
 
-      Context(file:, reply:) -> {
+      BuildContext(file:, reply:) -> {
         gen.Context(pwd: state.pwd, toml: state.toml, file:)
+        |> process.send(reply, _)
+
+        actor.continue(state)
+      }
+
+      BuildFilepath(path:, reply:) -> {
+        gen.dep_src_dir_path(path:, toml: state.toml)
+        |> result.map(fn(dir) {
+          dir <> string.join(path.full, "/") <> ".gleam"
+        })
         |> process.send(reply, _)
 
         actor.continue(state)
       }
     }
   })
+}
+
+fn filepath(
+  path path: GleamPath,
+  toml toml: GleamToml,
+  pwd pwd: Pwd,
+) -> Result(String, Nil) {
 }
 
 const lookup_timeout_ms = 5_000

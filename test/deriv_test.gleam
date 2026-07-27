@@ -42,16 +42,10 @@ import deriv/gen/scan
 //   - `func` takes extra, e.g. lens, mapping func
 //   - `func_` drops, e.g. whole value instead of lens into, no need to map result err
 
-// finish
-//   improve
-//   X magic comments
-//     X - rework to `//$ package/module.func ...`, i.e. not `//$ gen ...`
-//     X - gen str named args
-//       X * named args -- //$ gen package/module.func target:Foo      dest:bar
-//   next
-//     - finish `refs` tracking
-//       * ensure general ref tracking inits & updates correctly
-//       * force regen of all refs upon successful code gen write
+// missing
+//   finish `refs` tracking
+//     - check ref tracking inits & updates correctly
+//     - force regen of all refs upon successful code gen write
 //   external api (types/funcs)
 //     - review naming
 //     - def rework
@@ -72,6 +66,10 @@ import deriv/gen/scan
 //     - try defining something simple, e.g. `zero`, `enum`
 
 // todo
+//   make kinds-of-gen user-extensible... (e.g. things other than variant case clause)
+//   ! - wait for a few variations before trying to detect the pattern
+//     - maybe it's a  `ExprGen` variant `Custom` wrapping generic fn sig?
+//     - maybe `case_expr_with_variant_clauses` fn logic goes more generic?
 //   organize
 //     - figure out modules
 //     - rename types & funcs
