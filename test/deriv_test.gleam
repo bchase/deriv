@@ -34,7 +34,7 @@ import gleam/erlang/process.{type Subject, type Selector}
 import filespy
 import gleam/crypto
 import gleam/bit_array as ba
-import deriv/gen/types.{type AST, Context, type TypeDef, type GleamPath, type GleamFile, pwd} as _
+import deriv/gen/types.{type AST, Context, type TypeDef, type GleamPath, type GleamFile, GleamPath, pwd} as _
 import deriv/gen/supervisor as gs
 import deriv/gen/scan
 import bchase/monad/read_write_result as monad
@@ -165,59 +165,69 @@ const x = 1337
   let assert Ok(module) = g.module(src)
   let ast = gen.ast(module)
 
-  let opts =
-    dict.from_list([
-      #(#("Bar", None),
-        // #(
-          ["variant k01:v1 k02:v2"],
-          // dict.from_list([
-          //   #("variant", dict.from_list([
-          //     #("k01", "v1"),
-          //     #("k02", "v2"),
-          //   ])),
-          // ]),
-        // ),
-      ),
-      #(#("Bar", Some("baz")),
-        // #(
-          ["field k11:f1 k12:f2"],
-          // dict.from_list([
-          //   #("field", dict.from_list([
-          //     #("k11", "f1"),
-          //     #("k12", "f2"),
-          //   ])),
-          // ]),
-        // ),
-      ),
-    ])
+  let raw_type_gen =
+    RawTypeGen(
+      gens: ["pkg/mod/gen.func foo bar:baz"],
+      opts: dict.from_list([
+        #(#("Bar", None), ["variant k01:v1 k02:v2"]),
+        #(#("Bar", Some("baz")), ["field k11:f1 k12:f2"]),
+      ]),
+    )
 
-  let expected =
-    #(["pkg/mod/gen.func foo bar:baz"], opts)
+  let type_gen =
+    TypeGen(
+      gens: [
+        #(
+          GleamPath(full: ["pkg", "mod", "gen"], package: "pkg", module: "gen"),
+          "func",
+          "foo bar:baz",
+        ),
+      ],
+      opts: dict.from_list([
+        #(#("Bar", None, "variant"), "k01:v1 k02:v2"),
+        #(#("Bar", Some("baz"), "field"), "k11:f1 k12:f2"),
+      ]),
+    )
 
   let assert Ok(type_) = ast.custom_types |> dict.get("Foo")
 
-  type_.definition
-  |> parse_type_gens(src:, ast:)
+  let raw =
+    type_.definition
+    |> parse_raw_type_gens(src:, ast:)
+
+  raw
   |> should.be_ok
-  |> should.equal(expected)
+  |> should.equal(raw_type_gen)
+
+  raw
+  |> should.be_ok
+  |> from_raw
+  |> should.equal(type_gen)
 }
 
 fn parse_type_gens(
   type_ type_: g.CustomType,
   src src: String,
   ast ast: AST
-) -> Result(#(List(String), Dict(#(String, Option(String)), List(String))), Nil) {
-  let lines = string.split(src, "\n")
+) -> Result(TypeGen, Nil) {
+  use raw <- result.try(parse_raw_type_gens(type_:, src:, ast:))
+  Ok(from_raw(raw))
+}
 
+fn parse_raw_type_gens(
+  type_ type_: g.CustomType,
+  src src: String,
+  ast ast: AST
+) -> Result(RawTypeGen, Nil) {
   use g.Definition(_, ct) <- result.try(dict.get(ast.custom_types, type_.name))
 
   use src <- result.try(dg.read_span(src:, span: ct.location))
 
   use rest <- result.try(src |> string.split("{") |> list.rest)
-  let rest = string.join(rest, "{")
 
   let lines =
     rest
+    |> string.join("{")
     |> string.split("\n")
     |> list.map(string.trim)
 
@@ -234,13 +244,70 @@ type RawTypeGen {
 type TypeGen {
   TypeGen(
     gens: List(#(GleamPath, String, String)),
-    opts: Dict(#(String, Option(String), String), List(String)),
+    opts: Dict(#(String, Option(String), String), String),
   )
 }
 
 fn from_raw(
   gen gen: RawTypeGen,
-) {
+) -> TypeGen {
+  let gens =
+    gen.gens
+    |> list.filter_map(fn(str) {
+      let #(gen_str, rest_str) =
+        case string.split(str, " ") {
+          [] -> #(str, "")
+          [str, ..rest] -> #(str, rest |> string.join(" ") |> string.trim)
+        }
+
+      case string.split(gen_str, ".") {
+        [] | [_] | [_, _, _, ..] -> {
+          io.log_err([
+            "failed to parse type gen:",
+            string.inspect(gen),
+          ])
+          Error(Nil)
+        }
+
+        [str, func] ->
+          case gen.parse_gleam_module_path(str) {
+            Error(err) -> {
+              log_err([
+                "failed to parse type gen gleam module path:",
+                string.inspect(err),
+              ])
+              Error(Nil)
+            }
+
+            Ok(path) -> Ok(#(path, func, rest_str))
+          }
+      }
+    })
+
+  let opts =
+    gen.opts
+    |> dict.to_list
+    |> list.flat_map(fn(t) {
+      let #(#(var, field), strs) = t
+
+      strs
+      |> list.map(fn(str) {
+        let #(key, val) =
+          case string.split(str, " ") {
+            [] -> #(str, "")
+            [key, ..rest] -> #(key, rest |> string.join(" "))
+          }
+
+        #(#(var, field, key), val)
+      })
+    })
+    // |> list.group(fn(t) {
+    //   let #(#(_var, _field, _key), _str) = t
+    //   todo
+    // })
+    |> dict.from_list
+
+  TypeGen(gens:, opts:)
 }
 
 type Match {
@@ -251,7 +318,7 @@ type Match {
 
 fn parse_type_gens_(
   lines lines: List(String),
-) -> #(List(String), Dict(#(String, Option(String)), List(String))) {
+) {
   let assert Ok(magic_comment_re) =
     "^[/][/][$]\\s*(.+)" |> re.from_string
 
@@ -294,7 +361,7 @@ fn parse_type_gens_(
   let opts: List(#(String, Option(String), String)) = []
 
   list.fold(lines, #(None, None, [], opts), fn(acc, line) {
-    let #(var, field, derivs, opts) = acc
+    let #(var, field, gens, opts) = acc
 
     case scan(line) {
       Error(Nil) ->
@@ -303,21 +370,21 @@ fn parse_type_gens_(
       Ok(#(MagicComment, str)) ->
         case var {
           None ->
-            #(var, field, derivs |> list.append([str]), opts)
+            #(var, field, gens |> list.append([str]), opts)
 
           Some(var) ->
-            #(Some(var), field, derivs, opts |> list.append([#(var, field, str)]))
+            #(Some(var), field, gens, opts |> list.append([#(var, field, str)]))
         }
 
       Ok(#(Variant, var)) ->
-        #(Some(var), None, derivs, opts)
+        #(Some(var), None, gens, opts)
 
       Ok(#(Field, field)) ->
-        #(var, Some(field), derivs, opts)
+        #(var, Some(field), gens, opts)
     }
   })
   |> fn(acc) {
-    let #(_var, _field, derivs, opts) = acc
+    let #(_var, _field, gens, opts) = acc
 
     let opts =
       opts
@@ -332,7 +399,7 @@ fn parse_type_gens_(
         })
       })
 
-    #(derivs, opts)
+    RawTypeGen(gens:, opts:)
   }
 }
 
