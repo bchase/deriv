@@ -1,10 +1,12 @@
+import simplifile
+import tom
 import gleam/bool
 import bchase/lens.{type Lens}
 import gleam/string
 import gleam/set.{type Set}
 import bchase/function.{x}
 import bchase/list.{at as list_at} as _
-import deriv/internal/glance.{z} as _
+import deriv/internal/glance.{z, read_span} as _
 import glance as g
 import gleam/list
 import gleam/dict.{type Dict}
@@ -15,6 +17,18 @@ import bchase/monad/read_write_result as monad
 import bchase/list.{push as list_push} as _
 import deriv/internal/parser
 
+// TODO rename & mv
+pub fn to_glance_type(
+  type_ type_: g.CustomType,
+  module module: Option(String),
+) -> g.Type {
+  g.NamedType(z,
+    module:,
+    name: type_.name,
+    parameters: type_.parameters |> list.map(g.VariableType(z, _)),
+  )
+}
+
 pub fn relative_hot_code_reload_dir_path() -> String {
   "src/deriv/gen/reload/"
 }
@@ -24,7 +38,12 @@ pub fn relative_code_gen_defs_path() -> String {
 }
 
 pub type ExprGen {
-  VariantClauseCaseExprGen(clauses: List(GenVariantCaseClause(g.Clause)))
+  VariantClauseCaseExprGen(
+    clauses: List(Gen(g.Clause, #(g.Variant, TypeDef))),
+  )
+  CustomTypeDeriveExprGen(
+    gens: List(Gen(Nil, TypeDef)),
+  )
 }
 
 pub type GenVariantCaseClause(t) = Gen(t, #(g.Variant, TypeDef))
@@ -33,6 +52,7 @@ pub type TypeDef {
   TypeDef(
     path: GleamPath,
     def: g.Definition(g.CustomType),
+    qualified: Option(String),
   )
 }
 
@@ -68,6 +88,35 @@ pub type GleamFile {
     src: String,
     ast: AST,
   )
+}
+
+pub type GleamToml {
+  GleamToml(
+    name: String,
+    toml: Dict(String, tom.Toml),
+  )
+}
+
+pub type Context {
+  Context(
+    pwd: Pwd,
+    toml: GleamToml,
+    file: GleamFile,
+  )
+}
+
+pub opaque type Pwd {
+  Pwd(pwd: String)
+}
+
+pub fn pwd() -> Result(Pwd, simplifile.FileError) {
+  simplifile.current_directory()
+  |> result.map(fn(pwd) {
+    case string.ends_with(pwd, "/") {
+      True -> Pwd(pwd:)
+      False -> Pwd(pwd: pwd <> "/")
+    }
+  })
 }
 
 pub type AST {
@@ -122,8 +171,8 @@ pub fn find_import(
 //       String,
 //       fn(Option(String), String) -> Result(TypeDef, Nil),
 //       Set(String), // NOTE: fields acc, used to detect need for `with_spread`
-//       List(EnsureFunc),
-//     ) -> Result(#(g.Expression, Set(String), List(EnsureFunc)), String),
+//       List(Generated(g.Function)),
+//     ) -> Result(#(g.Expression, Set(String), List(Generated(g.Function))), String),
 //   )
 // }
 
@@ -158,13 +207,27 @@ pub fn build_args(
 pub opaque type GenWrite {
   GenWrite(
     fields: Set(String), // NOTE: fields acc, used to detect need for `with_spread`
-    funcs: List(EnsureFunc),
+    imports: List(Generated(g.Import)),
+    types: List(Generated(g.CustomType)),
+    funcs: List(Generated(g.Function)),
   )
+}
+
+pub fn gen_imports(
+  write write: GenWrite,
+) -> List(Generated(g.Import)) {
+  write.imports
+}
+
+pub fn gen_types(
+  write write: GenWrite,
+) -> List(Generated(g.CustomType)) {
+  write.types
 }
 
 pub fn gen_funcs(
   write write: GenWrite,
-) -> List(EnsureFunc) {
+) -> List(Generated(g.Function)) {
   write.funcs
 }
 
@@ -187,6 +250,12 @@ fn set_get_type(x: GenRead(expr), get_type) { GenRead(..x, get_type:)}
 const lens_fields = lens.Lens(get: get_fields, set: set_fields)
 fn get_fields(x: GenWrite) { x.fields }
 fn set_fields(x: GenWrite, fields) { GenWrite(..x, fields:)}
+const lens_imports = lens.Lens(get: get_imports, set: set_imports)
+fn get_imports(x: GenWrite) { x.imports }
+fn set_imports(x: GenWrite, imports) { GenWrite(..x, imports:)}
+const lens_types = lens.Lens(get: get_types, set: set_types)
+fn get_types(x: GenWrite) { x.types }
+fn set_types(x: GenWrite, types) { GenWrite(..x, types:)}
 const lens_funcs = lens.Lens(get: get_funcs, set: set_funcs)
 fn get_funcs(x: GenWrite) { x.funcs }
 fn set_funcs(x: GenWrite, funcs) { GenWrite(..x, funcs:)}
@@ -279,15 +348,16 @@ pub fn run_gen(
   gen.monad
   |> monad.run_(
     read: GenRead(expr:, file:, args:, module_func:, get_type:),
-    write: GenWrite(fields: set.new(), funcs: []),
+    write: GenWrite(fields: set.new(), imports: [], types: [], funcs: []),
   )
 }
 
 //
 
-pub type EnsureFunc {
-  EnsureFunc(
-    def: g.Definition(g.Function),
+pub type Generated(t) {
+  Generated(
+    def: g.Definition(t),
+    overwrite: Bool,
   )
 }
 
@@ -316,11 +386,57 @@ pub type EnsureFunc {
 //   })
 // }
 
+pub fn ensure_imports(
+  def def: List(g.Definition(g.Import)),
+  cont cont: fn() -> Gen(t, expr),
+) -> Gen(t, expr) {
+  use <- write(def, lens_imports, fn(orig, new) {
+    orig
+    |> list.append(
+      new
+      |> list.map(fn(def) { Generated(def:, overwrite: False)})
+    )
+  })
+  cont()
+}
+
+pub fn ensure_import(
+  def def: g.Definition(g.Import),
+  cont cont: fn() -> Gen(t, expr),
+) -> Gen(t, expr) {
+  use <- write(def, lens_imports, fn(defs, def) { list_push(defs, Generated(def:, overwrite: False)) })
+  cont()
+}
+
+pub fn ensure_custom_type(
+  def def: g.Definition(g.CustomType),
+  cont cont: fn() -> Gen(t, expr),
+) -> Gen(t, expr) {
+  use <- write(def, lens_types, fn(defs, def) { list_push(defs, Generated(def:, overwrite: False)) })
+  cont()
+}
+
+pub fn overwrite_custom_type(
+  def def: g.Definition(g.CustomType),
+  cont cont: fn() -> Gen(t, expr),
+) -> Gen(t, expr) {
+  use <- write(def, lens_types, fn(defs, def) { list_push(defs, Generated(def:, overwrite: True)) })
+  cont()
+}
+
 pub fn ensure_func(
   def def: g.Definition(g.Function),
   cont cont: fn() -> Gen(t, expr),
 ) -> Gen(t, expr) {
-  use <- write(def, lens_funcs, fn(defs, def) { list_push(defs, EnsureFunc(def:)) })
+  use <- write(def, lens_funcs, fn(defs, def) { list_push(defs, Generated(def:, overwrite: False)) })
+  cont()
+}
+
+pub fn overwrite_func(
+  def def: g.Definition(g.Function),
+  cont cont: fn() -> Gen(t, expr),
+) -> Gen(t, expr) {
+  use <- write(def, lens_funcs, fn(defs, def) { list_push(defs, Generated(def:, overwrite: True)) })
   cont()
 }
 
@@ -408,7 +524,7 @@ pub fn ensure_func(
 //   variant variant: g.Variant,
 //   args args: String,
 //   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-// ) -> Result(#(g.Clause, List(EnsureFunc)), String) {
+// ) -> Result(#(g.Clause, List(GenFunc)), String) {
 //   ve.run(mf, variant, args, get_type, set.new(), [])
 //   |> result.map(fn(t) {
 //     let #(expr, fields, funcs) = t
@@ -479,8 +595,9 @@ pub fn run_variant_expr_(
   args args: Args,
   mf mf: #(GleamPath, String),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-) -> Result(#(g.Clause, List(EnsureFunc)), String) {
-  let #(result, GenWrite(fields:, funcs:)) =
+) -> Result(#(g.Clause, List(Generated(g.Function))), String) {
+
+  let #(result, GenWrite(fields:, imports: _, types: _, funcs:)) =
     run_gen(gen, variant, file, args, mf, get_type)
 
   result
@@ -501,6 +618,13 @@ pub fn success(val: t) -> Gen(t, expr) {
 
 pub fn failure(msg: String) -> Gen(t, expr) {
   fail(msg)
+}
+
+pub fn type_def(
+  cont cont: fn(TypeDef) -> Gen(t, TypeDef),
+) -> Gen(t, TypeDef) {
+  use td <- read(lens_expr)
+  cont(td)
 }
 
 pub fn variant(
@@ -629,6 +753,31 @@ pub fn variant_clause_failure(
   msg msg: String
 ) -> GenVariantCaseClause(t) {
   fail(msg)
+}
+
+//
+
+pub fn local_custom_type_src(
+  type_ type_: g.CustomType,
+  cont cont: fn(String) -> Gen(t, expr),
+) -> Gen(t, expr) {
+  use GleamFile(ast:, src:, ..) <- read(lens_file)
+
+  let t = string.inspect(type_)
+
+  case ast.custom_types |> dict.get(type_.name) {
+    Ok(g.Definition(_, g.CustomType(location: span, ..))) ->
+      case read_span(src:, span:) {
+        Ok(src) ->
+          cont(src)
+
+        Error(Nil) ->
+          failure("couldn't read local custom type src for span " <> string.inspect(span) <> " in " <> t)
+      }
+
+    Error(Nil) ->
+      failure("couldn't find local custom type: " <> t)
+  }
 }
 
 //

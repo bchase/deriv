@@ -25,7 +25,7 @@ import shellout
 //
 import deriv/internal/glance.{term, call, call_, pipe, dot, short} as _
 import bchase/casing
-import deriv/gen/types.{type ExprGen, type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type Imports, type AST, AST, Imports}
+import deriv/gen/types.{type ExprGen, type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type GleamToml, GleamToml, type Imports, type AST, AST, Imports, type Pwd, type Context, Context}
 //
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
@@ -107,18 +107,6 @@ import bchase/monad/read_write_result.{type ReadWriteResult} as monad
 
 //
 
-pub type Context {
-  Context(
-    pwd: Pwd,
-    toml: GleamToml,
-    file: GleamFile,
-  )
-}
-
-pub opaque type Pwd {
-  Pwd(pwd: String)
-}
-
 pub type GleamFileErr {
   GleamFilepathInvalid(filepath: String)
   GleamModulePathInvalid(path: String)
@@ -148,16 +136,6 @@ pub type GenErr {
   GenAllFailedToMatch(expr_gen: #(GleamPath, String), errs: List(String), detail: Dynamic)
   //
   Failed(msg: String)
-}
-
-pub fn pwd() -> Result(Pwd, simplifile.FileError) {
-  simplifile.current_directory()
-  |> result.map(fn(pwd) {
-    case string.ends_with(pwd, "/") {
-      True -> Pwd(pwd:)
-      False -> Pwd(pwd: pwd <> "/")
-    }
-  })
 }
 
 // fn load_context(
@@ -201,13 +179,6 @@ pub fn pwd() -> Result(Pwd, simplifile.FileError) {
 //     Ok() -> todo
 //   }
 // }
-
-pub type GleamToml {
-  GleamToml(
-    name: String,
-    toml: Dict(String, tom.Toml),
-  )
-}
 
 pub fn gleam_toml() -> Result(GleamToml, GleamTomlErr) {
   read_gleam_toml(filepath: "gleam.toml")
@@ -534,6 +505,7 @@ pub fn get_custom_type(
   |> result.lazy_or(fn() {
     get_custom_type_unqualified_import_in(ctx:, type_:)
   })
+  |> result.map(fn(td) { TypeDef(..td, qualified: mod) }) // TODO elsewhere?
 }
 
 fn import_path(
@@ -585,7 +557,7 @@ fn get_custom_type_defined_in(
 ) -> Result(TypeDef, GenErr) {
   ctx.file.ast.custom_types
   |> dict.get(type_)
-  |> result.map(fn(def) { TypeDef(def:, path: ctx.file.path) })
+  |> result.map(fn(def) { TypeDef(def:, path: ctx.file.path, qualified: None) })
   |> result.replace_error(CustomTypeNotFound(type_:, path: ctx.file.path))
 }
 
@@ -642,7 +614,7 @@ const skip: Result(#(String, List(Ref)), Result(Skip, GenErr)) =
 type Acc {
   Acc(
     src: String,
-    funcs: List(types.EnsureFunc),
+    funcs: List(types.Generated(g.Function)),
     offset: Int,
     refs: List(Ref),
   )
@@ -757,8 +729,8 @@ fn run(
 
   // gen expr
   let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
-  use GenExpr(expr:, funcs:, refs: new_refs) <- monad.do_ok_(
-    build_expr(mf, expr_gen, args, func, get_type, ctx.file),
+  use GenExpr(expr:, imports:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
+    build_expr(mf, expr_gen, args, func, get_type, ctx),
   )
 
   // register funcs to be added to src
@@ -768,49 +740,58 @@ fn run(
   use <- monad.concat(new_refs, lens_refs)
   // TODO this could be done in `build_expr` w/o having to pass these back up
 
-  // ensure expr is wrapped in a block
-  let expr =
-    case expr {
-      g.Block(..) -> expr
-      _ -> g.Block(z, [g.Expression(expr)])
+  case expr {
+    None ->
+      monad.pure(Nil)
+
+    Some(expr) -> {
+      // ensure expr is wrapped in a block
+      let expr =
+        case expr {
+          g.Block(..) -> expr
+          _ -> g.Block(z, [g.Expression(expr)])
+        }
+
+      // build & format `glance.Expression` as `String`
+      let expr_src = format_gleam_expr(expr:, indent: gen.indent)
+
+      // add magic comment back to gen'd `glance.Expression` src
+      use #(x, xs) <- monad.do_ok(
+        case expr_src |> string.split("\n") {
+          [] | [_] -> Error(Nil)
+          [x, ..xs] -> Ok(#(x, xs))
+        },
+        always(GenExprCommentSpliceErr(path:, gen_str: gen.str, expr:, expr_src:)),
+      )
+      let expr_src =
+        [x <> " " <> gen.comment, ..xs]
+        |> string.join("\n")
+        |> string.trim_start
+
+      // calc span to overwrite
+      let span = gen_span(gen:, src: orig, offset: 0) // TODO would be double offset?
+
+      // construct new src
+      let new = dg.replace(span:, in: orig, with: expr_src)
+
+      // calc diff for, and persist new `offset`
+      let diff = string.length(new) - string.length(orig)
+      use <- monad.add_int(diff, lens_offset)
+
+      // persist newly gen'd src
+      use <- monad.set(new, lens_src)
+
+      monad.pure(Nil)
     }
-
-  // build & format `glance.Expression` as `String`
-  let expr_src = format_gleam_expr(expr:, indent: gen.indent)
-
-  // add magic comment back to gen'd `glance.Expression` src
-  use #(x, xs) <- monad.do_ok(
-    case expr_src |> string.split("\n") {
-      [] | [_] -> Error(Nil)
-      [x, ..xs] -> Ok(#(x, xs))
-    },
-    always(GenExprCommentSpliceErr(path:, gen_str: gen.str, expr:, expr_src:)),
-  )
-  let expr_src =
-    [x <> " " <> gen.comment, ..xs]
-    |> string.join("\n")
-    |> string.trim_start
-
-  // calc span to overwrite
-  let span = gen_span(gen:, src: orig, offset: 0) // TODO would be double offset?
-
-  // construct new src
-  let new = dg.replace(span:, in: orig, with: expr_src)
-
-  // calc diff for, and persist new `offset`
-  let diff = string.length(new) - string.length(orig)
-  use <- monad.add_int(diff, lens_offset)
-
-  // persist newly gen'd src
-  use <- monad.set(new, lens_src)
-
-  monad.pure(Nil)
+  }
 }
 
 pub type GenExpr {
   GenExpr(
-    expr: g.Expression,
-    funcs: List(types.EnsureFunc),
+    expr: Option(g.Expression),
+    imports: List(types.Generated(g.Import)),
+    types: List(types.Generated(g.CustomType)),
+    funcs: List(types.Generated(g.Function)),
     refs: List(Ref),
   )
 }
@@ -1052,13 +1033,16 @@ fn build_expr(
   args args: String,
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-  file file: GleamFile,
+  ctx ctx: Context,
 ) -> Result(GenExpr, GenErr) {
   let args = types.build_args(raw: args)
 
   case gen {
     types.VariantClauseCaseExprGen(clauses: gens) ->
-      case_expr_with_variant_clauses(mf:, gens:, args:, func:, get_type:, file:)
+      case_expr_with_variant_clauses(mf:, gens:, args:, func:, get_type:, ctx:)
+
+    types.CustomTypeDeriveExprGen(gens:) ->
+      custom_type_derive(mf:, gens:,  args:, func:, get_type:, ctx:)
   }
 }
 
@@ -1068,7 +1052,7 @@ fn case_expr_with_variant_clauses(
   args args: types.Args,
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-  file file: GleamFile,
+  ctx ctx: Context,
 ) -> Result(GenExpr, GenErr) {
   let fail = fn(msg) { Failed("[variant clause expr] " <> msg) }
 
@@ -1084,12 +1068,14 @@ fn case_expr_with_variant_clauses(
     fail("failed type lookup: " <> string.inspect(#(mod, type_)))
   }))
 
+  let file = ctx.file
+
   let ref = Ref(from: file.path, to: type_.path, ident: Some(type_.def.definition.name))
 
   use #(clauses, funcs) <- try(
     type_.def.definition.variants
     |> list.map(
-      build_case_clause_expr(gens:, mf:, variant:_,type_:, file:, args:, func:, get_type:)
+      build_case_clause_expr(gens:, mf:, variant:_, type_:, file:, args:, func:, get_type:)
     )
     |> result.all
     |> result.map(fn(t) {
@@ -1099,8 +1085,8 @@ fn case_expr_with_variant_clauses(
     })
   )
 
-  let expr = g.Case(z, subjects: [term(subject)], clauses:)
-  Ok(GenExpr(expr:, funcs:, refs: [ref]))
+  let expr = g.Case(z, subjects: [term(subject)], clauses:) |> Some
+  Ok(GenExpr(expr:, imports: [], types: [], funcs:, refs: [ref]))
 }
 
 fn build_case_clause_expr(
@@ -1112,7 +1098,7 @@ fn build_case_clause_expr(
   args args: types.Args,
   func func: g.Definition(g.Function),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-) -> Result(#(g.Clause, List(types.EnsureFunc)), GenErr) {
+) -> Result(#(g.Clause, List(types.Generated(g.Function))), GenErr) {
   use #(clause, ensure_funcs) <- try({
     gens
     |> list.map(fn(gen) { // TODO perf `fold_until`
@@ -1135,6 +1121,54 @@ fn build_case_clause_expr(
   })
 
   Ok(#(clause, ensure_funcs))
+}
+
+fn custom_type_derive(
+  mf mf: #(GleamPath, String),
+  gens gens: List(types.Gen(Nil, TypeDef)),
+  args args: types.Args,
+  func func: g.Definition(g.Function),
+  get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
+  ctx ctx: Context,
+) -> Result(GenExpr, GenErr) {
+  let fail = fn(msg) { Failed("[variant clause expr] " <> msg) }
+
+  use subject <- try(args.named |> dict.get("subject") |> result.map_error(fn(_) {
+    fail("requires an `subject` (fn param reference) to be specified, but none was found")
+  }))
+
+  use #(mod, type_) <- try(get_named_param_type(str: subject, func:) |> result.map_error(fn(_) {
+    fail("couldn't find named param in containing function: " <> subject)
+  }))
+
+  use type_ <- try(get_type(mod, type_) |> result.map_error(fn(_) {
+    fail("failed type lookup: " <> string.inspect(#(mod, type_)))
+  }))
+
+  let file = ctx.file
+
+  // let ref = Ref(from: file.path, to: type_.path, ident: Some(type_.def.definition.name))
+
+  let #(gens, errs) =
+    gens
+    |> list.map(types.run_gen(gen: _, expr: type_, file:, args:, module_func: mf, get_type:))
+    |> list.map(fn(t) {
+      case t.0 {
+        Ok(Nil) -> Ok(t.1)
+        Error(err) -> Error(err)
+      }
+    })
+    |> result.partition
+
+  io.log_err(["custom type derive had issue with: " <> string.inspect(type_), ..errs])
+
+  Ok(GenExpr(
+    expr: None,
+    refs: [],
+    imports: gens |> list.flat_map(types.gen_imports),
+    types: gens |> list.flat_map(types.gen_types),
+    funcs: gens |> list.flat_map(types.gen_funcs),
+  ))
 }
 
 //

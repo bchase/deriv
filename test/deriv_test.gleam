@@ -34,7 +34,7 @@ import gleam/erlang/process.{type Subject, type Selector}
 import filespy
 import gleam/crypto
 import gleam/bit_array as ba
-import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
+import deriv/gen/types.{Context, type TypeDef, type GleamPath, type GleamFile, pwd} as _
 import deriv/gen/supervisor as gs
 import deriv/gen/scan
 
@@ -206,10 +206,10 @@ pub fn gen_named_params_test() {
 }
 
 pub fn gen_test() {
-  let assert Ok(pwd) = gen.pwd()
+  let assert Ok(pwd) = pwd()
   let assert Ok(toml) = gen.gleam_toml()
   let assert Ok(file) = gen.load_gleam_file("src/deriv/internal/dummy/gen/before.gleam")
-  let ctx = gen.Context(pwd:, toml:, file:)
+  let ctx = Context(pwd:, toml:, file:)
 
   let assert Ok(#(output, _refs)) = gen.process(ctx:)
 

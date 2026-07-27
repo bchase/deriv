@@ -6,6 +6,7 @@
 //  !!!                                                          !!!
 //  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
+import deriv
 import deriv/gen/types.{type ExprGen}
 import deriv/internal/dummy/api as deriv_internal_dummy_api
 import deriv/internal/dummy/gen/after as deriv_internal_dummy_gen_after
@@ -15,6 +16,7 @@ import gleam/dict.{type Dict}
 
 pub fn expr_gens() -> Dict(#(String, String), ExprGen) {
   [
+    #(#("deriv", "zero"), deriv.zero()),
     #(
       #("deriv/internal/dummy/api", "handle_case"),
       deriv_internal_dummy_api.handle_case(),

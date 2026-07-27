@@ -1,3 +1,4 @@
+import deriv/gen/types.{type GleamToml, type Context, Context, type Pwd}
 import shellout
 import argv
 import glint
@@ -15,7 +16,7 @@ import gleam/dict.{type Dict}
 import gleam/string
 import bchase/io.{log_err}
 import simplifile
-import deriv/internal/gen.{type Ref, type GleamToml, type Pwd}
+import deriv/internal/gen.{type Ref}
 import gleam/otp/actor
 import gleam/otp/supervision
 import gleam/otp/static_supervisor as supervisor
@@ -567,7 +568,7 @@ fn all_gleam_files(
 fn fetch_context(
   actor actor: process.Name(LookupMsg),
   file file: GleamFile,
-) -> Result(gen.Context, gen.GenErr) {
+) -> Result(Context, gen.GenErr) {
   let self = process.new_subject()
 
   actor
@@ -624,7 +625,7 @@ pub opaque type LookupMsg {
   )
   BuildContext(
     file: GleamFile,
-    reply: Subject(gen.Context),
+    reply: Subject(Context),
   )
   BuildFilepath(
     path: GleamPath,
@@ -646,7 +647,7 @@ fn lookup_actor(
   name name: process.Name(LookupMsg),
 ) -> actor.Builder(LookupState, LookupMsg, Nil) {
   let load_pwd = fn() {
-    let assert Ok(pwd) = gen.pwd()
+    let assert Ok(pwd) = types.pwd()
       as "`gen` failed to get `pwd`"
     pwd
   }
@@ -701,7 +702,7 @@ fn lookup_actor(
       //
 
       Type(mod:, name: type_, file:, reply:) -> {
-        gen.Context(pwd: state.pwd, toml: state.toml, file:)
+        Context(pwd: state.pwd, toml: state.toml, file:)
         |> gen.get_custom_type(ctx: _, mod:, type_:)
         |> process.send(reply, _)
 
@@ -709,7 +710,7 @@ fn lookup_actor(
       }
 
       BuildContext(file:, reply:) -> {
-        gen.Context(pwd: state.pwd, toml: state.toml, file:)
+        Context(pwd: state.pwd, toml: state.toml, file:)
         |> process.send(reply, _)
 
         actor.continue(state)

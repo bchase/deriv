@@ -1,4 +1,7 @@
-import gleam/option.{Some, None}
+import bchase/casing
+import gleam/option.{Some, None, type Option}
+import deriv/internal/glance.{z, term, call} as _
+//
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/result
@@ -18,9 +21,103 @@ import deriv/internal/derivs/enum as deriv_enum
 import deriv/internal/derivs/form as deriv_form
 import deriv/internal/derivs/functor as deriv_functor
 import deriv/internal/common
+import deriv/gen/types.{type ExprGen} as x
+import deriv/internal/derivs/zero
 import gleam/io
 import argv
 import glint
+
+fn option_guard(
+  option option: Option(a),
+  fail fail: b,
+  cont cont: fn(a) -> b,
+) -> b {
+  case option {
+    Some(x) -> cont(x)
+    None -> fail
+  }
+}
+
+pub fn zero() -> ExprGen {
+  x.CustomTypeDeriveExprGen(gens: [{
+    use td <- x.type_def()
+
+    let type_ = td.def.definition
+
+    use src <- x.local_custom_type_src(type_:)
+
+    use opts <- x.try(
+      case parser.parse_type_with_derivations(type_, src) {
+        Ok(#(_type, _derivs, opts)) -> x.success(opts)
+        Error(Nil) -> x.failure("zero failed to parse derive opts")
+      }
+    )
+
+    let imports = zero.gen_imports(type_) |> list.map(glance.Definition([], _))
+    let func = zero.zero_func(type_, opts)
+
+    use <- x.ensure_imports(imports)
+    use <- x.ensure_func(func)
+
+    // let variant =
+    //   td.def.definition.variants
+    //   |> list.sort(fn(a, b) {
+    //     int.compare(
+    //       list.length(a.fields),
+    //       list.length(b.fields),
+    //     )
+    //   })
+    //   |> list.first
+    //   |> option.from_result
+
+    // use variant <- option_guard(variant, x.failure("cannot derive zero with no variants: " <> string.inspect(td)))
+
+    // let func = glance.Definition([], glance.Function(z,
+    //   name: "zero_" <> casing.snake(td.def.definition.name),
+    //   publicity: td.def.definition.publicity,
+    //   return: Some(x.to_glance_type(td.def.definition, td.qualified)),
+    //   parameters: [],
+    //   body: [
+    //     case variant.fields {
+    //       [] ->
+    //         term(variant.name)
+
+    //       _ ->
+    //         term(variant.name) |> call(list.map(variant.fields |> list.map(fn(f) { f.item }), zero_for(_, td)))
+    //     }
+    //     |> glance.Expression
+    //   ],
+    // ))
+
+    // case td.def.definition.variants {
+    //   [] ->
+    //     todo
+
+    //   [var1, ..vars] ->
+    //     todo
+    // }
+
+    x.success(Nil)
+  }])
+}
+
+fn zero_for(
+  type_ type_: glance.Type,
+  ctx ctx: a,
+) -> glance.Expression {
+  case type_ {
+    glance.NamedType(name:, module:, parameters:, ..) -> todo
+
+    glance.TupleType(elements:, ..) -> todo
+
+    glance.FunctionType(..) |
+    glance.VariableType(..) |
+    glance.HoleType(..) -> panic as {
+      "unable to derive zero for: " <> string.inspect(type_) <> "\n" <>
+      string.inspect(ctx)
+    }
+  }
+}
 
 const all_type_gen_funcs: List(#(String, GenFunc)) =
   [
