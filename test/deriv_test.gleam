@@ -34,9 +34,10 @@ import gleam/erlang/process.{type Subject, type Selector}
 import filespy
 import gleam/crypto
 import gleam/bit_array as ba
-import deriv/gen/types.{Context, type TypeDef, type GleamPath, type GleamFile, pwd} as _
+import deriv/gen/types.{type AST, Context, type TypeDef, type GleamPath, type GleamFile, pwd} as _
 import deriv/gen/supervisor as gs
 import deriv/gen/scan
+import bchase/monad/read_write_result as monad
 
 // convention
 //   - `func` takes extra, e.g. lens, mapping func
@@ -140,6 +141,199 @@ fn log_(str, s) {
   io.println("")
   io.println(str)
   io.println(s)
+}
+
+pub fn type_gen_parser_test() {
+  let src = "
+import foo/bar
+
+fn foo() { True }
+
+type Foo {
+  //$ pkg/mod/gen.func foo bar:baz
+  Foo
+  Bar(
+    //$ variant k01:v1 k02:v2
+    baz: String,
+    //$ field k11:f1 k12:f2
+  )
+}
+
+const x = 1337
+  " |> string.trim
+
+  let assert Ok(module) = g.module(src)
+  let ast = gen.ast(module)
+
+  let opts =
+    dict.from_list([
+      #(#("Bar", None),
+        // #(
+          ["variant k01:v1 k02:v2"],
+          // dict.from_list([
+          //   #("variant", dict.from_list([
+          //     #("k01", "v1"),
+          //     #("k02", "v2"),
+          //   ])),
+          // ]),
+        // ),
+      ),
+      #(#("Bar", Some("baz")),
+        // #(
+          ["field k11:f1 k12:f2"],
+          // dict.from_list([
+          //   #("field", dict.from_list([
+          //     #("k11", "f1"),
+          //     #("k12", "f2"),
+          //   ])),
+          // ]),
+        // ),
+      ),
+    ])
+
+  let expected =
+    #(["pkg/mod/gen.func foo bar:baz"], opts)
+
+  let assert Ok(type_) = ast.custom_types |> dict.get("Foo")
+
+  type_.definition
+  |> parse_type_gens(src:, ast:)
+  |> should.be_ok
+  |> should.equal(expected)
+}
+
+fn parse_type_gens(
+  type_ type_: g.CustomType,
+  src src: String,
+  ast ast: AST
+) -> Result(#(List(String), Dict(#(String, Option(String)), List(String))), Nil) {
+  let lines = string.split(src, "\n")
+
+  use g.Definition(_, ct) <- result.try(dict.get(ast.custom_types, type_.name))
+
+  use src <- result.try(dg.read_span(src:, span: ct.location))
+
+  use rest <- result.try(src |> string.split("{") |> list.rest)
+  let rest = string.join(rest, "{")
+
+  let lines =
+    rest
+    |> string.split("\n")
+    |> list.map(string.trim)
+
+  Ok(parse_type_gens_(lines:))
+}
+
+type RawTypeGen {
+  RawTypeGen(
+    gens: List(String),
+    opts: Dict(#(String, Option(String)), List(String)),
+  )
+}
+
+type TypeGen {
+  TypeGen(
+    gens: List(#(GleamPath, String, String)),
+    opts: Dict(#(String, Option(String), String), List(String)),
+  )
+}
+
+fn from_raw(
+  gen gen: RawTypeGen,
+) {
+}
+
+type Match {
+  MagicComment
+  Variant
+  Field
+}
+
+fn parse_type_gens_(
+  lines lines: List(String),
+) -> #(List(String), Dict(#(String, Option(String)), List(String))) {
+  let assert Ok(magic_comment_re) =
+    "^[/][/][$]\\s*(.+)" |> re.from_string
+
+  let magic_comment = fn(str) {
+    case re.scan(magic_comment_re, str) {
+      [re.Match(_, submatches: [Some(str)])] -> Ok(#(MagicComment, str))
+      _ -> Error(Nil)
+    }
+  }
+
+  let assert Ok(variant_re) =
+    "^([A-Z][A-Za-z0-9]+)" |> re.from_string
+
+  let variant = fn(str) {
+    case re.scan(variant_re, str) {
+      [re.Match(_, submatches: [Some(str)])] -> Ok(#(Variant, str))
+      _ -> Error(Nil)
+    }
+  }
+
+  let assert Ok(field_re) =
+    "^([a-z][_a-z0-9]+)" |> re.from_string
+
+  let field = fn(str) {
+    case re.scan(field_re, str) {
+      [re.Match(_, submatches: [Some(str)])] -> Ok(#(Field, str))
+      _ -> Error(Nil)
+    }
+  }
+
+  let scan = fn(str) {
+    [
+      magic_comment,
+      variant,
+      field
+    ]
+    |> list.find_map(fn(f) { f(str) })
+  }
+
+  let opts: List(#(String, Option(String), String)) = []
+
+  list.fold(lines, #(None, None, [], opts), fn(acc, line) {
+    let #(var, field, derivs, opts) = acc
+
+    case scan(line) {
+      Error(Nil) ->
+        acc
+
+      Ok(#(MagicComment, str)) ->
+        case var {
+          None ->
+            #(var, field, derivs |> list.append([str]), opts)
+
+          Some(var) ->
+            #(Some(var), field, derivs, opts |> list.append([#(var, field, str)]))
+        }
+
+      Ok(#(Variant, var)) ->
+        #(Some(var), None, derivs, opts)
+
+      Ok(#(Field, field)) ->
+        #(var, Some(field), derivs, opts)
+    }
+  })
+  |> fn(acc) {
+    let #(_var, _field, derivs, opts) = acc
+
+    let opts =
+      opts
+      |> list.group(fn(t) {
+        let #(var, field, _str) = t
+        #(var, field)
+      })
+      |> dict.map_values(fn(_, vals) {
+        list.map(vals, fn(val) {
+          let #(_var, _field, str) = val
+          str
+        })
+      })
+
+    #(derivs, opts)
+  }
 }
 
 pub fn ref_scan_test() {

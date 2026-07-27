@@ -25,6 +25,7 @@ import shellout
 //
 import deriv/internal/glance.{term, call, call_, pipe, dot, short} as _
 import bchase/casing
+import deriv/internal/types.{type Derivation, type DerivField, type DerivFieldOpt} as _
 import deriv/gen/types.{type ExprGen, type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type GleamToml, GleamToml, type Imports, type AST, AST, Imports, type Pwd, type Context, Context}
 //
 import bchase/lens.{type Lens}
@@ -633,6 +634,31 @@ fn set_offset(x: Acc, offset) { Acc(..x, offset:)}
 const lens_refs = lens.Lens(get: get_refs, set: set_refs)
 fn get_refs(x: Acc) { x.refs }
 fn set_refs(x: Acc, refs) { Acc(..x, refs:)}
+
+fn type_gens(
+  ctx ctx: Context,
+) -> List(#(g.CustomType, List(Derivation), Dict(DerivField, List(DerivFieldOpt)))) {
+  let src = ctx.file.src
+  let cts = ctx.file.ast.custom_types
+
+  cts
+  |> dict.values
+  |> list.map(fn(def) { def.definition })
+  |> list.filter_map(fn(ct) {
+    src
+    |> dg.read_span(span: ct.location)
+    |> result.map_error(fn(_err) {
+      io.log_err([
+        "failed to read custom type span for type gen parsing",
+        string.inspect(ct),
+      ])
+    })
+    |> result.map(fn(src) {
+      parser.parse_type_with_derivations(ct, src)
+    })
+    |> result.flatten
+  })
+}
 
 pub fn process(
   ctx ctx: Context,
