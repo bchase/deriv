@@ -33,6 +33,8 @@ pub fn zero() -> ExprGen {
 
     use src <- x.local_custom_type_src(type_:)
 
+    // use opts <- x.opts()
+
     use opts <- x.try(
       case parser.parse_type_with_derivations(type_, src) {
         Ok(#(_type, _derivs, opts)) -> x.success(opts)

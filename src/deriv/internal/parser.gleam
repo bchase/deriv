@@ -434,7 +434,7 @@ pub type RawTypeGens {
 pub type TypeGens {
   TypeGens(
     gens: List(#(#(GleamPath, String), String)),
-    opts: Dict(#(String, Option(String), String), String),
+    opts: Dict(#(String, Option(String), String), List(String)),
   )
 }
 
@@ -492,11 +492,10 @@ pub fn from_raw(
         #(#(var, field, key), val)
       })
     })
-    // |> list.group(fn(t) {
-    //   let #(#(_var, _field, _key), _str) = t
-    //   todo
-    // })
-    |> dict.from_list
+    |> list.group(pair.first)
+    |> dict.map_values(fn(_key, vals) {
+      list.map(vals, pair.second)
+    })
 
   TypeGens(gens:, opts:)
 }

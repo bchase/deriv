@@ -186,8 +186,8 @@ const x = 1337
         ),
       ],
       opts: dict.from_list([
-        #(#("Bar", None, "variant"), "k01:v1 k02:v2"),
-        #(#("Bar", Some("baz"), "field"), "k11:f1 k12:f2"),
+        #(#("Bar", None, "variant"), ["k01:v1 k02:v2"]),
+        #(#("Bar", Some("baz"), "field"), ["k11:f1 k12:f2"]),
       ]),
     )
 

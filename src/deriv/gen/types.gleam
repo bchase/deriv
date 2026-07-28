@@ -55,7 +55,7 @@ pub type TypeDef {
   )
 }
 
-pub type TypeGenOpts = Dict(#(String, Option(String), String), String)
+pub type TypeGenOpts = Dict(#(String, Option(String), String), List(String))
 
 // pub type ExprGenRef {
 //   ExprGenRef(
@@ -227,6 +227,9 @@ pub fn gen_funcs(
   write.funcs
 }
 
+const lens_opts = lens.Lens(get: get_opts, set: set_opts)
+fn get_opts(x: GenRead(opts)) { x.opts }
+fn set_opts(x: GenRead(opts), opts) { GenRead(..x, opts:)}
 const lens_expr = lens.Lens(get: get_expr, set: set_expr)
 fn get_expr(x: GenRead(expr)) { x.expr }
 fn set_expr(x: GenRead(expr), expr) { GenRead(..x, expr:)}
@@ -610,6 +613,13 @@ pub fn success(val: t) -> Gen(t, expr) {
 
 pub fn failure(msg: String) -> Gen(t, expr) {
   fail(msg)
+}
+
+pub fn opts(
+  cont cont: fn(TypeGenOpts) -> Gen(t, g.Definition(g.CustomType)),
+) -> Gen(t, g.Definition(g.CustomType)) {
+  use opts <- read(lens_opts)
+  cont(opts)
 }
 
 pub fn custom_type(
