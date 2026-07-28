@@ -674,18 +674,8 @@ fn type_gens(
   cts
   |> dict.values
   |> list.filter_map(fn(ct) {
-    src
-    |> dg.read_span(span: ct.definition.location)
-    |> result.map_error(fn(_err) {
-      io.log_err([
-        "failed to read custom type span for type gen parsing",
-        string.inspect(ct),
-      ])
-    })
-    |> result.try(fn(src) {
-      parser.parse_type_gens(type_: ct.definition, src:, ast:, parse:)
-      |> result.map(pair.new(ct, _))
-    })
+    parser.parse_type_gens(type_: ct.definition, src:, ast:, parse:)
+    |> result.map(pair.new(ct, _))
   })
 }
 
@@ -977,7 +967,11 @@ fn run_type_gen(
 
   // gen expr
   use GenExpr(expr: _, imports:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
-    build_expr(mf, expr_gen, args, def, opts, get_type, ctx),
+    build_expr(mf, expr_gen, args, def, opts, get_type, ctx) |> fn(x) {
+      // panic
+      // io.println(string.inspect(x))
+      x
+    },
   )
 
   // register funcs to be added to src
@@ -1354,7 +1348,7 @@ fn custom_type_derive(
 
   let #(gens, errs) =
     gens
-    |> list.map(types.run_gen(gen: _, expr: type_, file:, args:, opts: todo, target:, get_type:))
+    |> list.map(types.run_gen(gen: _, expr: type_, file:, args:, opts:, target:, get_type:))
     |> list.map(fn(t) {
       case t.0 {
         Ok(Nil) -> Ok(t.1)

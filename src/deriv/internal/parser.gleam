@@ -509,7 +509,7 @@ type Match {
 
 fn parse_type_gens_(
   lines lines: List(String),
-) {
+) -> RawTypeGens {
   let assert Ok(magic_comment_re) =
     "^[/][/][$]\\s*(.+)" |> re.from_string
 

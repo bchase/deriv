@@ -34,7 +34,7 @@ import gleam/erlang/process.{type Subject, type Selector}
 import filespy
 import gleam/crypto
 import gleam/bit_array as ba
-import deriv/gen/types.{type AST, Context, type TypeDef, type GleamPath, type GleamFile, GleamPath, pwd} as _
+import deriv/gen/types.{type AST, type Context, Context, type TypeDef, type GleamPath, type GleamFile, GleamPath, pwd} as _
 import deriv/gen/supervisor as gs
 import deriv/gen/scan
 import bchase/monad/read_write_result as monad
@@ -274,11 +274,37 @@ pub fn gen_named_params_test() {
   |> should.equal(parser.parse_named_params(str), _)
 }
 
-pub fn gen_test() {
+fn context_for(
+  filepath filepath: String,
+) -> Context {
   let assert Ok(pwd) = pwd()
   let assert Ok(toml) = gen.gleam_toml()
-  let assert Ok(file) = gen.load_gleam_file("src/deriv/internal/dummy/gen/before.gleam")
-  let ctx = Context(pwd:, toml:, file:)
+  let assert Ok(file) = gen.load_gleam_file(filepath)
+  Context(pwd:, toml:, file:)
+}
+
+pub fn gen_derive_zero_test() {
+  let before = "test/examples/gen_derive_zero/before.gleam"
+  let after = "test/examples/gen_derive_zero/after.gleam"
+
+  let ctx = context_for(filepath: before)
+
+  let assert Ok(expected) = simplifile.read(after)
+
+  let generated = gen.process(ctx:)
+
+  generated
+  |> should.be_ok
+  |> pair.first
+  |> fn(str) {
+    // io.println(str)
+    str
+  }
+  |> should.equal(expected)
+}
+
+pub fn gen_test() {
+  let ctx = context_for(filepath: "src/deriv/internal/dummy/gen/before.gleam")
 
   let assert Ok(#(output, _refs)) = gen.process(ctx:)
 
