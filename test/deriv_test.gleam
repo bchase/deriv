@@ -166,7 +166,7 @@ const x = 1337
   let ast = gen.ast(module)
 
   let raw_type_gen =
-    parser.RawTypeGen(
+    parser.RawTypeGens(
       gens: ["pkg/mod/gen.func foo bar:baz"],
       opts: dict.from_list([
         #(#("Bar", None), ["variant k01:v1 k02:v2"]),
@@ -175,7 +175,7 @@ const x = 1337
     )
 
   let type_gen =
-    parser.TypeGen(
+    parser.TypeGens(
       gens: [
         #(
           #(

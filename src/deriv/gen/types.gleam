@@ -55,6 +55,8 @@ pub type TypeDef {
   )
 }
 
+pub type TypeGenOpts = Dict(#(String, Option(String), String), String)
+
 // pub type ExprGenRef {
 //   ExprGenRef(
 //     module: String,
@@ -186,6 +188,7 @@ pub opaque type GenRead(expr) {
     file: GleamFile,
     args: Args,
     target: #(GleamPath, String),
+    opts: TypeGenOpts,
     get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   )
 }
@@ -335,12 +338,13 @@ pub fn run_gen(
   expr expr: expr,
   file file: GleamFile,
   args args: Args,
+  opts opts: TypeGenOpts,
   target target: #(GleamPath, String),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
 ) -> #(Result(t, String), GenWrite) {
   gen.monad
   |> monad.run_(
-    read: GenRead(expr:, file:, args:, target:, get_type:),
+    read: GenRead(expr:, file:, args:, opts:, target:, get_type:),
     write: GenWrite(fields: set.new(), imports: [], types: [], funcs: []),
   )
 }
@@ -580,12 +584,13 @@ pub fn run_variant_expr_(
   variant variant: g.Variant,
   file file: GleamFile,
   args args: Args,
+  opts opts: TypeGenOpts,
   mf mf: #(GleamPath, String),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
 ) -> Result(#(g.Clause, List(Generated(g.Function))), String) {
 
   let #(result, GenWrite(fields:, imports: _, types: _, funcs:)) =
-    run_gen(gen, variant, file, args, mf, get_type)
+    run_gen(gen, variant, file, args, opts, mf, get_type)
 
   result
   |> result.map(fn(expr) {

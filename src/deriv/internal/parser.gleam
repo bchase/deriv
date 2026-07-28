@@ -399,7 +399,7 @@ pub fn parse_type_gens(
   src src: String,
   ast ast: AST,
   parse parse: fn(String) -> Result(GleamPath, String),
-) -> Result(TypeGen, Nil) {
+) -> Result(TypeGens, Nil) {
   use raw <- result.try(parse_raw_type_gens(type_:, src:, ast:))
   Ok(from_raw(raw, parse))
 }
@@ -408,7 +408,7 @@ pub fn parse_raw_type_gens(
   type_ type_: glance.CustomType,
   src src: String,
   ast ast: AST
-) -> Result(RawTypeGen, Nil) {
+) -> Result(RawTypeGens, Nil) {
   use glance.Definition(_, ct) <- result.try(dict.get(ast.custom_types, type_.name))
 
   use src <- result.try(dg.read_span(src:, span: ct.location))
@@ -424,24 +424,24 @@ pub fn parse_raw_type_gens(
   Ok(parse_type_gens_(lines:))
 }
 
-pub type RawTypeGen {
-  RawTypeGen(
+pub type RawTypeGens {
+  RawTypeGens(
     gens: List(String),
     opts: Dict(#(String, Option(String)), List(String)),
   )
 }
 
-pub type TypeGen {
-  TypeGen(
+pub type TypeGens {
+  TypeGens(
     gens: List(#(#(GleamPath, String), String)),
     opts: Dict(#(String, Option(String), String), String),
   )
 }
 
 pub fn from_raw(
-  gen gen: RawTypeGen,
+  gen gen: RawTypeGens,
   parse parse: fn(String) -> Result(GleamPath, String),
-) -> TypeGen {
+) -> TypeGens {
   let gens =
     gen.gens
     |> list.filter_map(fn(str) {
@@ -498,7 +498,7 @@ pub fn from_raw(
     // })
     |> dict.from_list
 
-  TypeGen(gens:, opts:)
+  TypeGens(gens:, opts:)
 }
 
 type Match {
@@ -590,6 +590,6 @@ fn parse_type_gens_(
         })
       })
 
-    RawTypeGen(gens:, opts:)
+    RawTypeGens(gens:, opts:)
   }
 }

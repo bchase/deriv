@@ -26,7 +26,7 @@ import shellout
 import deriv/internal/glance.{term, call, call_, pipe, dot, short} as _
 import bchase/casing
 import deriv/internal/types.{type Derivation, type DerivField, type DerivFieldOpt} as _
-import deriv/gen/types.{type ExprGen, type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type GleamToml, GleamToml, type Imports, type AST, AST, Imports, type Pwd, type Context, Context}
+import deriv/gen/types.{type TypeGenOpts, type ExprGen, type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type GleamToml, GleamToml, type Imports, type AST, AST, Imports, type Pwd, type Context, Context}
 //
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
@@ -615,6 +615,13 @@ pub type Skip {
 const skip: Result(#(String, List(Ref)), Result(Skip, GenErr)) =
   Error(Ok(Skip))
 
+type Lookups {
+  Lookups(
+    get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
+    fetch: fn(#(String, String)) -> Result(ExprGen, Nil),
+  )
+}
+
 type Acc {
   Acc(
     src: String,
@@ -625,6 +632,14 @@ type Acc {
     refs: List(Ref),
   )
 }
+
+const lens_get_type = lens.Lens(get: get_get_type, set: set_get_type)
+fn get_get_type(x: Lookups) { x.get_type }
+fn set_get_type(x: Lookups, get_type) { Lookups(..x, get_type:)}
+const lens_fetch = lens.Lens(get: get_fetch, set: set_fetch)
+fn get_fetch(x: Lookups) { x.fetch }
+fn set_fetch(x: Lookups, fetch) { Lookups(..x, fetch:)}
+
 const lens_src = lens.Lens(get: get_src, set: set_src)
 fn get_src(x: Acc) { x.src }
 fn set_src(x: Acc, src) { Acc(..x, src:)}
@@ -646,7 +661,7 @@ fn set_refs(x: Acc, refs) { Acc(..x, refs:)}
 
 fn type_gens(
   ctx ctx: Context,
-) -> List(#(g.Definition(g.CustomType), parser.TypeGen)) {
+) -> List(#(g.Definition(g.CustomType), parser.TypeGens)) {
   let src = ctx.file.src
   let ast = ctx.file.ast
   let cts = ast.custom_types
@@ -700,7 +715,7 @@ fn type_gens(
 // }
 
 fn gen_for_types(
-  tgs tgs: List(parser.TypeGen),
+  tgs tgs: List(parser.TypeGens),
 ) {
 
 }
@@ -717,11 +732,21 @@ pub fn process(
 
   use <- bool.guard(!re.check(gen_magic_comment_start_re, src), skip)
 
-  // NOTE: close over `defs.expr_gens()` here to get fresh code reload
-  let fetch = dict.get(defs.expr_gens(), _)
-  // NOTE: close over `defs.expr_gens()` here to get fresh code reload
+  let acc = Acc(
+    src: ctx.file.src,
+    imports: [],
+    types: [],
+    funcs: [],
+    offset: 0,
+    refs: [],
+  )
 
-  let acc = Acc(src: ctx.file.src, imports: [], types: [], funcs: [], offset: 0, refs: [])
+  let lookups = Lookups(
+    get_type: fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) },
+    // NOTE: close over `defs.expr_gens()` here to get fresh code reload
+    fetch: dict.get(defs.expr_gens(), _),
+    // NOTE: close over `defs.expr_gens()` here to get fresh code reload
+  )
 
   let fgs =
     ctx.file.ast.functions
@@ -734,14 +759,14 @@ pub fn process(
       )
     })
     |> list.flat_map(fn(fg) {
-      fg.gens |> list.map(fn(gen) { #(gen, Function(func: fg.func), fg.ctx, fetch) })
+      fg.gens |> list.map(fn(gen) { #(gen, Function(func: fg.func), fg.ctx) })
     })
 
   let result =
     fgs
     |> list.map(run_func_gen)
     |> monad.sequence
-    |> monad.run_(Nil, acc)
+    |> monad.run_(lookups, acc)
 
   use acc <- result.try(
     case result {
@@ -752,10 +777,22 @@ pub fn process(
 
   let tgs =
     type_gens(ctx:)
-    |> list.map(fn(t) {
-      let #(ct, gen) = t
-      #(gen, CustomType(type_: ct), ctx, fetch)
+    |> list.flat_map(fn(t) {
+      let #(ct, parser.TypeGens(gens:, opts:)) = t
+
+      gens
+      |> list.map(fn(t) {
+        let #(#(path, func), args) = t
+        let gen = TypeGen(path:, func:, args:)
+        #(gen, opts, CustomType(type_: ct), ctx)
+      })
     })
+
+  let result =
+    tgs
+    |> list.map(run_type_gen)
+    |> monad.sequence
+    |> monad.run_(lookups, acc)
 
   result
   |> process_acc(ctx:)
@@ -853,9 +890,10 @@ fn process_acc(
 }
 
 fn run_func_gen(
-  gen_ctx: #(Gen, Def, Context, fn(#(String, String)) -> Result(ExprGen, Nil))
-) -> ReadWriteResult(Nil, GenErr, Nil, Acc) {
-  let #(gen, def, ctx, fetch) = gen_ctx
+  gen_ctx: #(Gen, Def, Context),
+) -> ReadWriteResult(Nil, GenErr, Lookups, Acc) {
+  let #(gen, def, ctx) = gen_ctx
+  use Lookups(get_type:, fetch:) <- monad.read_()
 
   use orig <- monad.writes(at: lens_src)
   use offset <- monad.writes(at: lens_offset)
@@ -866,9 +904,8 @@ fn run_func_gen(
   use #(expr_gen, args, #(path, _func) as mf) <- monad.do(get_expr_gen_from(str: gen.str, fetch:))
 
   // gen expr
-  let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
   use GenExpr(expr:, imports:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
-    build_expr(mf, expr_gen, args, def, get_type, ctx),
+    build_expr(mf, expr_gen, args, def, dict.new(), get_type, ctx),
   )
 
   // register funcs to be added to src
@@ -929,22 +966,18 @@ type TypeGen {
 }
 
 fn run_type_gen(
-  gen_ctx: #(TypeGen, Def, Context, fn(#(String, String)) -> Result(ExprGen, Nil))
-) -> ReadWriteResult(Nil, GenErr, Nil, Acc) {
-  let #(gen, def, ctx, fetch) = gen_ctx
+  gen_ctx: #(TypeGen, TypeGenOpts, Def, Context),
+) -> ReadWriteResult(Nil, GenErr, Lookups, Acc) {
+  let #(gen, opts, def, ctx) = gen_ctx
+  use Lookups(get_type:, fetch:) <- monad.read_()
 
   let gen_str = string.join(gen.path.full, "/") <> "." <> gen.func <> " " <> gen.args
 
   use #(expr_gen, args, mf) <- monad.do(get_expr_gen_from(str: gen_str, fetch:))
 
   // gen expr
-  let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
-  // TODO ^^^
-  //   - build elsewhere
-  //   - ensure code reload ok
-  //   - use `GenErr`
   use GenExpr(expr: _, imports:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
-    build_expr(mf, expr_gen, args, def, get_type, ctx),
+    build_expr(mf, expr_gen, args, def, opts, get_type, ctx),
   )
 
   // register funcs to be added to src
@@ -1210,6 +1243,7 @@ fn build_expr(
   gen gen: types.ExprGen,
   args args: String,
   def def: Def,
+  opts opts: TypeGenOpts,
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   ctx ctx: Context,
 ) -> Result(GenExpr, GenErr) {
@@ -1220,7 +1254,7 @@ fn build_expr(
       case_expr_with_variant_clauses(target:, gens:, args:, func:, get_type:, ctx:)
 
     types.CustomTypeDeriveExprGen(gens:), CustomType(type_:) ->
-      custom_type_derive(target:, gens:, args:, type_:, get_type:, ctx:)
+      custom_type_derive(target:, gens:, args:, type_:, opts:, get_type:, ctx:)
 
     types.VariantClauseCaseExprGen(..), CustomType(..) |
     types.CustomTypeDeriveExprGen(..), Function(..) ->
@@ -1285,7 +1319,7 @@ fn build_case_clause_expr(
     gens
     |> list.map(fn(gen) { // TODO perf `fold_until`
       let #(result, write) =
-        types.run_gen(gen:, expr: #(variant, type_), file:, args:, target:, get_type:)
+        types.run_gen(gen:, expr: #(variant, type_), file:, args:, opts: dict.new(), target:, get_type:)
 
       result
       |> result.map(fn(clause) {
@@ -1310,16 +1344,17 @@ fn custom_type_derive(
   gens gens: List(types.Gen(Nil, g.Definition(g.CustomType))),
   args args: types.Args,
   type_ type_: g.Definition(g.CustomType),
+  opts opts: TypeGenOpts,
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   ctx ctx: Context,
 ) -> Result(GenExpr, GenErr) {
-  let fail = fn(msg) { Failed("[custom type derive expr] " <> msg) }
+  // let fail = fn(msg) { Failed("[custom type derive expr] " <> msg) }
 
   let file = ctx.file
 
   let #(gens, errs) =
     gens
-    |> list.map(types.run_gen(gen: _, expr: type_, file:, args:, target:, get_type:))
+    |> list.map(types.run_gen(gen: _, expr: type_, file:, args:, opts: todo, target:, get_type:))
     |> list.map(fn(t) {
       case t.0 {
         Ok(Nil) -> Ok(t.1)
@@ -1328,7 +1363,10 @@ fn custom_type_derive(
     })
     |> result.partition
 
-  io.log_err(["custom type derive had issue with: " <> string.inspect(type_), ..errs])
+  case errs {
+    [] -> Nil
+    _ -> io.log_err(["custom type derive had issue with: " <> string.inspect(type_), ..errs])
+  }
 
   Ok(GenExpr(
     expr: None,
