@@ -30,17 +30,7 @@ import glint
 pub fn zero() -> ExprGen {
   x.CustomTypeDeriveExprGen(gens: [{
     use type_ <- x.custom_type()
-
-    use src <- x.local_custom_type_src(type_:)
-
-    // use opts <- x.opts()
-
-    use opts <- x.try(
-      case parser.parse_type_with_derivations(type_, src) {
-        Ok(#(_type, _derivs, opts)) -> x.success(opts)
-        Error(Nil) -> x.failure("zero failed to parse derive opts")
-      }
-    )
+    use opts <- x.field_opts()
 
     let imports = zero.gen_imports(type_) |> list.map(glance.Definition([], _))
     let func = zero.zero_func(type_, opts)

@@ -15,6 +15,7 @@ import gleam/pair
 import gleam/result
 import bchase/monad/read_write_result as monad
 import bchase/list.{push as list_push} as _
+import deriv/internal/types.{type DerivFieldOpts, type DerivField, type DerivFieldOpt, DerivField, DerivFieldOpt} as _
 
 // TODO rename & mv
 pub fn to_glance_type(
@@ -613,6 +614,34 @@ pub fn success(val: t) -> Gen(t, expr) {
 
 pub fn failure(msg: String) -> Gen(t, expr) {
   fail(msg)
+}
+
+pub fn field_opts(
+  cont cont: fn(DerivFieldOpts) -> Gen(t, g.Definition(g.CustomType)),
+) -> Gen(t, g.Definition(g.CustomType)) {
+  use opts <- read(lens_opts)
+  use ct <- custom_type()
+
+  opts
+  |> dict.to_list
+  |> list.filter_map(fn(t) {
+    let #(#(variant, field, key), strs) = t
+
+    let field = field |> option.unwrap("")
+
+    let field = DerivField(type_: ct.name , variant:, field:)
+
+    let vals =
+      strs
+      |> list.map(fn(raw) {
+        let raw = key <> " " <> raw
+        DerivFieldOpt(raw:, strs: raw |> string.split(" ") |> list.map(string.trim))
+      })
+
+    Ok(#(field, vals))
+  })
+  |> dict.from_list
+  |> cont
 }
 
 pub fn opts(
