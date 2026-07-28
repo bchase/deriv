@@ -41,7 +41,7 @@ pub type ExprGen {
     clauses: List(Gen(g.Clause, #(g.Variant, TypeDef))),
   )
   CustomTypeDeriveExprGen(
-    gens: List(Gen(Nil, TypeDef)),
+    gens: List(Gen(Nil, g.Definition(g.CustomType))),
   )
 }
 
@@ -185,7 +185,7 @@ pub opaque type GenRead(expr) {
     //
     file: GleamFile,
     args: Args,
-    module_func: #(GleamPath, String),
+    target: #(GleamPath, String),
     get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   )
 }
@@ -233,9 +233,9 @@ fn set_file(x: GenRead(file), file) { GenRead(..x, file:)}
 const lens_args = lens.Lens(get: get_args, set: set_args)
 fn get_args(x: GenRead(expr)) { x.args }
 fn set_args(x: GenRead(expr), args) { GenRead(..x, args:)}
-const lens_module_func = lens.Lens(get: get_module_func, set: set_module_func)
-fn get_module_func(x: GenRead(expr)) { x.module_func }
-fn set_module_func(x: GenRead(expr), module_func) { GenRead(..x, module_func:)}
+const lens_target = lens.Lens(get: get_target, set: set_target)
+fn get_target(x: GenRead(expr)) { x.target }
+fn set_target(x: GenRead(expr), target) { GenRead(..x, target:)}
 const lens_get_type = lens.Lens(get: get_get_type, set: set_get_type)
 fn get_get_type(x: GenRead(expr)) { x.get_type }
 fn set_get_type(x: GenRead(expr), get_type) { GenRead(..x, get_type:)}
@@ -335,12 +335,12 @@ pub fn run_gen(
   expr expr: expr,
   file file: GleamFile,
   args args: Args,
-  module_func module_func: #(GleamPath, String),
+  target target: #(GleamPath, String),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
 ) -> #(Result(t, String), GenWrite) {
   gen.monad
   |> monad.run_(
-    read: GenRead(expr:, file:, args:, module_func:, get_type:),
+    read: GenRead(expr:, file:, args:, target:, get_type:),
     write: GenWrite(fields: set.new(), imports: [], types: [], funcs: []),
   )
 }
@@ -611,9 +611,16 @@ pub fn failure(msg: String) -> Gen(t, expr) {
   fail(msg)
 }
 
-pub fn type_def(
-  cont cont: fn(TypeDef) -> Gen(t, TypeDef),
-) -> Gen(t, TypeDef) {
+pub fn custom_type(
+  cont cont: fn(g.CustomType) -> Gen(t, g.Definition(g.CustomType)),
+) -> Gen(t, g.Definition(g.CustomType)) {
+  use ct <- custom_type_def()
+  cont(ct.definition)
+}
+
+pub fn custom_type_def(
+  cont cont: fn(g.Definition(g.CustomType)) -> Gen(t, g.Definition(g.CustomType)),
+) -> Gen(t, g.Definition(g.CustomType)) {
   use td <- read(lens_expr)
   cont(td)
 }

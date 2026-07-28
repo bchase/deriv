@@ -40,9 +40,7 @@ fn option_guard(
 
 pub fn zero() -> ExprGen {
   x.CustomTypeDeriveExprGen(gens: [{
-    use td <- x.type_def()
-
-    let type_ = td.def.definition
+    use type_ <- x.custom_type()
 
     use src <- x.local_custom_type_src(type_:)
 

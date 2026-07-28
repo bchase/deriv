@@ -136,6 +136,8 @@ pub type GenErr {
   //
   GenAllFailedToMatch(expr_gen: #(GleamPath, String), errs: List(String), detail: Dynamic)
   //
+  GenExprWiredWithWrongArg(expr_gen: ExprGen, expr_arg: ExprArg)
+  //
   Failed(msg: String)
 }
 
@@ -637,9 +639,15 @@ fn set_refs(x: Acc, refs) { Acc(..x, refs:)}
 
 fn type_gens(
   ctx ctx: Context,
-) -> List(#(g.CustomType, List(Derivation), Dict(DerivField, List(DerivFieldOpt)))) {
+) -> List(#(g.CustomType, parser.TypeGen)) {
   let src = ctx.file.src
-  let cts = ctx.file.ast.custom_types
+  let ast = ctx.file.ast
+  let cts = ast.custom_types
+  let parse = fn(str) {
+    str
+    |> parse_gleam_module_path
+    |> result.map_error(string.inspect)
+  }
 
   cts
   |> dict.values
@@ -653,11 +661,42 @@ fn type_gens(
         string.inspect(ct),
       ])
     })
-    |> result.map(fn(src) {
-      parser.parse_type_with_derivations(ct, src)
+    |> result.try(fn(src) {
+      parser.parse_type_gens(type_: ct, src:, ast:, parse:)
+      |> result.map(pair.new(ct, _))
     })
-    |> result.flatten
   })
+}
+
+// fn type_gens(
+//   ctx ctx: Context,
+// ) -> List(#(g.CustomType, List(Derivation), Dict(DerivField, List(DerivFieldOpt)))) {
+//   let src = ctx.file.src
+//   let cts = ctx.file.ast.custom_types
+
+//   cts
+//   |> dict.values
+//   |> list.map(fn(def) { def.definition })
+//   |> list.filter_map(fn(ct) {
+//     src
+//     |> dg.read_span(span: ct.location)
+//     |> result.map_error(fn(_err) {
+//       io.log_err([
+//         "failed to read custom type span for type gen parsing",
+//         string.inspect(ct),
+//       ])
+//     })
+//     |> result.map(fn(src) {
+//       parser.parse_type_with_derivations(ct, src)
+//     })
+//     |> result.flatten
+//   })
+// }
+
+fn gen_for_types(
+  tgs tgs: List(parser.TypeGen),
+) {
+
 }
 
 pub fn process(
@@ -671,6 +710,8 @@ pub fn process(
     "[/][/][$]" |> re.from_string
 
   use <- bool.guard(!re.check(gen_magic_comment_start_re, src), skip)
+
+  let tgs = type_gens(ctx:)
 
   let fgs =
     ctx.file.ast.functions
@@ -803,7 +844,7 @@ fn run(
   // gen expr
   let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
   use GenExpr(expr:, imports:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
-    build_expr(mf, expr_gen, args, func, get_type, ctx),
+    build_expr(mf, expr_gen, args, Function(func:), get_type, ctx),
   )
 
   // register funcs to be added to src
@@ -1100,27 +1141,36 @@ fn bracket_pos(
 
 //
 
+pub type ExprArg {
+  Function(func: g.Definition(g.Function))
+  CustomType(type_: g.Definition(g.CustomType))
+}
+
 fn build_expr(
-  mf mf: #(GleamPath, String),
+  target target: #(GleamPath, String),
   gen gen: types.ExprGen,
   args args: String,
-  func func: g.Definition(g.Function),
+  expr expr: ExprArg,
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   ctx ctx: Context,
 ) -> Result(GenExpr, GenErr) {
   let args = types.Args(raw: args, named: parser.parse_named_params(args))
 
-  case gen {
-    types.VariantClauseCaseExprGen(clauses: gens) ->
-      case_expr_with_variant_clauses(mf:, gens:, args:, func:, get_type:, ctx:)
+  case gen, expr {
+    types.VariantClauseCaseExprGen(clauses: gens), Function(func:) ->
+      case_expr_with_variant_clauses(target:, gens:, args:, func:, get_type:, ctx:)
 
-    types.CustomTypeDeriveExprGen(gens:) ->
-      custom_type_derive(mf:, gens:,  args:, func:, get_type:, ctx:)
+    types.CustomTypeDeriveExprGen(gens:), CustomType(type_:) ->
+      custom_type_derive(target:, gens:, args:, type_:, get_type:, ctx:)
+
+    types.VariantClauseCaseExprGen(..), CustomType(..) |
+    types.CustomTypeDeriveExprGen(..), Function(..) ->
+      Error(GenExprWiredWithWrongArg(expr_gen: gen, expr_arg: expr))
   }
 }
 
 fn case_expr_with_variant_clauses(
-  mf mf: #(GleamPath, String),
+  target target: #(GleamPath, String),
   gens gens: List(types.GenVariantCaseClause(g.Clause)),
   args args: types.Args,
   func func: g.Definition(g.Function),
@@ -1148,7 +1198,7 @@ fn case_expr_with_variant_clauses(
   use #(clauses, funcs) <- try(
     type_.def.definition.variants
     |> list.map(
-      build_case_clause_expr(gens:, mf:, variant:_, type_:, file:, args:, func:, get_type:)
+      build_case_clause_expr(gens:, target:, variant:_, type_:, file:, args:, func:, get_type:)
     )
     |> result.all
     |> result.map(fn(t) {
@@ -1163,7 +1213,7 @@ fn case_expr_with_variant_clauses(
 }
 
 fn build_case_clause_expr(
-  mf mf: #(GleamPath, String),
+  target target: #(GleamPath, String),
   variant variant: g.Variant,
   gens gens: List(types.GenVariantCaseClause(g.Clause)),
   type_ type_: TypeDef,
@@ -1176,7 +1226,7 @@ fn build_case_clause_expr(
     gens
     |> list.map(fn(gen) { // TODO perf `fold_until`
       let #(result, write) =
-        types.run_gen(gen:, expr: #(variant, type_), file:, args:, module_func: mf, get_type:)
+        types.run_gen(gen:, expr: #(variant, type_), file:, args:, target:, get_type:)
 
       result
       |> result.map(fn(clause) {
@@ -1186,7 +1236,7 @@ fn build_case_clause_expr(
     |> fn(results) {
       case result.partition(results) {
         #([x, ..], _errs) -> Ok(x)
-        #([], errs) -> Error(GenAllFailedToMatch(mf, errs,
+        #([], errs) -> Error(GenAllFailedToMatch(target, errs,
           dyn.from(#(args, variant, type_, func))),
         )
       }
@@ -1197,34 +1247,20 @@ fn build_case_clause_expr(
 }
 
 fn custom_type_derive(
-  mf mf: #(GleamPath, String),
-  gens gens: List(types.Gen(Nil, TypeDef)),
+  target target: #(GleamPath, String),
+  gens gens: List(types.Gen(Nil, g.Definition(g.CustomType))),
   args args: types.Args,
-  func func: g.Definition(g.Function),
+  type_ type_: g.Definition(g.CustomType),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   ctx ctx: Context,
 ) -> Result(GenExpr, GenErr) {
-  let fail = fn(msg) { Failed("[variant clause expr] " <> msg) }
-
-  use subject <- try(args.named |> dict.get("subject") |> result.map_error(fn(_) {
-    fail("requires an `subject` (fn param reference) to be specified, but none was found")
-  }))
-
-  use #(mod, type_) <- try(get_named_param_type(str: subject, func:) |> result.map_error(fn(_) {
-    fail("couldn't find named param in containing function: " <> subject)
-  }))
-
-  use type_ <- try(get_type(mod, type_) |> result.map_error(fn(_) {
-    fail("failed type lookup: " <> string.inspect(#(mod, type_)))
-  }))
+  let fail = fn(msg) { Failed("[custom type derive expr] " <> msg) }
 
   let file = ctx.file
 
-  // let ref = Ref(from: file.path, to: type_.path, ident: Some(type_.def.definition.name))
-
   let #(gens, errs) =
     gens
-    |> list.map(types.run_gen(gen: _, expr: type_, file:, args:, module_func: mf, get_type:))
+    |> list.map(types.run_gen(gen: _, expr: type_, file:, args:, target:, get_type:))
     |> list.map(fn(t) {
       case t.0 {
         Ok(Nil) -> Ok(t.1)

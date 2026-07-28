@@ -433,7 +433,7 @@ pub type RawTypeGen {
 
 pub type TypeGen {
   TypeGen(
-    gens: List(#(GleamPath, String, String)),
+    gens: List(#(#(GleamPath, String), String)),
     opts: Dict(#(String, Option(String), String), String),
   )
 }
@@ -470,7 +470,7 @@ pub fn from_raw(
               Error(Nil)
             }
 
-            Ok(path) -> Ok(#(path, func, rest_str))
+            Ok(path) -> Ok(#(#(path, func), rest_str))
           }
       }
     })

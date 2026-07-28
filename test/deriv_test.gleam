@@ -178,8 +178,10 @@ const x = 1337
     parser.TypeGen(
       gens: [
         #(
-          GleamPath(full: ["pkg", "mod", "gen"], package: "pkg", module: "gen"),
-          "func",
+          #(
+            GleamPath(full: ["pkg", "mod", "gen"], package: "pkg", module: "gen"),
+            "func",
+          ),
           "foo bar:baz",
         ),
       ],
