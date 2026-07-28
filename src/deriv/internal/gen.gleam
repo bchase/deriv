@@ -136,7 +136,7 @@ pub type GenErr {
   //
   GenAllFailedToMatch(expr_gen: #(GleamPath, String), errs: List(String), detail: Dynamic)
   //
-  GenExprWiredWithWrongArg(expr_gen: ExprGen, expr_arg: ExprArg)
+  GenExprWiredWithWrongArg(expr_gen: ExprGen, def: Def)
   //
   Failed(msg: String)
 }
@@ -627,6 +627,12 @@ type Acc {
 const lens_src = lens.Lens(get: get_src, set: set_src)
 fn get_src(x: Acc) { x.src }
 fn set_src(x: Acc, src) { Acc(..x, src:)}
+const lens_imports = lens.Lens(get: get_imports, set: set_imports)
+fn get_imports(x: Acc) { x.imports }
+fn set_imports(x: Acc, imports) { Acc(..x, imports:)}
+const lens_types = lens.Lens(get: get_types, set: set_types)
+fn get_types(x: Acc) { x.types }
+fn set_types(x: Acc, types) { Acc(..x, types:)}
 const lens_funcs = lens.Lens(get: get_funcs, set: set_funcs)
 fn get_funcs(x: Acc) { x.funcs }
 fn set_funcs(x: Acc, funcs) { Acc(..x, funcs:)}
@@ -639,7 +645,7 @@ fn set_refs(x: Acc, refs) { Acc(..x, refs:)}
 
 fn type_gens(
   ctx ctx: Context,
-) -> List(#(g.CustomType, parser.TypeGen)) {
+) -> List(#(g.Definition(g.CustomType), parser.TypeGen)) {
   let src = ctx.file.src
   let ast = ctx.file.ast
   let cts = ast.custom_types
@@ -651,10 +657,9 @@ fn type_gens(
 
   cts
   |> dict.values
-  |> list.map(fn(def) { def.definition })
   |> list.filter_map(fn(ct) {
     src
-    |> dg.read_span(span: ct.location)
+    |> dg.read_span(span: ct.definition.location)
     |> result.map_error(fn(_err) {
       io.log_err([
         "failed to read custom type span for type gen parsing",
@@ -662,7 +667,7 @@ fn type_gens(
       ])
     })
     |> result.try(fn(src) {
-      parser.parse_type_gens(type_: ct, src:, ast:, parse:)
+      parser.parse_type_gens(type_: ct.definition, src:, ast:, parse:)
       |> result.map(pair.new(ct, _))
     })
   })
@@ -711,7 +716,14 @@ pub fn process(
 
   use <- bool.guard(!re.check(gen_magic_comment_start_re, src), skip)
 
-  let tgs = type_gens(ctx:)
+  let fetch = dict.get(defs.expr_gens(), _)
+
+  let tgs =
+    type_gens(ctx:)
+    |> list.map(fn(t) {
+      let #(ct, gen) = t
+      #(gen, CustomType(type_: ct), ctx, fetch)
+    })
 
   let fgs =
     ctx.file.ast.functions
@@ -723,11 +735,11 @@ pub fn process(
         b.func.definition.location.start,
       )
     })
+    |> list.flat_map(fn(fg) {
+      fg.gens |> list.map(fn(gen) { #(gen, Function(func: fg.func), fg.ctx, fetch) })
+    })
 
   fgs
-  |> list.flat_map(fn(fg) {
-    fg.gens |> list.map(fn(gen) { #(gen, fg.func, fg.ctx) })
-  })
   |> list.map(run)
   |> monad.sequence
   |> monad.run_(Nil, Acc(src: ctx.file.src, imports: [], types: [], funcs: [], offset: 0, refs: []))
@@ -820,34 +832,27 @@ pub fn process(
 }
 
 fn run(
-  gen_func_ctx: #(Gen, g.Definition(g.Function), Context)
+  gen_ctx: #(Gen, Def, Context, fn(#(String, String)) -> Result(ExprGen, Nil))
 ) -> ReadWriteResult(Nil, GenErr, Nil, Acc) {
-  let #(gen, func, ctx) = gen_func_ctx
+  let #(gen, def, ctx, fetch) = gen_ctx
 
-  use orig <- monad.writes(at: lens_src) // TODO unneeded...?
+  use orig <- monad.writes(at: lens_src)
   use offset <- monad.writes(at: lens_offset)
 
   // offset positions based on previous code gen results
   let gen = Gen(..gen, pos: gen.pos + offset)
 
-  // look up expr generator
-  // let fetch1: fn(String, String) -> Result(types.ExprGen1, Nil) = fn(module, func) {
-  //   todo
-  //   |> dict.get(#(module, func))
-  // }
-  let fetch: fn(String, String) -> Result(ExprGen, Nil) = fn(module, func) {
-    defs.expr_gens()
-    |> dict.get(#(module, func))
-  }
   use #(expr_gen, args, #(path, _func) as mf) <- monad.do(get_expr_gen(gen:, fetch:))
 
   // gen expr
   let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
   use GenExpr(expr:, imports:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
-    build_expr(mf, expr_gen, args, Function(func:), get_type, ctx),
+    build_expr(mf, expr_gen, args, def, get_type, ctx),
   )
 
   // register funcs to be added to src
+  use <- monad.concat(imports, lens_imports)
+  use <- monad.concat(types, lens_types)
   use <- monad.concat(funcs, lens_funcs)
 
   // persist refs
@@ -903,7 +908,7 @@ fn run(
 pub type GenExpr {
   GenExpr(
     expr: Option(g.Expression),
-    imports: List(types.Generated(g.Import)),
+    imports: List(g.Definition(g.Import)),
     types: List(types.Generated(g.CustomType)),
     funcs: List(types.Generated(g.Function)),
     refs: List(Ref),
@@ -920,7 +925,7 @@ pub type Ref {
 
 fn get_expr_gen(
   gen gen: Gen,
-  fetch fetch: fn(String, String) -> Result(ExprGen, Nil),
+  fetch fetch: fn(#(String, String)) -> Result(ExprGen, Nil),
 ) -> ReadWriteResult(#(ExprGen, String, #(GleamPath, String)), GenErr, r, w) {
   use #(str, args) <- monad.do_ok(case gen.str |> string.split(" ") {
     [] -> Error(GenStrGleamModuleParseErr(gen_str: gen.str))
@@ -938,7 +943,7 @@ fn get_expr_gen(
   )
 
   use expr_gen <- monad.do(monad.ok(
-    fetch(path.full |> string.join("/"), func),
+    fetch(#(path.full |> string.join("/"), func)),
     always(GenNotFound(path:, func:, gen_str: gen.str))
   ))
 
@@ -1141,7 +1146,7 @@ fn bracket_pos(
 
 //
 
-pub type ExprArg {
+pub type Def {
   Function(func: g.Definition(g.Function))
   CustomType(type_: g.Definition(g.CustomType))
 }
@@ -1150,13 +1155,13 @@ fn build_expr(
   target target: #(GleamPath, String),
   gen gen: types.ExprGen,
   args args: String,
-  expr expr: ExprArg,
+  def def: Def,
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
   ctx ctx: Context,
 ) -> Result(GenExpr, GenErr) {
   let args = types.Args(raw: args, named: parser.parse_named_params(args))
 
-  case gen, expr {
+  case gen, def {
     types.VariantClauseCaseExprGen(clauses: gens), Function(func:) ->
       case_expr_with_variant_clauses(target:, gens:, args:, func:, get_type:, ctx:)
 
@@ -1165,7 +1170,7 @@ fn build_expr(
 
     types.VariantClauseCaseExprGen(..), CustomType(..) |
     types.CustomTypeDeriveExprGen(..), Function(..) ->
-      Error(GenExprWiredWithWrongArg(expr_gen: gen, expr_arg: expr))
+      Error(GenExprWiredWithWrongArg(expr_gen: gen, def:))
   }
 }
 

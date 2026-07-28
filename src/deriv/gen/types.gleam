@@ -200,7 +200,7 @@ pub type Args {
 pub opaque type GenWrite {
   GenWrite(
     fields: Set(String), // NOTE: fields acc, used to detect need for `with_spread`
-    imports: List(Generated(g.Import)),
+    imports: List(g.Definition(g.Import)),
     types: List(Generated(g.CustomType)),
     funcs: List(Generated(g.Function)),
   )
@@ -208,7 +208,7 @@ pub opaque type GenWrite {
 
 pub fn gen_imports(
   write write: GenWrite,
-) -> List(Generated(g.Import)) {
+) -> List(g.Definition(g.Import)) {
   write.imports
 }
 
@@ -383,11 +383,7 @@ pub fn ensure_imports(
   def def: List(g.Definition(g.Import)),
   cont cont: fn() -> Gen(t, expr),
 ) -> Gen(t, expr) {
-  use <- write(def, lens_imports, fn(orig, new) {
-    new
-    |> list.map(fn(def) { Generated(def:, overwrite: False)})
-    |> list.append(orig, _)
-  })
+  use <- write(def, lens_imports, list.append)
   cont()
 }
 
@@ -395,7 +391,7 @@ pub fn ensure_import(
   def def: g.Definition(g.Import),
   cont cont: fn() -> Gen(t, expr),
 ) -> Gen(t, expr) {
-  use <- write(def, lens_imports, fn(defs, def) { list_push(defs, Generated(def:, overwrite: False)) })
+  use <- write(def, lens_imports, list_push)
   cont()
 }
 
