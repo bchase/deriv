@@ -27,17 +27,6 @@ import gleam/io
 import argv
 import glint
 
-fn option_guard(
-  option option: Option(a),
-  fail fail: b,
-  cont cont: fn(a) -> b,
-) -> b {
-  case option {
-    Some(x) -> cont(x)
-    None -> fail
-  }
-}
-
 pub fn zero() -> ExprGen {
   x.CustomTypeDeriveExprGen(gens: [{
     use type_ <- x.custom_type()
@@ -56,44 +45,6 @@ pub fn zero() -> ExprGen {
 
     use <- x.ensure_imports(imports)
     use <- x.ensure_func(func)
-
-    // let variant =
-    //   td.def.definition.variants
-    //   |> list.sort(fn(a, b) {
-    //     int.compare(
-    //       list.length(a.fields),
-    //       list.length(b.fields),
-    //     )
-    //   })
-    //   |> list.first
-    //   |> option.from_result
-
-    // use variant <- option_guard(variant, x.failure("cannot derive zero with no variants: " <> string.inspect(td)))
-
-    // let func = glance.Definition([], glance.Function(z,
-    //   name: "zero_" <> casing.snake(td.def.definition.name),
-    //   publicity: td.def.definition.publicity,
-    //   return: Some(x.to_glance_type(td.def.definition, td.qualified)),
-    //   parameters: [],
-    //   body: [
-    //     case variant.fields {
-    //       [] ->
-    //         term(variant.name)
-
-    //       _ ->
-    //         term(variant.name) |> call(list.map(variant.fields |> list.map(fn(f) { f.item }), zero_for(_, td)))
-    //     }
-    //     |> glance.Expression
-    //   ],
-    // ))
-
-    // case td.def.definition.variants {
-    //   [] ->
-    //     todo
-
-    //   [var1, ..vars] ->
-    //     todo
-    // }
 
     x.success(Nil)
   }])

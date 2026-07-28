@@ -32,6 +32,7 @@ import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
 import deriv/gen/reload/defs
 import bchase/monad/read_write_result.{type ReadWriteResult} as monad
+import bchase/option.{guard as some} as _
 
 // magic comments
 //   conv
@@ -716,14 +717,11 @@ pub fn process(
 
   use <- bool.guard(!re.check(gen_magic_comment_start_re, src), skip)
 
+  // NOTE: close over `defs.expr_gens()` here to get fresh code reload
   let fetch = dict.get(defs.expr_gens(), _)
+  // NOTE: close over `defs.expr_gens()` here to get fresh code reload
 
-  let tgs =
-    type_gens(ctx:)
-    |> list.map(fn(t) {
-      let #(ct, gen) = t
-      #(gen, CustomType(type_: ct), ctx, fetch)
-    })
+  let acc = Acc(src: ctx.file.src, imports: [], types: [], funcs: [], offset: 0, refs: [])
 
   let fgs =
     ctx.file.ast.functions
@@ -739,99 +737,122 @@ pub fn process(
       fg.gens |> list.map(fn(gen) { #(gen, Function(func: fg.func), fg.ctx, fetch) })
     })
 
-  fgs
-  |> list.map(run)
-  |> monad.sequence
-  |> monad.run_(Nil, Acc(src: ctx.file.src, imports: [], types: [], funcs: [], offset: 0, refs: []))
-  |> fn(t) {
-      case t {
-        #(Ok(_), acc) -> {
-          let existing_func_names =
-            ctx.file.ast.functions
-            |> dict.keys
+  let result =
+    fgs
+    |> list.map(run_func_gen)
+    |> monad.sequence
+    |> monad.run_(Nil, acc)
 
-          let existing_type_names =
-            ctx.file.ast.custom_types
-            |> dict.keys
-
-          let func_srcs =
-            acc.funcs
-            |> list.filter(fn(f) {
-              case f.overwrite {
-                True -> True
-                False -> !list.contains(existing_func_names, f.def.definition.name)
-              }
-            })
-            |> list.group(fn(f) { f.def.definition.name })
-            |> dict.to_list
-            |> list.filter_map(fn(t) {
-              case t.1 {
-                [] -> Error(Nil)
-                [f] -> Ok(f)
-                _ -> {
-                  io.log_err([
-                    "An expression generator is trying to define multiple functions with the name: " <> t.0
-                  ])
-                  Error(Nil)
-                }
-              }
-            })
-            |> list.map(fn(f) {
-              common.func_str(f.def)
-            })
-
-          let type_srcs =
-            acc.types
-            |> list.filter(fn(f) {
-              case f.overwrite {
-                True -> True
-                False -> !list.contains(existing_type_names, f.def.definition.name)
-              }
-            })
-            |> list.group(fn(f) { f.def.definition.name })
-            |> dict.to_list
-            |> list.filter_map(fn(t) {
-              case t.1 {
-                [] -> Error(Nil)
-                [f] -> Ok(f)
-                _ -> {
-                  io.log_err([
-                    "An expression generator is trying to define multiple functions with the name: " <> t.0
-                  ])
-                  Error(Nil)
-                }
-              }
-            })
-            |> list.map(fn(f) {
-              common.type_str(f.def)
-            })
-
-          let src =
-            [
-              [acc.src |> string.trim],
-              type_srcs,
-              func_srcs,
-            ]
-            |> list.flatten
-            |> string.join("\n\n")
-
-          let imports =
-            acc.imports
-            |> list.map(fn(def) { def.definition })
-
-          let src =
-            common.consolidate_imports_for(src, imports)
-
-          Ok(#(src, acc.refs))
-        }
-
-      #(Error(err), _acc) ->
-        Error(Error(err))
+  use acc <- result.try(
+    case result {
+      #(Ok(_), acc) -> Ok(acc)
+      #(Error(err), _) -> Error(Error(err))
     }
+  )
+
+  let tgs =
+    type_gens(ctx:)
+    |> list.map(fn(t) {
+      let #(ct, gen) = t
+      #(gen, CustomType(type_: ct), ctx, fetch)
+    })
+
+  result
+  |> process_acc(ctx:)
+}
+
+fn process_acc(
+  result result: #(Result(List(ignored), GenErr), Acc),
+  ctx ctx: Context,
+) -> Result(#(String, List(Ref)), Result(Skip, GenErr)) {
+  case result {
+    #(Ok(_), acc) -> {
+      let acc: Acc = acc
+      let existing_func_names =
+        ctx.file.ast.functions
+        |> dict.keys
+
+      let existing_type_names =
+        ctx.file.ast.custom_types
+        |> dict.keys
+
+      let func_srcs =
+        acc.funcs
+        |> list.filter(fn(f) {
+          case f.overwrite {
+            True -> True
+            False -> !list.contains(existing_func_names, f.def.definition.name)
+          }
+        })
+        |> list.group(fn(f) { f.def.definition.name })
+        |> dict.to_list
+        |> list.filter_map(fn(t) {
+          case t.1 {
+            [] -> Error(Nil)
+            [f] -> Ok(f)
+            _ -> {
+              io.log_err([
+                "An expression generator is trying to define multiple functions with the name: " <> t.0
+              ])
+              Error(Nil)
+            }
+          }
+        })
+        |> list.map(fn(f) {
+          common.func_str(f.def)
+        })
+
+      let type_srcs =
+        acc.types
+        |> list.filter(fn(f) {
+          case f.overwrite {
+            True -> True
+            False -> !list.contains(existing_type_names, f.def.definition.name)
+          }
+        })
+        |> list.group(fn(f) { f.def.definition.name })
+        |> dict.to_list
+        |> list.filter_map(fn(t) {
+          case t.1 {
+            [] -> Error(Nil)
+            [f] -> Ok(f)
+            _ -> {
+              io.log_err([
+                "An expression generator is trying to define multiple functions with the name: " <> t.0
+              ])
+              Error(Nil)
+            }
+          }
+        })
+        |> list.map(fn(f) {
+          common.type_str(f.def)
+        })
+
+      let src =
+        [
+          [acc.src |> string.trim],
+          type_srcs,
+          func_srcs,
+        ]
+        |> list.flatten
+        |> string.join("\n\n")
+
+      let imports =
+        acc.imports
+        |> list.map(fn(def) { def.definition })
+
+      let src =
+        common.consolidate_imports_for(src, imports)
+
+      Ok(#(src, acc.refs))
+    }
+
+    #(Error(err), _acc) ->
+      Error(Error(err))
   }
 }
 
-fn run(
+fn run_func_gen(
   gen_ctx: #(Gen, Def, Context, fn(#(String, String)) -> Result(ExprGen, Nil))
 ) -> ReadWriteResult(Nil, GenErr, Nil, Acc) {
   let #(gen, def, ctx, fetch) = gen_ctx
@@ -842,7 +863,7 @@ fn run(
   // offset positions based on previous code gen results
   let gen = Gen(..gen, pos: gen.pos + offset)
 
-  use #(expr_gen, args, #(path, _func) as mf) <- monad.do(get_expr_gen(gen:, fetch:))
+  use #(expr_gen, args, #(path, _func) as mf) <- monad.do(get_expr_gen_from(str: gen.str, fetch:))
 
   // gen expr
   let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
@@ -859,50 +880,83 @@ fn run(
   use <- monad.concat(new_refs, lens_refs)
   // TODO this could be done in `build_expr` w/o having to pass these back up
 
-  case expr {
-    None ->
-      monad.pure(Nil)
+  use expr <- some(expr, monad.pure(Nil))
 
-    Some(expr) -> {
-      // ensure expr is wrapped in a block
-      let expr =
-        case expr {
-          g.Block(..) -> expr
-          _ -> g.Block(z, [g.Expression(expr)])
-        }
-
-      // build & format `glance.Expression` as `String`
-      let expr_src = format_gleam_expr(expr:, indent: gen.indent)
-
-      // add magic comment back to gen'd `glance.Expression` src
-      use #(x, xs) <- monad.do_ok(
-        case expr_src |> string.split("\n") {
-          [] | [_] -> Error(Nil)
-          [x, ..xs] -> Ok(#(x, xs))
-        },
-        always(GenExprCommentSpliceErr(path:, gen_str: gen.str, expr:, expr_src:)),
-      )
-      let expr_src =
-        [x <> " " <> gen.comment, ..xs]
-        |> string.join("\n")
-        |> string.trim_start
-
-      // calc span to overwrite
-      let span = gen_span(gen:, src: orig, offset: 0) // TODO would be double offset?
-
-      // construct new src
-      let new = dg.replace(span:, in: orig, with: expr_src)
-
-      // calc diff for, and persist new `offset`
-      let diff = string.length(new) - string.length(orig)
-      use <- monad.add_int(diff, lens_offset)
-
-      // persist newly gen'd src
-      use <- monad.set(new, lens_src)
-
-      monad.pure(Nil)
-    }
+  // ensure that expr is wrapped in a block
+  let expr = case expr {
+    g.Block(..) -> expr
+    _ -> g.Block(z, [g.Expression(expr)])
   }
+
+  // build & format `glance.Expression` as `String`
+  let expr_src = format_gleam_expr(expr:, indent: gen.indent)
+
+  // add magic comment back to gen'd `glance.Expression` src
+  use #(x, xs) <- monad.do_ok(
+    case expr_src |> string.split("\n") {
+      [] | [_] -> Error(Nil)
+      [x, ..xs] -> Ok(#(x, xs))
+    },
+    always(GenExprCommentSpliceErr(path:, gen_str: gen.str, expr:, expr_src:)),
+  )
+  let expr_src =
+    [x <> " " <> gen.comment, ..xs]
+    |> string.join("\n")
+    |> string.trim_start
+
+  // calc span to overwrite
+  let span = gen_span(gen:, src: orig, offset: 0)
+
+  // construct new src
+  let new = dg.replace(span:, in: orig, with: expr_src)
+
+  // calc diff for, and persist new `offset`
+  let diff = string.length(new) - string.length(orig)
+  use <- monad.add_int(diff, lens_offset)
+
+  // persist newly gen'd src
+  use <- monad.set(new, lens_src)
+
+  monad.pure(Nil)
+}
+
+type TypeGen {
+  TypeGen(
+    path: GleamPath,
+    func: String,
+    args: String,
+  )
+}
+
+fn run_type_gen(
+  gen_ctx: #(TypeGen, Def, Context, fn(#(String, String)) -> Result(ExprGen, Nil))
+) -> ReadWriteResult(Nil, GenErr, Nil, Acc) {
+  let #(gen, def, ctx, fetch) = gen_ctx
+
+  let gen_str = string.join(gen.path.full, "/") <> "." <> gen.func <> " " <> gen.args
+
+  use #(expr_gen, args, mf) <- monad.do(get_expr_gen_from(str: gen_str, fetch:))
+
+  // gen expr
+  let get_type = fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) }
+  // TODO ^^^
+  //   - build elsewhere
+  //   - ensure code reload ok
+  //   - use `GenErr`
+  use GenExpr(expr: _, imports:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
+    build_expr(mf, expr_gen, args, def, get_type, ctx),
+  )
+
+  // register funcs to be added to src
+  use <- monad.concat(imports, lens_imports)
+  use <- monad.concat(types, lens_types)
+  use <- monad.concat(funcs, lens_funcs)
+
+  // persist refs
+  use <- monad.concat(new_refs, lens_refs)
+  // TODO this could be done in `build_expr` w/o having to pass these back up
+
+  monad.pure(Nil)
 }
 
 pub type GenExpr {
@@ -923,28 +977,28 @@ pub type Ref {
   )
 }
 
-fn get_expr_gen(
-  gen gen: Gen,
+fn get_expr_gen_from(
+  str str: String,
   fetch fetch: fn(#(String, String)) -> Result(ExprGen, Nil),
 ) -> ReadWriteResult(#(ExprGen, String, #(GleamPath, String)), GenErr, r, w) {
-  use #(str, args) <- monad.do_ok(case gen.str |> string.split(" ") {
-    [] -> Error(GenStrGleamModuleParseErr(gen_str: gen.str))
+  use #(str, args) <- monad.do_ok(case str |> string.split(" ") {
+    [] -> Error(GenStrGleamModuleParseErr(gen_str: str))
     [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
   }, function.identity)
 
   use #(path, func) <- monad.do_ok(case str |> string.split(".") {
     [path, func] -> Ok(#(path, func))
-    _ -> Error(GenStrGleamModuleParseErr(gen_str: gen.str))
+    _ -> Error(GenStrGleamModuleParseErr(gen_str: str))
   }, function.identity)
 
   use path <- monad.do_ok(
     parse_gleam_module_path(path),
-    GleamFileErr(_, dyn.from("//$ " <> gen.str)),
+    GleamFileErr(_, dyn.from("//$ " <> str)),
   )
 
   use expr_gen <- monad.do(monad.ok(
     fetch(#(path.full |> string.join("/"), func)),
-    always(GenNotFound(path:, func:, gen_str: gen.str))
+    always(GenNotFound(path:, func:, gen_str: str))
   ))
 
   monad.pure(#(expr_gen, args, #(path, func)))
