@@ -34,6 +34,10 @@ pub type Param(t) {
 
 pub fn time_zero_override() -> Time { birl.unix_epoch }
 
+pub fn zero_param(passed passed: t) -> Param(t) {
+  Param("", passed)
+}
+
 pub fn zero_player() -> Player {
   Player(
     util.zero_uuid(),
@@ -50,8 +54,4 @@ pub fn zero_player() -> Player {
 
 pub fn zero_unit() -> Unit {
   Unit
-}
-
-pub fn zero_param(passed passed: t) -> Param(t) {
-  Param("", passed)
 }

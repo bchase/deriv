@@ -858,11 +858,12 @@ fn process_acc(
       let src =
         [
           [acc.src |> string.trim],
+          [""], // empty new line after src, before gen'd
           type_srcs,
           func_srcs,
         ]
         |> list.flatten
-        |> string.join("\n\n")
+        |> string.join("\n")
 
       let imports =
         acc.imports

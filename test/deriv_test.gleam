@@ -290,16 +290,13 @@ pub fn gen_derive_zero_test() {
   let ctx = context_for(filepath: before)
 
   let assert Ok(expected) = simplifile.read(after)
+  let expected = string.trim(expected)
 
   let generated = gen.process(ctx:)
 
   generated
   |> should.be_ok
   |> pair.first
-  |> fn(str) {
-    // io.println(str)
-    str
-  }
   |> should.equal(expected)
 }
 
