@@ -803,8 +803,16 @@ fn process_acc(
         ctx.file.ast.custom_types
         |> dict.keys
 
-      let func_srcs =
+      let extant_func_names = ctx.file.ast.functions
+
+      let #(overwrite_funcs, new_funcs) =
         acc.funcs
+        |> list.partition(fn(f) {
+          f.overwrite && { extant_func_names |> dict.has_key(f.def.definition.name) }
+        })
+
+      let new_func_srcs =
+        new_funcs
         |> list.filter(fn(f) {
           case f.overwrite {
             True -> True
@@ -856,11 +864,22 @@ fn process_acc(
         })
 
       let src =
+        acc.src
+        |> list.fold(overwrite_funcs, _, fn(src, func) {
+          src
+          |> common.replace_function(
+            func_name: func.def.definition.name,
+            func_src: func.def |> common.func_str,
+          )
+        })
+        |> string.trim
+
+      let src =
         [
-          [acc.src |> string.trim],
+          [src],
           [""], // empty new line after src, before gen'd
           type_srcs,
-          func_srcs,
+          new_func_srcs,
         ]
         |> list.flatten
         |> string.join("\n")
