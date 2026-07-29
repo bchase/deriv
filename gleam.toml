@@ -27,7 +27,8 @@ radiate = ">= 1.0.0 and < 2.0.0"
 gleam_erlang = ">= 1.3.0 and < 2.0.0"
 gleam_otp = ">= 1.2.0 and < 2.0.0"
 filespy = ">= 0.7.0 and < 1.0.0"
-nibble = ">= 1.1.4 and < 2.0.0"
+# nibble = ">= 1.1.4 and < 2.0.0"
+nibble = { git = "git@github.com:bchase/nibble.git", ref = "main" }
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"
