@@ -60,10 +60,20 @@ pub fn add_expr_gen_funcs(
           [] ->
             Error(Nil)
 
-          _ -> Ok(#(
-            file.path.full |> string.join("/"),
-            funcs |> list.map(fn(func) { func.definition.name }),
-          ))
+          _ -> {
+            let funcs =
+              funcs
+              |> list.filter(fn(func) {
+                list.is_empty(func.definition.parameters)
+              })
+              |> list.map(fn(func) { func.definition.name })
+
+            use <- bool.guard(list.is_empty(funcs), Error(Nil))
+
+            let mod = file.path.full |> string.join("/")
+
+            Ok(#(mod, funcs))
+          }
         }
       }
     }
