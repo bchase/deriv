@@ -12,7 +12,7 @@ import gleam/regexp
 import simplifile
 import shellout
 import tom
-import deriv/internal/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
+import deriv/internal/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader, Type, Context} as deriv
 import deriv/internal/parser
 import deriv/internal/derivs/json as deriv_json
 import deriv/internal/derivs/from_into as deriv_from_into
@@ -22,42 +22,53 @@ import deriv/internal/derivs/form as deriv_form
 import deriv/internal/derivs/functor as deriv_functor
 import deriv/internal/common
 import deriv/gen/types.{type ExprGen} as x
-import deriv/internal/derivs/zero
 import gleam/io
 import argv
 import glint
 
-pub fn zero() -> ExprGen {
+pub fn json() -> ExprGen { wrap_legacy(name: "json", gen: deriv_json.gen) }
+pub fn from() -> ExprGen { wrap_legacy(name: "from", gen: deriv_from_into.gen_from) }
+pub fn into() -> ExprGen { wrap_legacy(name: "into", gen: deriv_from_into.gen_into) }
+pub fn enum() -> ExprGen { wrap_legacy(name: "enum", gen: deriv_enum.gen) }
+pub fn zero() -> ExprGen { wrap_legacy(name: "zero", gen: deriv_zero.gen) }
+pub fn form() -> ExprGen { wrap_legacy(name: "form", gen: deriv_form.gen) }
+pub fn functor() -> ExprGen { wrap_legacy(name: "functor", gen: deriv_functor.gen) }
+pub fn wrap_legacy(
+  name name: String,
+  gen gen: fn(deriv.Type, deriv.Context) -> Gen,
+) -> ExprGen {
   x.CustomTypeDeriveExprGen(gens: [{
     use type_ <- x.custom_type()
     use opts <- x.field_opts()
+    use args <- x.args()
 
-    let imports = zero.gen_imports(type_) |> list.map(glance.Definition([], _))
-    let func = zero.zero_func(type_, opts)
+    let assert Ok(ws_re) = "\\s+" |> regexp.from_string
+    let deriv = deriv.Derivation(name:, opts: args.raw |> regexp.split(ws_re, _))
 
-    use <- x.ensure_imports(imports)
-    use <- x.ensure_func(func)
+    use file <- x.file()
+    let file = read_file(file.filepath, -1)
+    let ctx = Context(deriv:, opts:, file:, module_reader: common.fetch_module)
+    // let Gen(imports:, consts:, types:, funcs:, ..) = gen(Type(type_), ctx)
+    let Gen(imports:, consts:, types:, funcs:, ..) = gen(Type(type_), ctx)
+
+    use <- x.ensure_imports(imports |> list.map(glance.Definition([], _)))
+    use _overwrite_funcs <- x.sequence(
+      funcs
+      |> list.map(fn(func) {
+        use <- x.overwrite_func(func)
+        x.success(Nil)
+      })
+    )
+    use _overwrite_types <- x.sequence(
+      types
+      |> list.map(fn(type_) {
+        use <- x.overwrite_custom_type(type_)
+        x.success(Nil)
+      })
+    )
 
     x.success(Nil)
   }])
-}
-
-fn zero_for(
-  type_ type_: glance.Type,
-  ctx ctx: a,
-) -> glance.Expression {
-  case type_ {
-    glance.NamedType(name:, module:, parameters:, ..) -> todo
-
-    glance.TupleType(elements:, ..) -> todo
-
-    glance.FunctionType(..) |
-    glance.VariableType(..) |
-    glance.HoleType(..) -> panic as {
-      "unable to derive zero for: " <> string.inspect(type_) <> "\n" <>
-      string.inspect(ctx)
-    }
-  }
 }
 
 const all_type_gen_funcs: List(#(String, GenFunc)) =

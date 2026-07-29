@@ -205,6 +205,7 @@ pub opaque type GenWrite {
   GenWrite(
     fields: Set(String), // NOTE: fields acc, used to detect need for `with_spread`
     imports: List(g.Definition(g.Import)),
+    consts: List(Generated(g.Constant)),
     types: List(Generated(g.CustomType)),
     funcs: List(Generated(g.Function)),
   )
@@ -253,6 +254,9 @@ fn set_fields(x: GenWrite, fields) { GenWrite(..x, fields:)}
 const lens_imports = lens.Lens(get: get_imports, set: set_imports)
 fn get_imports(x: GenWrite) { x.imports }
 fn set_imports(x: GenWrite, imports) { GenWrite(..x, imports:)}
+const lens_consts = lens.Lens(get: get_consts, set: set_consts)
+fn get_consts(x: GenWrite) { x.consts }
+fn set_consts(x: GenWrite, consts) { GenWrite(..x, consts:)}
 const lens_types = lens.Lens(get: get_types, set: set_types)
 fn get_types(x: GenWrite) { x.types }
 fn set_types(x: GenWrite, types) { GenWrite(..x, types:)}
@@ -265,6 +269,21 @@ pub fn try(
   cont cont: fn(a) -> Gen(b, expr),
 ) -> Gen(b, expr) {
   bind(gen, cont)
+}
+
+pub fn sequence(
+  gens gens: List(Gen(a, expr)),
+  cont cont: fn(List(a)) -> Gen(b, expr)
+) -> Gen(b, expr) {
+  use xs <- bind(
+    Gen({
+      gens
+      |> list.map(fn(gen) { gen.monad })
+      |> monad.sequence
+    })
+  )
+
+  cont(xs)
 }
 
 fn bind(
@@ -349,7 +368,7 @@ pub fn run_gen(
   gen.monad
   |> monad.run_(
     read: GenRead(expr:, file:, args:, opts:, target:, get_type:),
-    write: GenWrite(fields: set.new(), imports: [], types: [], funcs: []),
+    write: GenWrite(fields: set.new(), imports: [], consts: [], types: [], funcs: []),
   )
 }
 
@@ -402,6 +421,23 @@ pub fn ensure_import(
   use <- write(def, lens_imports, list_push)
   cont()
 }
+
+pub fn ensure_const(
+  def def: g.Definition(g.Constant),
+  cont cont: fn() -> Gen(t, expr),
+) -> Gen(t, expr) {
+  use <- write(def, lens_consts, fn(defs, def) { list_push(defs, Generated(def:, overwrite: False)) })
+  cont()
+}
+
+pub fn overwrite_const(
+  def def: g.Definition(g.Constant),
+  cont cont: fn() -> Gen(t, expr),
+) -> Gen(t, expr) {
+  use <- write(def, lens_consts, fn(defs, def) { list_push(defs, Generated(def:, overwrite: True)) })
+  cont()
+}
+
 
 pub fn ensure_custom_type(
   def def: g.Definition(g.CustomType),
@@ -593,7 +629,7 @@ pub fn run_variant_expr_(
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
 ) -> Result(#(g.Clause, List(Generated(g.Function))), String) {
 
-  let #(result, GenWrite(fields:, imports: _, types: _, funcs:)) =
+  let #(result, GenWrite(fields:, imports: _, consts: _, types: _, funcs:)) =
     run_gen(gen, variant, file, args, opts, mf, get_type)
 
   result
@@ -614,6 +650,20 @@ pub fn success(val: t) -> Gen(t, expr) {
 
 pub fn failure(msg: String) -> Gen(t, expr) {
   fail(msg)
+}
+
+pub fn file(
+  cont cont: fn(GleamFile) -> Gen(t, expr),
+) -> Gen(t, expr) {
+  use file <- read(lens_file)
+  cont(file)
+}
+
+pub fn args(
+  cont cont: fn(Args) -> Gen(t, expr),
+) -> Gen(t, expr) {
+  use args <- read(lens_args)
+  cont(args)
 }
 
 pub fn field_opts(

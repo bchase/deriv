@@ -18,7 +18,7 @@ import deriv/internal/common.{gtype}
 
 const deriv_variant_json_key = "_var"
 
-type Context {
+pub type Context {
   Context(
     deriv: Derivation,
     derivs: List(Derivation),
@@ -464,7 +464,7 @@ fn gen_json_encoders(
   }
 }
 
-fn gen_imports(
+pub fn gen_imports(
   type_: deriv.Type,
   ctx: Context,
 ) -> List(g.Import) {
@@ -584,7 +584,7 @@ fn encode_imports(
 
 //
 
-type Type {
+pub type Type {
   Type(
     publicity: g.Publicity,
     type_: g.Type,
@@ -595,7 +595,7 @@ type Type {
   )
 }
 
-type Variant {
+pub type Variant {
   Variant(
     pascal_case: String,
     snake_case: String,
@@ -603,7 +603,7 @@ type Variant {
   )
 }
 
-type Field {
+pub type Field {
   Field(
     gleam: String,
     json: List(String),
@@ -613,7 +613,7 @@ type Field {
   )
 }
 
-type T {
+pub type T {
   T(
     name: String,
     params: List(T),

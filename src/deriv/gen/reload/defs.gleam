@@ -16,6 +16,12 @@ import gleam/dict.{type Dict}
 
 pub fn expr_gens() -> Dict(#(String, String), ExprGen) {
   [
+    #(#("deriv", "enum"), deriv.enum()),
+    #(#("deriv", "form"), deriv.form()),
+    #(#("deriv", "from"), deriv.from()),
+    #(#("deriv", "functor"), deriv.functor()),
+    #(#("deriv", "into"), deriv.into()),
+    #(#("deriv", "json"), deriv.json()),
     #(#("deriv", "zero"), deriv.zero()),
     #(
       #("deriv/internal/dummy/api", "handle_case"),
