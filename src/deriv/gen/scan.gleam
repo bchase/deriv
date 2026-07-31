@@ -14,7 +14,7 @@ import gleam/dict.{type Dict}
 import gleam/list
 import shellout
 import glance as g
-import deriv/gen/types.{type GleamPath, type GleamFile, relative_code_gen_defs_path}
+import deriv/gen/types.{type GleamPath, type GleamFile}
 import deriv/internal/gen
 import deriv/internal/glance.{z, call, dot, pipe} as _
 
@@ -183,12 +183,21 @@ pub fn gen_defs_gleam_file(
   }
 }
 
+pub fn relative_code_gen_defs_path(
+  dir_path dir_path: String,
+) -> String {
+  dir_path <> "defs.gleam"
+}
+
 pub fn write_expr_gens_to_gleam_file(
   expr_gen_funcs expr_gen_funcs,
+  dir_path dir_path: String,
 ) -> Nil {
   let src = gen_defs_gleam_file(expr_gen_funcs:)
 
-  let _ = simplifile.write(relative_code_gen_defs_path(), [
+  let filepath = relative_code_gen_defs_path(dir_path:)
+
+  let _ = simplifile.write(filepath, [
     "//",
     "//  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
     "//  !!!                                                          !!!",

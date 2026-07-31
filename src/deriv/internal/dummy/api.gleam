@@ -122,7 +122,7 @@ pub type Distance {
 pub type Req = Api
 pub type Api {
   GetTemp(f: F(City, Temp))
-  // GetAltitude(f: F(City, Distance))
+  GetAltitude(f: F(City, Distance))
 }
 
 pub fn handle(
@@ -131,6 +131,10 @@ pub fn handle(
   { //$ deriv/internal/dummy/api.handle_case subject:req
     case req {
       GetTemp(f:) -> handle_get_temp |> resp_func(f:, encode: encode_temp)
+      GetAltitude(f:) -> handle_get_altitude |> resp_func(
+        f:,
+        encode: encode_distance,
+      )
     }
   }
 }

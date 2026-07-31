@@ -25,8 +25,8 @@ import gleam/crypto
 import filespy
 import gleam/bit_array as ba
 import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
-import deriv/gen/scan
-import deriv/gen/types.{relative_hot_code_reload_dir_path, relative_code_gen_defs_path} as _
+import deriv/gen/scan.{relative_code_gen_defs_path}
+import deriv/gen/types.{relative_hot_code_reload_dir_path} as _
 import deriv/gen/reload/defs
 
 pub fn main() -> Nil {
@@ -45,6 +45,7 @@ fn cmd() -> glint.Command(Nil) {
   let assert Ok(_) = supervisor.start(supervisor(
     names: cfg.names,
     load_gens: defs.expr_gens,
+    write_dir: ["deriv", "gen", "reload"],
   ))
 
   process.sleep_forever()
@@ -81,13 +82,30 @@ pub fn build_config() -> Config {
 pub fn supervisor(
   names names: Names,
   load_gens load_gens: fn() -> Dict(#(String, String), ExprGen),
+  write_dir write_dir: List(String),
 ) -> supervisor.Builder {
+  let dir_path = ["src", ..write_dir] |> string.join("/")
+
+  let dir_path =
+    case string.ends_with(dir_path, "/") {
+      True -> dir_path
+      False -> dir_path <> "/"
+    }
+
+  let assert Ok(True) = simplifile.is_directory(dir_path)
+    as { "Directory must exist for `deriv` to control at: " <> dir_path <> "\n" <>
+       "  as specified by `write_dir`: " <> string.inspect(write_dir)
+    }
+
   supervisor.new(supervisor.OneForOne)
   |> supervisor.add(file_change_watching_worker(notify: names.app))
-  |> supervisor.add(worker(gens_actor(name: names.gens, cfg: GensConfig(load_gens:))))
+  |> supervisor.add(worker(gens_actor(name: names.gens, cfg: GensConfig(load_gens:, dir_path:))))
   |> supervisor.add(worker(lookup_actor(name: names.lookup)))
   |> supervisor.add(worker(refs_actor(name: names.refs)))
-  |> supervisor.add(hot_code_reloading_worker(notify: names.app, gens: names.gens))
+  |> supervisor.add(hot_code_reloading_worker(cfg: HotCodeReloadingConfig(
+    gens: names.gens,
+    dir_path:,
+  )))
   |> supervisor.add(worker(app_actor(name: names.app, cfg: AppConfig(
     gens: names.gens,
     lookup: names.lookup,
@@ -207,10 +225,7 @@ fn update(
         Error(Nil)
       })
 
-      // let actor: process.Subject(ExprGensMsg) = todo
-      // // let #(module, func) = #("foo/bar", "baz")
       let fetch = fn(mod_func: #(String, String)) -> Result(ExprGen, Nil) {
-        // let self: process.Subject(ExprGen) = process.new_subject()
         let #(module, func) = mod_func
         let self = process.new_subject()
 
@@ -218,9 +233,9 @@ fn update(
         |> process.named_subject
         |> process.send(GensFetch(module:, func:, reply: self))
 
-        process.receive(self, expr_gen_lookup_timeout_ms)
+        self
+        |> process.receive(expr_gen_lookup_timeout_ms)
         |> result.flatten
-        // |> result.map_error(fn(_) { Error(GenExprGenLookupTimedOut(module:, func:, timeout_ms:)) })
       }
 
       use #(new, refs) <- try_fail_(gen.process(ctx:, fetch:), fn(err) {
@@ -293,7 +308,7 @@ fn update(
 
 pub opaque type GensMsg {
   GensNoOp
-  GensPostInit
+  GensRefresh
   GensUpdateDirs(dirs: List(String))
   GensUpdateFile(path: String)
   GensFetch(module: String, func: String, reply: Subject(Result(ExprGen, Nil)))
@@ -302,6 +317,7 @@ pub opaque type GensMsg {
 type GensConfig {
   GensConfig(
     load_gens: fn() -> Dict(#(String, String), ExprGen),
+    dir_path: String,
   )
 }
 
@@ -310,6 +326,7 @@ type GensState {
     cfg: GensConfig,
     self: Subject(GensMsg),
     gen_funcs: scan.ExprGenFuncs,
+    gens: Dict(#(String, String), ExprGen),
     load_gens: fn() -> Dict(#(String, String), ExprGen),
   )
 }
@@ -326,12 +343,13 @@ fn gens_init(
   cfg: GensConfig,
   self: Subject(GensMsg),
 ) -> GensState {
-  process.send(self, GensPostInit)
+  process.send(self, GensRefresh)
 
   GensState(
     cfg:,
     self:,
     gen_funcs: scan.empty_expr_gen_funcs(),
+    gens: dict.new(),
     load_gens: cfg.load_gens,
   )
 }
@@ -344,14 +362,16 @@ fn gens_update(
     GensNoOp ->
       actor.continue(state)
 
-    GensPostInit -> {
-      actor.continue(state)
+    GensRefresh -> {
+      actor.continue(GensState(..state, gens: state.load_gens()))
     }
 
     GensUpdateFile(path:) -> {
       let gen_funcs = scan.add_expr_gen_funcs(filepaths: [path], expr_gen_funcs: state.gen_funcs)
 
-      scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gen_funcs)
+      scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gen_funcs, dir_path: state.cfg.dir_path)
+
+      process.send(state.self, GensRefresh)
 
       Ok(actor.continue(GensState(..state, gen_funcs:)))
     }
@@ -372,13 +392,19 @@ fn gens_update(
 
       let gen_funcs = scan.add_expr_gen_funcs(filepaths:, expr_gen_funcs: state.gen_funcs)
 
-      scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gen_funcs)
+      scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gen_funcs, dir_path: state.cfg.dir_path)
+
+      process.send(state.self, GensRefresh)
 
       Ok(actor.continue(GensState(..state, gen_funcs:)))
     }
     |> result.unwrap(actor.continue(state))
 
     GensFetch(module:, func:, reply:) -> {
+      state.gens
+      |> dict.get(#(module, func))
+      |> process.send(reply, _)
+
       actor.continue(state)
     }
   }
@@ -503,14 +529,20 @@ fn file_change_watching_worker(
 
 // HOT CODE RELOADING ACTOR
 
+type HotCodeReloadingConfig {
+  HotCodeReloadingConfig(
+    gens: process.Name(GensMsg),
+    dir_path: String,
+  )
+}
+
 fn hot_code_reloading_worker(
-  notify notify: process.Name(Msg),
-  gens gens: process.Name(GensMsg),
+  cfg cfg: HotCodeReloadingConfig,
 ) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
   supervision.worker(fn() {
     radiate.new()
     |> radiate.set_initializer(fn(self) {
-      gens
+      cfg.gens
       |> process.named_subject
       |> process.send(GensUpdateDirs(dirs: watched_dirs()))
       // TODO tk on gens init
@@ -523,9 +555,12 @@ fn hot_code_reloading_worker(
     |> radiate.add_dir(relative_hot_code_reload_dir_path())
     |> radiate.on_reload(fn(state, path) {
       {
-        use <- bool.guard(path |> string.ends_with(relative_code_gen_defs_path()), Nil)
+        let relative_code_gen_defs_path =
+          relative_code_gen_defs_path(dir_path: cfg.dir_path)
 
-        gens
+        use <- bool.guard(path |> string.ends_with(relative_code_gen_defs_path), Nil)
+
+        cfg.gens
         |> process.named_subject
         |> process.send(GensUpdateFile(path:))
       }
