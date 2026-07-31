@@ -29,27 +29,22 @@ import deriv/gen/scan.{relative_code_gen_defs_path}
 import deriv/gen/types as _
 import deriv/gen/reload/defs
 
-pub fn main() -> Nil {
-  glint.new()
-  |> glint.with_name("gleam run -m deriv --")
-  |> glint.add(at: [], do: cmd())
-  |> glint.run(argv.load().arguments)
-}
+// pub fn main() -> Nil {
+//   glint.new()
+//   |> glint.with_name("gleam run -m deriv --")
+//   |> glint.add(at: [], do: cmd())
+//   |> glint.run(argv.load().arguments)
+// }
 
-fn cmd() -> glint.Command(Nil) {
-  use <- glint.command_help("Run `deriv` code gen watcher")
-
-  use _named, _args, _flags <- glint.command()
-
-  let cfg = build_config()
-  let assert Ok(_) = supervisor.start(supervisor(
-    names: cfg.names,
-    load_gens: defs.expr_gens,
-    write_dir: ["deriv", "gen", "reload"],
-  ))
-
-  process.sleep_forever()
-}
+// fn cmd() -> glint.Command(Nil) {
+//   use <- glint.command_help("Run `deriv` code gen watcher")
+//   use _named, _args, _flags <- glint.command()
+//   let assert Ok(_) = supervisor.start(supervisor(
+//     load_gens: defs.expr_gens,
+//     write_dir: ["deriv", "gen", "reload"],
+//   ))
+//   process.sleep_forever()
+// }
 
 //
 
@@ -80,6 +75,15 @@ pub fn build_config() -> Config {
 }
 
 pub fn supervisor(
+  load_gens load_gens: fn() -> Dict(#(String, String), ExprGen),
+  write_dir write_dir: List(String),
+) -> supervisor.Builder {
+  let Config(names:) = build_config()
+  supervisor_(names:, load_gens:, write_dir:)
+}
+
+@internal
+pub fn supervisor_(
   names names: Names,
   load_gens load_gens: fn() -> Dict(#(String, String), ExprGen),
   write_dir write_dir: List(String),
