@@ -33,6 +33,7 @@ import bchase/list.{push as list_push} as _
 import deriv/gen/reload/defs
 import bchase/monad/read_write_result.{type ReadWriteResult} as monad
 import bchase/option.{guard as some} as _
+import gleam/erlang/process
 
 // magic comments
 //   conv
@@ -138,6 +139,8 @@ pub type GenErr {
   GenAllFailedToMatch(expr_gen: #(GleamPath, String), errs: List(String), detail: Dynamic)
   //
   GenExprWiredWithWrongArg(expr_gen: ExprGen, def: Def)
+  //
+  GenExprGenLookupTimedOut(module: String, func: String, timeout_ms: Int)
   //
   Failed(msg: String)
 }
@@ -710,8 +713,13 @@ fn gen_for_types(
 
 }
 
+type ExprGensMsg {
+  ExprGenFor(gen: #(String, String), reply: process.Subject(ExprGen))
+}
+
 pub fn process(
   ctx ctx: Context,
+  fetch fetch: fn(#(String, String)) -> Result(ExprGen, Nil),
 ) -> Result(#(String, List(Ref)), Result(Skip, GenErr)) {
   let src = ctx.file.src
 
@@ -733,9 +741,7 @@ pub fn process(
 
   let lookups = Lookups(
     get_type: fn(mod, t) { get_custom_type(mod, t, ctx) |> result.replace_error(Nil) },
-    // NOTE: close over `defs.expr_gens()` here to get fresh code reload
-    fetch: dict.get(defs.expr_gens(), _),
-    // NOTE: close over `defs.expr_gens()` here to get fresh code reload
+    fetch:,
   )
 
   let fgs =

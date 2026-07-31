@@ -1,4 +1,4 @@
-import deriv/gen/types.{type GleamToml, type Context, Context, type Pwd}
+import deriv/gen/types.{type GleamToml, type Context, Context, type Pwd, type ExprGen}
 import shellout
 import argv
 import glint
@@ -27,6 +27,7 @@ import gleam/bit_array as ba
 import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
 import deriv/gen/scan
 import deriv/gen/types.{relative_hot_code_reload_dir_path, relative_code_gen_defs_path} as _
+import deriv/gen/reload/defs
 
 pub fn main() -> Nil {
   glint.new()
@@ -41,7 +42,10 @@ fn cmd() -> glint.Command(Nil) {
   use _named, _args, _flags <- glint.command()
 
   let cfg = build_config()
-  let assert Ok(_) = supervisor.start(supervisor(names: cfg.names))
+  let assert Ok(_) = supervisor.start(supervisor(
+    names: cfg.names,
+    load_gens: defs.expr_gens,
+  ))
 
   process.sleep_forever()
 }
@@ -76,14 +80,16 @@ pub fn build_config() -> Config {
 
 pub fn supervisor(
   names names: Names,
+  load_gens load_gens: fn() -> Dict(#(String, String), ExprGen),
 ) -> supervisor.Builder {
   supervisor.new(supervisor.OneForOne)
   |> supervisor.add(file_change_watching_worker(notify: names.app))
-  |> supervisor.add(worker(gens_actor(name: names.gens)))
+  |> supervisor.add(worker(gens_actor(name: names.gens, cfg: GensConfig(load_gens:))))
   |> supervisor.add(worker(lookup_actor(name: names.lookup)))
   |> supervisor.add(worker(refs_actor(name: names.refs)))
   |> supervisor.add(hot_code_reloading_worker(notify: names.app, gens: names.gens))
   |> supervisor.add(worker(app_actor(name: names.app, cfg: AppConfig(
+    gens: names.gens,
     lookup: names.lookup,
     refs: names.refs,
   ))))
@@ -109,6 +115,7 @@ type State {
 
 type AppConfig {
   AppConfig(
+    gens: process.Name(GensMsg),
     lookup: process.Name(LookupMsg),
     refs: process.Name(RefsMsg),
   )
@@ -180,7 +187,7 @@ fn update(
 
       use <- bool.guard({ state.hashes |> dict.get(path) } == Ok(hash), noop)
 
-      process.send_after(self, 1000, ProcessQueue)
+      process.send_after(self, queue_process_delay_ms, ProcessQueue)
 
       Ok(actor.continue(State(..state,
         queue: state.queue |> set.insert(path),
@@ -200,7 +207,23 @@ fn update(
         Error(Nil)
       })
 
-      use #(new, refs) <- try_fail_(gen.process(ctx:), fn(err) {
+      // let actor: process.Subject(ExprGensMsg) = todo
+      // // let #(module, func) = #("foo/bar", "baz")
+      let fetch = fn(mod_func: #(String, String)) -> Result(ExprGen, Nil) {
+        // let self: process.Subject(ExprGen) = process.new_subject()
+        let #(module, func) = mod_func
+        let self = process.new_subject()
+
+        state.cfg.gens
+        |> process.named_subject
+        |> process.send(GensFetch(module:, func:, reply: self))
+
+        process.receive(self, expr_gen_lookup_timeout_ms)
+        |> result.flatten
+        // |> result.map_error(fn(_) { Error(GenExprGenLookupTimedOut(module:, func:, timeout_ms:)) })
+      }
+
+      use #(new, refs) <- try_fail_(gen.process(ctx:, fetch:), fn(err) {
         case err {
           Ok(gen.Skip) ->
             Nil
@@ -273,10 +296,12 @@ pub opaque type GensMsg {
   GensPostInit
   GensUpdateDirs(dirs: List(String))
   GensUpdateFile(path: String)
+  GensFetch(module: String, func: String, reply: Subject(Result(ExprGen, Nil)))
 }
 
 type GensConfig {
   GensConfig(
+    load_gens: fn() -> Dict(#(String, String), ExprGen),
   )
 }
 
@@ -284,14 +309,15 @@ type GensState {
   GensState(
     cfg: GensConfig,
     self: Subject(GensMsg),
-    gens: scan.ExprGenFuncs,
+    gen_funcs: scan.ExprGenFuncs,
+    load_gens: fn() -> Dict(#(String, String), ExprGen),
   )
 }
 
 fn gens_actor(
   name name: process.Name(GensMsg),
+  cfg flags: GensConfig,
 ) -> actor.Builder(GensState, GensMsg, Nil) {
-  let flags = GensConfig
   actor(init: gens_init, sel: None, update: gens_update, timeout: 100, return: always(Nil), flags:)
   |> actor.named(name)
 }
@@ -305,7 +331,8 @@ fn gens_init(
   GensState(
     cfg:,
     self:,
-    gens: scan.empty_expr_gen_funcs(),
+    gen_funcs: scan.empty_expr_gen_funcs(),
+    load_gens: cfg.load_gens,
   )
 }
 
@@ -322,11 +349,11 @@ fn gens_update(
     }
 
     GensUpdateFile(path:) -> {
-      let gens = scan.add_expr_gen_funcs(filepaths: [path], expr_gen_funcs: state.gens)
+      let gen_funcs = scan.add_expr_gen_funcs(filepaths: [path], expr_gen_funcs: state.gen_funcs)
 
-      scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gens)
+      scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gen_funcs)
 
-      Ok(actor.continue(GensState(..state, gens:)))
+      Ok(actor.continue(GensState(..state, gen_funcs:)))
     }
     |> result.unwrap(actor.continue(state))
 
@@ -343,13 +370,17 @@ fn gens_update(
         |> list.map(string.trim)
         |> list.filter(string.ends_with(_, ".gleam"))
 
-      let gens = scan.add_expr_gen_funcs(filepaths:, expr_gen_funcs: state.gens)
+      let gen_funcs = scan.add_expr_gen_funcs(filepaths:, expr_gen_funcs: state.gen_funcs)
 
-      scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gens)
+      scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gen_funcs)
 
-      Ok(actor.continue(GensState(..state, gens:)))
+      Ok(actor.continue(GensState(..state, gen_funcs:)))
     }
     |> result.unwrap(actor.continue(state))
+
+    GensFetch(module:, func:, reply:) -> {
+      actor.continue(state)
+    }
   }
 }
 
@@ -737,6 +768,8 @@ fn filepath(
 }
 
 const lookup_timeout_ms = 5_000
+const queue_process_delay_ms = 200
+const expr_gen_lookup_timeout_ms = 1_000
 
 // TODO mv generic
 

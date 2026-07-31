@@ -1,13 +1,12 @@
-import gleam/string
-import gleam/result
-import gleam/json.{type Json}
-import gleam/option.{type Option, Some, None}
-import gleam/time/timestamp.{type Timestamp}
-import deriv/gen/types.{type ExprGen} as x
 import bchase/casing
+import deriv/gen/types.{type ExprGen} as x
 import deriv/internal/glance.{z} as ast
-import deriv/gen/types
 import glance as g
+import gleam/json.{type Json}
+import gleam/option.{type Option, None, Some}
+import gleam/result
+import gleam/string
+import gleam/time/timestamp.{type Timestamp}
 
 pub fn handle_case() -> ExprGen {
   x.VariantClauseCaseExprGen(clauses: [{
@@ -109,16 +108,14 @@ pub type City {
 }
 
 pub type Temp {
+  //$ deriv.json encode
   Celcius(degrees: Int)
 }
 
-pub fn encode_temp(_temp: Temp) -> Json { todo }
-
 pub type Distance {
+  //$ deriv.json encode
   Meters(meters: Float)
 }
-
-pub fn encode_distance(_distance: Distance) -> Json { todo }
 
 //
 
@@ -140,4 +137,20 @@ pub fn handle(
 
 fn handle_get_temp(req: City) -> Result(Temp, Err) {
   todo
+}
+
+fn handle_get_altitude(req: City) -> Result(Distance, Err) {
+  todo
+}
+
+pub fn encode_distance(value: Distance) -> Json {
+  case value {
+    Meters(..) as value -> json.object([#("meters", json.float(value.meters))])
+  }
+}
+
+pub fn encode_temp(value: Temp) -> Json {
+  case value {
+    Celcius(..) as value -> json.object([#("degrees", json.int(value.degrees))])
+  }
 }
