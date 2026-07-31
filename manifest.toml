@@ -37,7 +37,7 @@ packages = [
 ]
 
 [requirements]
-argv = { version = ">= 1.1.0 and < 2.0.0" }
+argv = { version = ">= 1.0.0 and < 2.0.0" }
 bchase = { git = "https://github.com/bchase/gleam-bchase", ref = "master" }
 birl = { version = ">= 1.8.0 and < 2.0.0" }
 filespy = { version = ">= 0.7.0 and < 1.0.0" }

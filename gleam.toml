@@ -15,7 +15,7 @@ tom = ">= 2.0.0 and < 3.0.0"
 # glance_printer = ">= 2.0.0 and < 3.0.0"
 glance_printer = { git = "git@github.com:bchase/glance_printer.git", ref = "dev" }
 birl = ">= 1.8.0 and < 2.0.0"
-argv = ">= 1.1.0 and < 2.0.0"
+argv = ">= 1.0.0 and < 2.0.0"
 formal = ">= 3.0.0 and < 4.0.0"
 gleam_time = ">= 1.4.0 and < 2.0.0"
 lustre = ">= 5.3.5 and < 6.0.0"
