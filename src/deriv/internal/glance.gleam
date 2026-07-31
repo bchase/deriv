@@ -1,3 +1,5 @@
+import glance_printer
+import gleam/bool
 import gleam/option.{type Option, None}
 import gleam/list
 import gleam/string
@@ -6,6 +8,7 @@ import glance as g
 // HELPERS
 
 pub const x = g.Span(-1, -1)
+pub const z = g.Span(-1, -1)
 
 pub fn string(
   str str: String,
@@ -83,6 +86,10 @@ pub fn pipe(
   g.BinaryOperator(x, name: g.Pipe, left:, right:)
 }
 
+pub fn short(field: String) -> g.Field(t) {
+  g.ShorthandField(field)
+}
+
 //
 
 pub fn named_type(
@@ -139,4 +146,48 @@ pub fn splice_out_span(
   let after = str |> string.drop_start(ignore_start)
 
   #(before, after)
+}
+
+pub fn replace(
+  span span: g.Span,
+  in src: String,
+  with new: String
+) {
+  let #(start, end) = splice_out_span(src, span)
+  string.join([ start, new, end ], "")
+}
+
+pub fn read_span(
+  src src: String,
+  span span: g.Span,
+) -> Result(String, Nil) {
+  use <- bool.guard(span.end > string.length(src), Error(Nil))
+  Ok(string.slice(src, span.start, span.end - span.start))
+}
+
+pub fn format_gleam_expr(
+  expr expr: g.Expression,
+  indent indent: Int,
+) -> String {
+  g.Module([], [], [], [], [g.Definition([], g.Function(
+    z, "main", g.Public, [], return: None, body: [g.Expression(
+      expr
+    )]
+  ))])
+  |> glance_printer.print
+  |> string.split("\n")
+  |> list.drop(1)
+  |> fn(lines) { list.take(lines, list.length(lines) - 2) }
+  |> fn(lines) {
+    case indent {
+      2 -> lines
+      0 -> lines |> list.map(string.drop_start(_, 2))
+      1 -> lines |> list.map(string.drop_start(_, 1))
+      _ -> {
+        let ws = list.repeat(" ", indent - 2) |> string.join("")
+        lines |> list.map(string.append(to: ws, suffix: _))
+      }
+    }
+  }
+  |> string.join("\n")
 }

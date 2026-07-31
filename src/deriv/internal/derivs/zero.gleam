@@ -23,7 +23,7 @@ pub fn gen(
       let imports = gen_imports(type_)
 
       let funcs =
-        zero_func(type_, ctx)
+        zero_func(type_, ctx.opts)
         |> list.wrap
 
       let src = ""
@@ -36,7 +36,7 @@ pub fn gen(
   }
 }
 
-fn gen_imports(
+pub fn gen_imports(
   type_: CustomType,
 ) -> List(Import) {
   case common.are_any_fields_options(type_) {
@@ -48,13 +48,13 @@ fn gen_imports(
   ])
 }
 
-fn zero_func(
+pub fn zero_func(
   type_: CustomType,
-  ctx: Context,
+  opts: Opts,
 ) -> Definition(Function) {
   type_.variants
   |> list.fold_until(None, fn(acc, variant) {
-    case zero_func_(variant, type_, ctx) {
+    case zero_func_(variant, type_, opts) {
       Ok(func) -> list.Stop(Some(func))
       Error(_) -> list.Continue(acc)
     }
@@ -67,12 +67,12 @@ fn zero_func(
 fn build_params_and_zero_vals(
   variant: Variant,
   type_: CustomType,
-  ctx: Context,
+  opts: Opts,
 ) -> #(List(glance.FunctionParameter), List(glance.Field(Expression))) {
   let generic = "param"
 
   variant.fields
-  |> list.map(zero_call(_, variant, type_, ctx))
+  |> list.map(zero_call(_, variant, type_, opts))
   |> list.index_map(fn(result, idx) {
     case result {
       Ok(expr) ->
@@ -100,9 +100,9 @@ fn build_params_and_zero_vals(
 fn zero_func_(
   variant: Variant,
   type_: CustomType,
-  ctx: Context,
+  opts: Opts,
 ) -> Result(Definition(Function), VariantField) {
-  let #(fn_params, field_zero_vals) = build_params_and_zero_vals(variant, type_, ctx)
+  let #(fn_params, field_zero_vals) = build_params_and_zero_vals(variant, type_, opts)
   let return_type_params = fn_params |> list.map(fn(t) { t.type_ }) |> option.values
 
   let constr_name = variant.name
@@ -137,15 +137,17 @@ fn zero_func_(
   Ok(Definition([], func))
 }
 
+type Opts = dict.Dict(deriv.DerivField, List(deriv.DerivFieldOpt))
+
 fn zero_call(
   field: VariantField,
   variant: Variant,
   type_: CustomType,
-  ctx: Context,
+  opts: Opts,
 ) -> Result(Expression, VariantField) {
   case field {
     glance.LabelledVariantField(label:, ..) -> {
-      case ctx.opts |> dict.get(deriv.DerivField(type_: type_.name, variant: variant.name, field: label)) {
+      case opts |> dict.get(deriv.DerivField(type_: type_.name, variant: variant.name, field: label)) {
         Ok([]) | Error(Nil) ->
           default_zero_call(field)
 

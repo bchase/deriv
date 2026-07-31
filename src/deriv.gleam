@@ -1,4 +1,7 @@
-import gleam/option.{Some, None}
+import bchase/casing
+import gleam/option.{Some, None, type Option}
+import deriv/internal/glance.{z, term, call} as _
+//
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/result
@@ -9,7 +12,7 @@ import gleam/regexp
 import simplifile
 import shellout
 import tom
-import deriv/internal/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader} as deriv
+import deriv/internal/types.{type File, File, type Output, Output, OutputInline, type Write, Write, type GenFunc, type Gen, Gen, type Derivation, type DerivFieldOpts, type ModuleReader, Type, Context} as deriv
 import deriv/internal/parser
 import deriv/internal/derivs/json as deriv_json
 import deriv/internal/derivs/from_into as deriv_from_into
@@ -18,9 +21,55 @@ import deriv/internal/derivs/enum as deriv_enum
 import deriv/internal/derivs/form as deriv_form
 import deriv/internal/derivs/functor as deriv_functor
 import deriv/internal/common
+import deriv/gen/types.{type ExprGen} as x
 import gleam/io
 import argv
 import glint
+
+pub fn json() -> ExprGen { wrap_legacy(name: "json", gen: deriv_json.gen) }
+pub fn from() -> ExprGen { wrap_legacy(name: "from", gen: deriv_from_into.gen_from) }
+pub fn into() -> ExprGen { wrap_legacy(name: "into", gen: deriv_from_into.gen_into) }
+pub fn enum() -> ExprGen { wrap_legacy(name: "enum", gen: deriv_enum.gen) }
+pub fn zero() -> ExprGen { wrap_legacy(name: "zero", gen: deriv_zero.gen) }
+pub fn form() -> ExprGen { wrap_legacy(name: "form", gen: deriv_form.gen) }
+pub fn functor() -> ExprGen { wrap_legacy(name: "functor", gen: deriv_functor.gen) }
+pub fn wrap_legacy(
+  name name: String,
+  gen gen: fn(deriv.Type, deriv.Context) -> Gen,
+) -> ExprGen {
+  x.CustomTypeDeriveExprGen(gens: [{
+    use type_ <- x.custom_type()
+    use opts <- x.field_opts()
+    use args <- x.args()
+
+    let assert Ok(ws_re) = "\\s+" |> regexp.from_string
+    let deriv = deriv.Derivation(name:, opts: args.raw |> regexp.split(ws_re, _))
+
+    use file <- x.file()
+    let file = read_file(file.filepath, -1)
+    let ctx = Context(deriv:, opts:, file:, module_reader: common.fetch_module)
+    // let Gen(imports:, consts:, types:, funcs:, ..) = gen(Type(type_), ctx)
+    let Gen(imports:, consts:, types:, funcs:, ..) = gen(Type(type_), ctx)
+
+    use <- x.ensure_imports(imports |> list.map(glance.Definition([], _)))
+    use _overwrite_funcs <- x.sequence(
+      funcs
+      |> list.map(fn(func) {
+        use <- x.overwrite_func(func)
+        x.success(Nil)
+      })
+    )
+    use _overwrite_types <- x.sequence(
+      types
+      |> list.map(fn(type_) {
+        use <- x.overwrite_custom_type(type_)
+        x.success(Nil)
+      })
+    )
+
+    x.success(Nil)
+  }])
+}
 
 const all_type_gen_funcs: List(#(String, GenFunc)) =
   [
@@ -321,7 +370,7 @@ pub fn build_same_file_writes(xs: List(Gen)) -> List(Write) {
       |> common.update_types(types)
       |> common.update_consts(consts)
       |> common.update_funcs(funcs)
-      |> consolidate_imports_for(all_imports)
+      |> common.consolidate_imports_for(all_imports)
       |> string.trim
 
     Write(
@@ -405,7 +454,7 @@ fn build_output_src(gens: List(Gen), output: Output) -> String {
       ]
       |> list.flatten
 
-      consolidate_imports_for(func_src, all_imports)
+      common.consolidate_imports_for(func_src, all_imports)
     }
 
     OutputInline(..) -> {
@@ -452,146 +501,7 @@ fn build_module_imports(gens: List(Gen), _output: Output) -> List(Import) {
   })
 }
 
-pub fn consolidate_imports_for(src: String, add add_imports: List(Import)) -> String {
-  let assert Ok(module) =
-    case glance.module(src) {
-      Error(err) -> {
-        common.debug(err)
-        io.println(src)
-        panic as "Failed to parse the above source with `glance.module`"
-      }
-      ok -> ok
-    }
-
-  let curr_imports =
-    module.imports
-    |> list.map(fn(d) { d.definition })
-
-  let new_imports =
-    [ curr_imports, add_imports ]
-    |> list.flatten
-    |> consolidate_imports
-    |> list.map(import_src)
-    |> string.join("\n")
-    |> string.trim
-
-  let src_without_imports =
-    src
-    |> string.split("\n")
-    |> list.reverse
-    |> list.take_while(fn(str) { !string.starts_with(str, "import") })
-    |> list.reverse
-    |> string.join("\n")
-    |> string.trim
-
-  [
-    new_imports,
-    src_without_imports,
-  ]
-  |> string.join("\n\n")
-}
-
-pub fn consolidate_imports(all_imports: List(Import)) -> List(Import) {
-  all_imports
-  |> list.group(fn(i) { i.module })
-  |> dict.to_list
-  |> list.map(fn(x) {
-    let #(module, imports) = x
-
-    let alias =
-      imports
-      |> list.map(fn(i) { i.alias })
-      |> option.values
-      |> fn(aliases) {
-        case list.unique(aliases) {
-          [] -> None
-          [alias] -> Some(alias)
-          _ -> panic as {
-            common.debug(aliases)
-            "0 or 1 aliases allowed, but for module `" <> module <> "` multiple aliases found (see above)"
-          }
-        }
-      }
-
-    let unqualified_types =
-      imports
-      |> list.flat_map(fn(i) { i.unqualified_types })
-      |> list.unique
-
-    let unqualified_values =
-      imports
-      |> list.flat_map(fn(i) { i.unqualified_values })
-      |> list.unique
-
-    Import(
-      location: common.dummy_location(),
-      module:,
-      alias:,
-      unqualified_types:,
-      unqualified_values:,
-    )
-  })
-  |> list.sort(fn(a,b) { string.compare(a.module, b.module) })
-}
-
-fn unqualified_import_str(uqi: glance.UnqualifiedImport,  is_type is_type: Bool) -> String {
-  let type_ =
-    case is_type {
-      True -> "type "
-      False -> ""
-    }
-
-  let alias =
-    case uqi.alias {
-      Some(alias) -> " as " <> alias
-      None -> ""
-    }
-
-  type_ <> uqi.name <> alias
-}
-
-fn import_src(i: Import) -> String {
-  let alias =
-    case i.alias {
-      Some(glance.Named(name)) -> "as " <> name
-      Some(glance.Discarded(name)) -> "as _" <> name
-      None -> ""
-    }
-
-  let types =
-    i.unqualified_types
-    |> list.sort(fn(a,b) { string.compare(a.name, b.name) })
-    |> list.map(unqualified_import_str(_, is_type: True))
-
-  let funcs =
-    i.unqualified_values
-    |> list.sort(fn(a,b) { string.compare(a.name, b.name) })
-    |> list.map(unqualified_import_str(_, is_type: False))
-
-  let types_and_constructors =
-    case list.append(types, funcs) {
-      [] -> ""
-      xs -> {
-        let str = string.join(xs, ", ")
-
-        ".{" <> str <> "}"
-      }
-    }
-
-  let module_with_types_and_constructors =
-    i.module <> types_and_constructors
-
-  [
-    "import",
-    module_with_types_and_constructors,
-    alias,
-  ]
-  |> list.filter(fn(str) { str != "" })
-  |> string.join(" ")
-}
-
 pub fn stop_warning() { common.debug("") }
-
 
 ///// ///// ///// ///// ///// /////
 

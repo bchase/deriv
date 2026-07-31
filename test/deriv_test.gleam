@@ -1,52 +1,365 @@
+import deriv/gen/reload/defs
+import gleam/set.{type Set}
+import bchase/result.{try_err, try_fail, try_fail_} as _
+import bchase/function.{always}
+import gleam/pair
+import gleam/result
+import gleam/regexp as re
+import glance as g
+//
+import gleam/list
 import gleam/dynamic/decode
-import gleam/json
+import gleam/json.{type Json}
 import deriv
 import deriv/internal/common
 import deriv/internal/parser
 import deriv/internal/types.{File, DerivFieldOpt, DerivField}
-import deriv/internal/glance as dg
+import deriv/internal/glance.{z} as dg
 import deriv/util
 import glance
-import gleam/dict
-import gleam/option.{Some}
+import gleam/dict.{type Dict}
+import gleam/option.{Some, type Option, None}
 import gleam/string
 import gleeunit
 import gleeunit/should
-import gleam/io
+import bchase/io.{log_err}
 import simplifile
 import examples/json_rewrite/after as json_example
+import bchase/list.{at as list_at} as _
+import deriv/internal/gen.{type Ref}
+//
+import gleam/otp/actor
+import gleam/otp/supervision
+import gleam/otp/static_supervisor as supervisor
+import gleam/erlang/process.{type Subject, type Selector}
+import filespy
+import gleam/crypto
+import gleam/bit_array as ba
+import deriv/gen/types.{type AST, type Context, Context, type TypeDef, type GleamPath, type GleamFile, GleamPath, type ExprGen, pwd} as _
+import deriv/gen/supervisor as gs
+import deriv/gen/scan
+import bchase/monad/read_write_result as monad
 
-pub fn glance_read(file_path: String) -> glance.Module {
-  let assert Ok(src) = simplifile.read(file_path)
-  let assert Ok(module) = glance.module(src)
-  module
+// init flow
+//   - create app src dir for `deriv`
+//   - copy/paste empty `fn defs.expr_gens` into `DIR/defs.gleam`
+//   - add `deriv` supervisor to app's supervision tree, pointing it at above dir & `defs`
+
+// convention
+//   - `func` takes extra, e.g. lens, mapping func
+//   - `func_` drops, e.g. whole value instead of lens into, no need to map result err
+
+// missing
+//   finish `refs` tracking
+//     - check ref tracking inits & updates correctly
+//     - force regen of all refs upon successful code gen write
+
+// polish
+//   external api (types/funcs)
+//     - review naming
+//     - def rework
+//     - change
+
+// app consumer-side
+//   expr gen
+//     server-side
+//     X - `f` type
+//       - `crud` & `sub` types
+//     client-side
+//       - decode returns
+//       - req funcs
+
+// todo
+//   make kinds-of-gen user-extensible... (e.g. things other than variant case clause)
+//   ! - wait for a few variations before trying to detect the pattern
+//     - maybe it's a  `ExprGen` variant `Custom` wrapping generic fn sig?
+//     - maybe `case_expr_with_variant_clauses` fn logic goes more generic?
+//   organize
+//     - figure out modules
+//     - rename types & funcs
+//   other gen ideas
+//     - forms...
+//     - top-level `//$ foo.reexport module:foo/bar/baz`
+//       * reexportsgen  target module consts, types, aliases, & funcs *w/ params*
+//   tests
+//     - write tests for code reloading / file changes
+//       * saved changes with new `ExprGen` (overwrite `defs.gleam`)
+//       * saved changes with `//$ gen` (overwrite src w/ gen'd code)
+
+// MAYBE
+//   improve
+//     magic comments
+//       - gen str helpers
+//         * shorthand  -- //$ gen                func foo bar
+//         * named args -- //$ gen package/module.func target:Foo:type dest:bar:function
+//           - ^ would need helpers like `use type_: #(g.Type, Result(g.CustomType), Nil) <- type_for_gen_param(name: "target")`
+//     ? - maybe type/variant/field attributes
+//       * e.g. for routes gen, `//$ app/mod.gen:route:"/api/parent/:parent_id/things"` on endpoint variant
+
+// todo
+//   - rework from hashes to file modified times?
+//     * persist last `filespy` event time (file)
+//   - ignore refs w/ modules `from == to`, also don't write to monad or send
+// fix
+// ? - adjust `gen.run` to use lookup actor instead of direct `get_custom_type` call?
+//   ? * not using `LookupState.filepaths`?
+// actors
+// X - look up`CustomType`s
+// X - watch for file changes (`filespy`)
+// \ - track magic comment references
+//     * init
+//   X * update
+//   - serve & update gen logic helpers
+//     * init
+//     * update
+//     * reply
+// \ - main
+//   X * gen & write code on file change
+//   X * track new references
+//     * ...
+
+// module gen
+//   template
+//     - module as template with... slots?
+//     - means of tagging types & case statements as points of future code gen
+
+// TODO
+//   next
+//     - handle multiple `//$ gen` in single file
+//     - allow gleam before block, e.g. `let foo = { //$ gen ...`
+//     - handle new case (not replace)
+
+//
+
+pub fn main() {
+  gleeunit.main()
 }
 
-pub fn glance_print(file_path: String) -> Nil {
-  file_path
-  |> glance_read
-  |> string.inspect
-  |> io.println
+fn log(str, x) {
+  log_(str, string.inspect(x))
 }
 
-pub fn glance_read_and_write(
-  from input: String,
-  to output: String,
-) -> Nil {
-  input
-  |> glance_read
-  |> string.inspect
-  |> simplifile.write(to: output, contents: _)
-  |> fn(r) { case r {
-    Error(err) -> {
-      panic as string.inspect(err)
+fn log_(str, s) {
+  io.println("")
+  io.println("")
+  io.println(str)
+  io.println(s)
+}
+
+pub fn type_gen_parser_test() {
+  let src = "
+import foo/bar
+
+fn foo() { True }
+
+type Foo {
+  //$ pkg/mod/gen.func foo bar:baz
+  Foo
+  Bar(
+    //$ variant k01:v1 k02:v2
+    baz: String,
+    //$ field k11:f1 k12:f2
+  )
+}
+
+const x = 1337
+  " |> string.trim
+
+  let assert Ok(module) = g.module(src)
+  let ast = gen.ast(module)
+
+  let raw_type_gen =
+    parser.RawTypeGens(
+      gens: ["pkg/mod/gen.func foo bar:baz"],
+      opts: dict.from_list([
+        #(#("Bar", None), ["variant k01:v1 k02:v2"]),
+        #(#("Bar", Some("baz")), ["field k11:f1 k12:f2"]),
+      ]),
+    )
+
+  let type_gen =
+    parser.TypeGens(
+      gens: [
+        #(
+          #(
+            GleamPath(full: ["pkg", "mod", "gen"], package: "pkg", module: "gen"),
+            "func",
+          ),
+          "foo bar:baz",
+        ),
+      ],
+      opts: dict.from_list([
+        #(#("Bar", None, "variant"), ["k01:v1 k02:v2"]),
+        #(#("Bar", Some("baz"), "field"), ["k11:f1 k12:f2"]),
+      ]),
+    )
+
+  let assert Ok(type_) = ast.custom_types |> dict.get("Foo")
+
+  let raw =
+    type_.definition
+    |> parser.parse_raw_type_gens(src:, ast:)
+
+  raw
+  |> should.be_ok
+  |> should.equal(raw_type_gen)
+
+  raw
+  |> should.be_ok
+  |> parser.from_raw(parse: fn(str) {
+    str
+    |> gen.parse_gleam_module_path
+    |> result.map_error(string.inspect)
+  })
+  |> should.equal(type_gen)
+}
+
+pub fn ref_scan_test() {
+  let src = "
+import foo/bar
+import hoge/fuka
+
+fn foo(str) {
+  { //$ foo/bar.baz other str/arg/mod pkg.func ignore str/arg.func other:named named1:arg/mod named2:arg/mod.func
+    case str {
+      _ -> Nil
     }
-
-    Ok(_) -> {
-      Nil
-    }
-  } }
+  }
 }
+
+type Foo {
+  //$ derive from foo/bar.Baz
+  //$ derive into hoge/fuka.Piyo
+  Foo(
+    bar: String,
+  )
+}
+  " |> string.trim
+
+  let modules = [
+    "pkg",
+    "foo/bar",
+    "str/arg",
+    "str/arg/mod",
+    "arg/mod",
+  ]
+  |> list.map(fn(str) {
+    let assert Ok(path) = gen.parse_gleam_module_path(str)
+    path
+  })
+
+  scan.scan_for_refs(src:, modules:)
+  |> list.map(fn(ref) {
+    #(ref.0.full |> string.join("/"), ref.1)
+  })
+  |> should.equal([
+    #("foo/bar", Some("baz")),
+    #("str/arg/mod", None),
+    #("pkg", Some("func")),
+    #("str/arg", Some("func")),
+    #("arg/mod", None),
+    #("arg/mod", Some("func")),
+    #("foo/bar", Some("Baz")),
+  ])
+}
+
+pub fn gen_named_params_test() {
+  // let str = "foo:\"123\" hoge:\"fuka \\\"piyo\\\" bar:\"baz_boo\""
+  let str = "foo:\"123\" hoge:\"fuka piyo\"  bar:\"baz_boo\" ident:pkg/mod/sub.func"
+
+  dict.from_list([
+    #("foo", "123"),
+    // #("hoge", "\"fuka \\\"piyo\\\""),
+    #("hoge", "fuka piyo"),
+    #("bar", "baz_boo"),
+    #("ident", "pkg/mod/sub.func"),
+  ])
+  |> should.equal(parser.parse_named_params(str), _)
+}
+
+fn context_for(
+  filepath filepath: String,
+) -> Context {
+  let assert Ok(pwd) = pwd()
+  let assert Ok(toml) = gen.gleam_toml()
+  let assert Ok(file) = gen.load_gleam_file(filepath)
+  Context(pwd:, toml:, file:)
+}
+
+
+fn fetch(mod_func: #(String, String)) -> Result(ExprGen, Nil) {
+  dict.get(defs.expr_gens(), mod_func)
+}
+
+pub fn gen_derive_zero_test() {
+  let before = "test/examples/gen_derive_zero/before.gleam"
+  let after = "test/examples/gen_derive_zero/after.gleam"
+
+  let ctx = context_for(filepath: before)
+
+  let assert Ok(expected) = simplifile.read(after)
+  let expected = string.trim(expected)
+
+  let generated = gen.process(ctx:, fetch:)
+
+  generated
+  |> should.be_ok
+  |> pair.first
+  |> should.equal(expected)
+}
+
+pub fn gen_test() {
+  let ctx = context_for(filepath: "src/deriv/internal/dummy/gen/before.gleam")
+
+  let assert Ok(#(output, _refs)) = gen.process(ctx:, fetch:)
+
+  let assert Ok(after) = simplifile.read("src/deriv/internal/dummy/gen/after.gleam")
+
+  log_("AFTER", after)
+  log_("OUTPUT", output)
+
+  let output = string.trim(output)
+  let after = string.trim(after)
+
+  output
+  |> should.equal(after)
+
+  Nil
+}
+
+pub fn custom_type_lookup_test() {
+  let cfg = gs.build_config()
+  let assert Ok(_) =
+    supervisor.start(gs.supervisor_(names: cfg.names, load_gens: defs.expr_gens, write_dir: [
+      "deriv", "gen", "reload",
+    ]))
+
+  // process.sleep_forever()
+
+  let assert Ok(file) = gen.load_gleam_file( "src/deriv/internal/dummy/lookup.gleam")
+
+  // echo modules_affected_by_change_to(file:, x: X(refs: dict.new())) |> pair.second
+
+  [
+    // curr package
+    gs.look_up_type(cfg.names.lookup, file:, mod: None, name: "Local"),
+    gs.look_up_type(cfg.names.lookup, file:, mod: None, name: "LocalAlias"),
+    gs.look_up_type(cfg.names.lookup, file:, mod: None, name: "OtherImport"),
+    gs.look_up_type(cfg.names.lookup, file:, mod: Some("lookup_other"), name: "Other"),
+    gs.look_up_type(cfg.names.lookup, file:, mod: Some("oo"), name: "OtherOther"),
+    // dep
+    gs.look_up_type(cfg.names.lookup, file:, mod: Some("glance"), name: "Span"),
+    // dep at path
+    gs.look_up_type(cfg.names.lookup, file:, mod: Some("id"), name: "Id"),
+    // dep package name doesn't match module name
+    gs.look_up_type(cfg.names.lookup, file:, mod: Some("option"), name: "Option"),
+  ]
+  |> list.each(should.be_ok)
+
+  Nil
+}
+
+// START DERIV EXAMPLE TESTS
 
 fn should_derive(
   example_dir_name example_dir_name: String,
@@ -138,25 +451,6 @@ fn example_dir_path(
 
   Example(before:, after:)
 }
-
-pub fn main() {
-  gleeunit.main()
-}
-
-pub fn splice_out_span_test() {
-  let span = glance.Span(start: 6, end: 10)
-
-  "hello world how are you"
-  |> dg.splice_out_span(span)
-  |> should.equal(#("hello ", " how are you"))
-}
-
-pub fn deriv_decode_failure_test() {
-  json.parse("", util.decode_failure("Nil"))
-  |> should.be_error
-}
-
-// START DERIV EXAMPLE TESTS
 
 // TEST DERIV JSON REWRITE
 pub fn json_rewrite_test() {
@@ -522,6 +816,20 @@ fn foo(str: String) -> String {
   |> string.trim
   |> should.equal(expected)
 }
+
+pub fn splice_out_span_test() {
+  let span = glance.Span(start: 6, end: 10)
+
+  "hello world how are you"
+  |> dg.splice_out_span(span)
+  |> should.equal(#("hello ", " how are you"))
+}
+
+pub fn deriv_decode_failure_test() {
+  json.parse("", util.decode_failure("Nil"))
+  |> should.be_error
+}
+
 
 // // test broken by glance 5.0.0 `Span` addition...
 // pub fn consolidate_imports_test() {

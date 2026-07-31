@@ -796,3 +796,141 @@ pub fn starts_with_uppercase(str: String) -> Bool {
   |> result.map(fn(ch) { ch == string.uppercase(ch) })
   |> result.unwrap(False)
 }
+
+pub fn consolidate_imports_for(src: String, add add_imports: List(glance.Import)) -> String {
+  let assert Ok(module) =
+    case glance.module(src) {
+      Error(err) -> {
+        debug(err)
+        io.println(src)
+        panic as "Failed to parse the above source with `glance.module`"
+      }
+      ok -> ok
+    }
+
+  let curr_imports =
+    module.imports
+    |> list.map(fn(d) { d.definition })
+
+  let new_imports =
+    [ curr_imports, add_imports ]
+    |> list.flatten
+    |> consolidate_imports
+    |> list.map(import_src)
+    |> string.join("\n")
+    |> string.trim
+
+  let src_without_imports =
+    src
+    |> string.split("\n")
+    |> list.reverse
+    |> list.take_while(fn(str) { !string.starts_with(str, "import") })
+    |> list.reverse
+    |> string.join("\n")
+    |> string.trim
+
+  [
+    new_imports,
+    src_without_imports,
+  ]
+  |> string.join("\n\n")
+}
+
+pub fn consolidate_imports(all_imports: List(glance.Import)) -> List(glance.Import) {
+  all_imports
+  |> list.group(fn(i) { i.module })
+  |> dict.to_list
+  |> list.map(fn(x) {
+    let #(module, imports) = x
+
+    let alias =
+      imports
+      |> list.map(fn(i) { i.alias })
+      |> option.values
+      |> fn(aliases) {
+        case list.unique(aliases) {
+          [] -> None
+          [alias] -> Some(alias)
+          _ -> panic as {
+            debug(aliases)
+            "0 or 1 aliases allowed, but for module `" <> module <> "` multiple aliases found (see above)"
+          }
+        }
+      }
+
+    let unqualified_types =
+      imports
+      |> list.flat_map(fn(i) { i.unqualified_types })
+      |> list.unique
+
+    let unqualified_values =
+      imports
+      |> list.flat_map(fn(i) { i.unqualified_values })
+      |> list.unique
+
+    glance.Import(
+      location: dummy_location(),
+      module:,
+      alias:,
+      unqualified_types:,
+      unqualified_values:,
+    )
+  })
+  |> list.sort(fn(a,b) { string.compare(a.module, b.module) })
+}
+
+fn import_src(i: glance.Import) -> String {
+  let alias =
+    case i.alias {
+      Some(glance.Named(name)) -> "as " <> name
+      Some(glance.Discarded(name)) -> "as _" <> name
+      None -> ""
+    }
+
+  let types =
+    i.unqualified_types
+    |> list.sort(fn(a,b) { string.compare(a.name, b.name) })
+    |> list.map(unqualified_import_str(_, is_type: True))
+
+  let funcs =
+    i.unqualified_values
+    |> list.sort(fn(a,b) { string.compare(a.name, b.name) })
+    |> list.map(unqualified_import_str(_, is_type: False))
+
+  let types_and_constructors =
+    case list.append(types, funcs) {
+      [] -> ""
+      xs -> {
+        let str = string.join(xs, ", ")
+
+        ".{" <> str <> "}"
+      }
+    }
+
+  let module_with_types_and_constructors =
+    i.module <> types_and_constructors
+
+  [
+    "import",
+    module_with_types_and_constructors,
+    alias,
+  ]
+  |> list.filter(fn(str) { str != "" })
+  |> string.join(" ")
+}
+
+fn unqualified_import_str(uqi: glance.UnqualifiedImport,  is_type is_type: Bool) -> String {
+  let type_ =
+    case is_type {
+      True -> "type "
+      False -> ""
+    }
+
+  let alias =
+    case uqi.alias {
+      Some(alias) -> " as " <> alias
+      None -> ""
+    }
+
+  type_ <> uqi.name <> alias
+}

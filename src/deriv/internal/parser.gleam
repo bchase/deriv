@@ -1,26 +1,35 @@
+import bchase/io
+import gleam/set
 import gleam/pair
 import gleam/option.{type Option, Some, None}
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/result
 import gleam/list
 import gleam/string
-import gleam/regexp.{Match}
+import gleam/regexp.{Match} as re
 import glance.{type CustomType, type TypeAlias}
 import deriv/internal/types.{type Derivation, Derivation, DerivField, type DerivFieldOpt, DerivFieldOpt, type DerivFieldOpts}
+import deriv/gen/types.{type AST, type GleamPath} as _
+import deriv/internal/glance.{z} as dg
+import nibble
+import nibble/lexer
 
 pub fn suppress_option_warnings() -> List(Option(Nil)) { [None, Some(Nil)] }
 
 pub fn parse_type_with_derivations(type_: CustomType, src: String) -> Result(#(CustomType, List(Derivation), DerivFieldOpts), Nil) {
-  let assert Ok(type_line_re) = regexp.compile("^(pub )?type\\s+?" <> type_.name <> "([(]|\\s|[{])", regexp.Options(case_insensitive: False, multi_line: True))
+  let assert Ok(type_line_re) =
+    // { "^(pub )?type\\s+?" <> type_.name <> "([(]|\\s|[{])" }
+    { "^(pub\\s+(opaque\\s+)?)?type\\s+?" <> type_.name <> "([(]|\\s|[{])" }
+    |> re.compile(re.Options(case_insensitive: False, multi_line: True))
 
-  case regexp.check(type_line_re, src) {
+  case re.check(type_line_re, src) {
     False -> Error(Nil)
     True -> {
       let lines_from_type_start_to_eof =
         src
         |> string.split("\n")
         |> list.drop_while(fn(line) {
-          !regexp.check(type_line_re, line)
+          !re.check(type_line_re, line)
         })
 
       case lines_from_type_start_to_eof {
@@ -98,16 +107,16 @@ fn type_alias_and_derivs_from(
 }
 
 pub fn parse_type_aliases_with_derivations(type_: TypeAlias, src: String) -> Result(#(TypeAlias, List(Derivation), DerivFieldOpts), Nil) {
-  let assert Ok(type_line_re) = regexp.compile("^(pub )?type\\s+?" <> type_.name <> "([(]|\\s|[=])", regexp.Options(case_insensitive: False, multi_line: True))
+  let assert Ok(type_line_re) = re.compile("^(pub )?type\\s+?" <> type_.name <> "([(]|\\s|[=])", re.Options(case_insensitive: False, multi_line: True))
 
-  case regexp.check(type_line_re, src) {
+  case re.check(type_line_re, src) {
     False -> Error(Nil)
     True -> {
       let lines_from_type_alias_start_to_eof =
         src
         |> string.split("\n")
         |> list.drop_while(fn(line) {
-          !regexp.check(type_line_re, line)
+          !re.check(type_line_re, line)
         })
 
       type_alias_and_derivs_from(lines_from_type_alias_start_to_eof)
@@ -221,32 +230,32 @@ type DerivFieldOptsAcc {
 fn parse_all_deriv_field_opts(lines: List(String)) -> DerivFieldOpts {
   let assert Ok(type_re) =
     "^\\s*(pub\\s+)?type\\s+([A-Z]\\w*)(\\s*|[(])"
-    |> regexp.from_string
+    |> re.from_string
 
   let assert Ok(variant_re) =
     "^\\s*([A-Z]\\w*)\\s*[(]?"
-    |> regexp.from_string
+    |> re.from_string
 
   let assert Ok(field_re) =
     "^\\s*([a-z]\\w*)\\s*[:]"
-    |> regexp.from_string
+    |> re.from_string
 
   lines
   |> list.fold(DerivFieldOptsAcc(Error(Nil), Error(Nil), Error(Nil), dict.new()), fn(acc, line) {
     let type_ =
-      case regexp.scan(type_re, line) {
+      case re.scan(type_re, line) {
         [Match(_txt, [_, Some(type_), ..])] -> Ok(type_)
         _ -> Error(Nil)
       }
 
     let variant =
-      case regexp.scan(variant_re, line) {
+      case re.scan(variant_re, line) {
         [Match(_txt, [Some(variant)])] -> Ok(variant)
         _ -> Error(Nil)
       }
 
     let field =
-      case regexp.scan(field_re, line) {
+      case re.scan(field_re, line) {
         [Match(_txt, [Some(field)])] -> Ok(field)
         _ -> Error(Nil)
       }
@@ -307,17 +316,279 @@ fn parse_all_deriv_field_opts(lines: List(String)) -> DerivFieldOpts {
 }
 
 fn parse_deriv_field_opts(str: String) -> List(DerivFieldOpt) {
-  let assert Ok(magic_comment_re) = regexp.from_string("\\s*[/][/][$]\\s*")
-  let assert Ok(whitespace_re) = regexp.from_string("\\s+")
+  let assert Ok(magic_comment_re) = re.from_string("\\s*[/][/][$]\\s*")
+  let assert Ok(whitespace_re) = re.from_string("\\s+")
 
-  case regexp.split(magic_comment_re, str) {
+  case re.split(magic_comment_re, str) {
     [_, magic_comment] ->
-      case regexp.split(whitespace_re, magic_comment) {
+      case re.split(whitespace_re, magic_comment) {
         [] -> []
         strs -> [DerivFieldOpt(strs:, raw: magic_comment)]
       }
 
     _ ->
       []
+  }
+}
+
+//
+
+type Token {
+  Bare(String)
+  Colon
+  Str(String)
+}
+
+fn lexer() -> lexer.Lexer(Token, Nil) {
+  lexer.simple([
+    lexer.token(":", Colon),
+
+    lexer.identifier("[a-z]", "[-_a-zA-Z0-9./]", set.new(), Bare),
+    lexer.string("\"", Str),
+
+    lexer.whitespace(Nil) |> lexer.ignore,
+  ])
+}
+
+fn parser() {
+  use key <- nibble.do(nibble.take_map("key bare", fn(t) {
+    case t {
+      Bare(key) -> Some(key)
+      _ -> None
+    }
+  }))
+
+  use _ <- nibble.do(nibble.token(Colon))
+
+  use val <- nibble.do(
+    nibble.one_of([
+      nibble.take_map("val str", fn(t) {
+        case t {
+          Str(val) -> Some(val)
+          _ -> None
+        }
+      }),
+      nibble.take_map("val bare", fn(t) {
+        case t {
+          Bare(val) -> Some(val)
+          _ -> None
+        }
+      }),
+    ])
+  )
+
+  nibble.return(#(key, val))
+}
+
+pub fn parse_named_params(
+  str str: String,
+) -> Dict(String, String) {
+  {
+    use tokens <- result.try(str |> lexer.run(lexer()) |> result.replace_error(Nil))
+    use pairs <- result.try(nibble.run(tokens, nibble.many(parser())) |> result.replace_error(Nil))
+    Ok(dict.from_list(pairs))
+  }
+  |> result.unwrap(dict.new())
+}
+
+//
+
+
+pub fn parse_type_gens(
+  type_ type_: glance.CustomType,
+  src src: String,
+  ast ast: AST,
+  parse parse: fn(String) -> Result(GleamPath, String),
+) -> Result(TypeGens, Nil) {
+  use raw <- result.try(parse_raw_type_gens(type_:, src:, ast:))
+  Ok(from_raw(raw, parse))
+}
+
+pub fn parse_raw_type_gens(
+  type_ type_: glance.CustomType,
+  src src: String,
+  ast ast: AST
+) -> Result(RawTypeGens, Nil) {
+  use glance.Definition(_, ct) <- result.try(dict.get(ast.custom_types, type_.name))
+
+  use src <- result.try(dg.read_span(src:, span: ct.location))
+
+  use rest <- result.try(src |> string.split("{") |> list.rest)
+
+  let lines =
+    rest
+    |> string.join("{")
+    |> string.split("\n")
+    |> list.map(string.trim)
+
+  Ok(parse_type_gens_(lines:))
+}
+
+pub type RawTypeGens {
+  RawTypeGens(
+    gens: List(String),
+    opts: Dict(#(String, Option(String)), List(String)),
+  )
+}
+
+pub type TypeGens {
+  TypeGens(
+    gens: List(#(#(GleamPath, String), String)),
+    opts: Dict(#(String, Option(String), String), List(String)),
+  )
+}
+
+pub fn from_raw(
+  gen gen: RawTypeGens,
+  parse parse: fn(String) -> Result(GleamPath, String),
+) -> TypeGens {
+  let gens =
+    gen.gens
+    |> list.filter_map(fn(str) {
+      let #(gen_str, rest_str) =
+        case string.split(str, " ") {
+          [] -> #(str, "")
+          [str, ..rest] -> #(str, rest |> string.join(" ") |> string.trim)
+        }
+
+      case string.split(gen_str, ".") {
+        [] | [_] | [_, _, _, ..] -> {
+          io.log_err([
+            "failed to parse type gen:",
+            string.inspect(gen),
+          ])
+          Error(Nil)
+        }
+
+        [str, func] ->
+          case parse(str) {
+            Error(err) -> {
+              io.log_err([
+                "failed to parse type gen gleam module path:",
+                err,
+              ])
+              Error(Nil)
+            }
+
+            Ok(path) -> Ok(#(#(path, func), rest_str))
+          }
+      }
+    })
+
+  let opts =
+    gen.opts
+    |> dict.to_list
+    |> list.flat_map(fn(t) {
+      let #(#(var, field), strs) = t
+
+      strs
+      |> list.map(fn(str) {
+        let #(key, val) =
+          case string.split(str, " ") {
+            [] -> #(str, "")
+            [key, ..rest] -> #(key, rest |> string.join(" "))
+          }
+
+        #(#(var, field, key), val)
+      })
+    })
+    |> list.group(pair.first)
+    |> dict.map_values(fn(_key, vals) {
+      list.map(vals, pair.second)
+    })
+
+  TypeGens(gens:, opts:)
+}
+
+type Match {
+  MagicComment
+  Variant
+  Field
+}
+
+fn parse_type_gens_(
+  lines lines: List(String),
+) -> RawTypeGens {
+  let assert Ok(magic_comment_re) =
+    "^[/][/][$]\\s*(.+)" |> re.from_string
+
+  let magic_comment = fn(str) {
+    case re.scan(magic_comment_re, str) {
+      [re.Match(_, submatches: [Some(str)])] -> Ok(#(MagicComment, str))
+      _ -> Error(Nil)
+    }
+  }
+
+  let assert Ok(variant_re) =
+    "^([A-Z][A-Za-z0-9]+)" |> re.from_string
+
+  let variant = fn(str) {
+    case re.scan(variant_re, str) {
+      [re.Match(_, submatches: [Some(str)])] -> Ok(#(Variant, str))
+      _ -> Error(Nil)
+    }
+  }
+
+  let assert Ok(field_re) =
+    "^([a-z][_a-z0-9]+)" |> re.from_string
+
+  let field = fn(str) {
+    case re.scan(field_re, str) {
+      [re.Match(_, submatches: [Some(str)])] -> Ok(#(Field, str))
+      _ -> Error(Nil)
+    }
+  }
+
+  let scan = fn(str) {
+    [
+      magic_comment,
+      variant,
+      field
+    ]
+    |> list.find_map(fn(f) { f(str) })
+  }
+
+  let opts: List(#(String, Option(String), String)) = []
+
+  list.fold(lines, #(None, None, [], opts), fn(acc, line) {
+    let #(var, field, gens, opts) = acc
+
+    case scan(line) {
+      Error(Nil) ->
+        acc
+
+      Ok(#(MagicComment, str)) ->
+        case var {
+          None ->
+            #(var, field, gens |> list.append([str]), opts)
+
+          Some(var) ->
+            #(Some(var), field, gens, opts |> list.append([#(var, field, str)]))
+        }
+
+      Ok(#(Variant, var)) ->
+        #(Some(var), None, gens, opts)
+
+      Ok(#(Field, field)) ->
+        #(var, Some(field), gens, opts)
+    }
+  })
+  |> fn(acc) {
+    let #(_var, _field, gens, opts) = acc
+
+    let opts =
+      opts
+      |> list.group(fn(t) {
+        let #(var, field, _str) = t
+        #(var, field)
+      })
+      |> dict.map_values(fn(_, vals) {
+        list.map(vals, fn(val) {
+          let #(_var, _field, str) = val
+          str
+        })
+      })
+
+    RawTypeGens(gens:, opts:)
   }
 }
