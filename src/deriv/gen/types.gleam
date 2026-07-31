@@ -29,14 +29,6 @@ pub fn to_glance_type(
   )
 }
 
-pub fn relative_hot_code_reload_dir_path() -> String {
-  "src/deriv/gen/reload/"
-}
-
-fn relative_code_gen_defs_path() -> String {
-  relative_hot_code_reload_dir_path() <> "defs.gleam"
-}
-
 pub type ExprGen {
   VariantClauseCaseExprGen(
     clauses: List(Gen(g.Clause, #(g.Variant, TypeDef))),

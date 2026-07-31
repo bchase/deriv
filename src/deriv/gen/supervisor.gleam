@@ -26,7 +26,7 @@ import filespy
 import gleam/bit_array as ba
 import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
 import deriv/gen/scan.{relative_code_gen_defs_path}
-import deriv/gen/types.{relative_hot_code_reload_dir_path} as _
+import deriv/gen/types as _
 import deriv/gen/reload/defs
 
 pub fn main() -> Nil {
@@ -552,7 +552,7 @@ fn hot_code_reloading_worker(
       |> actor.returning(self)
       |> Ok
     })
-    |> radiate.add_dir(relative_hot_code_reload_dir_path())
+    |> radiate.add_dir(cfg.dir_path)
     |> radiate.on_reload(fn(state, path) {
       {
         let relative_code_gen_defs_path =
