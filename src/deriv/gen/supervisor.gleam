@@ -231,6 +231,13 @@ fn update(
 
       let fetch = fn(mod_func: #(String, String)) -> Result(ExprGen, Nil) {
         let #(module, func) = mod_func
+
+        let module =
+          case module {
+            "derive" -> "deriv"
+            _ -> module
+          }
+
         let self = process.new_subject()
 
         state.cfg.gens
