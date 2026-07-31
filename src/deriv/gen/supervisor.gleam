@@ -1,7 +1,5 @@
 import deriv/gen/types.{type GleamToml, type Context, Context, type Pwd, type ExprGen}
 import shellout
-import argv
-import glint
 import tom
 import radiate
 import gleam/option.{Some, type Option, None}
