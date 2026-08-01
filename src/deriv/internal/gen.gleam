@@ -469,6 +469,16 @@ pub fn load_gleam_file(
   ))
 }
 
+pub fn load_gleam_file_for(
+  path path: GleamPath,
+  toml toml: GleamToml,
+) -> Result(GleamFile, GenErr) {
+  use src_dir_path <- result.try(dep_src_dir_path(path:, toml:))
+  let filepath = src_dir_path <> string.join(path.full, "/") <> ".gleam"
+  use file <- result.try(load_gleam_file(filepath:) |> result.map_error(GleamFileErr(_, dynamic.nil())))
+  Ok(file)
+}
+
 fn load_context(
   path path: GleamPath,
   pwd pwd: Pwd,

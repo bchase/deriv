@@ -29,6 +29,7 @@ pub fn to_glance_type(
   )
 }
 
+pub const expr_gen_type_name = "ExprGen"
 pub type ExprGen {
   VariantClauseCaseExprGen(
     clauses: List(Gen(g.Clause, #(g.Variant, TypeDef))),
