@@ -618,17 +618,23 @@ fn watched_dirs(
   let assert Ok(gt) = gen.read_gleam_toml(filepath:)
     as { "Failed to find `gleam.toml` at: " <> filepath }
 
-  let packages =
-    tom.get_table(gt.toml, ["dependencies"])
-    |> result.map(dict.keys)
-    |> result.unwrap([])
-
   let dep_paths =
-    packages
-    |> list.filter_map(fn(package) {
-      gen.dep_src_dir_path_(package:, in: "dependencies", toml: gt)
+    [
+      "dependencies",
+      "dev-dependencies",
+    ]
+    |> list.flat_map(fn(key) {
+      let packages =
+        tom.get_table(gt.toml, [key])
+        |> result.map(dict.keys)
+        |> result.unwrap([])
+
+      packages
+      |> list.filter_map(fn(package) {
+        gen.dep_src_dir_path_(package:, in: key, toml: gt)
+      })
+      |> list.unique
     })
-    |> list.unique
 
   [ "src/", ..dep_paths ]
 }
