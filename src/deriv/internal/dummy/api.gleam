@@ -139,14 +139,6 @@ pub fn handle(
   }
 }
 
-fn handle_get_temp(req: City) -> Result(Temp, Err) {
-  todo
-}
-
-fn handle_get_altitude(req: City) -> Result(Distance, Err) {
-  todo
-}
-
 pub fn encode_distance(value: Distance) -> Json {
   case value {
     Meters(..) as value -> json.object([#("meters", json.float(value.meters))])
@@ -157,4 +149,12 @@ pub fn encode_temp(value: Temp) -> Json {
   case value {
     Celcius(..) as value -> json.object([#("degrees", json.int(value.degrees))])
   }
+}
+
+fn handle_get_temp(req: City) -> Result(Temp, Err) {
+  todo
+}
+
+fn handle_get_altitude(req: City) -> Result(Distance, Err) {
+  todo
 }

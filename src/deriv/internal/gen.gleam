@@ -890,12 +890,19 @@ fn process_acc(
         })
         |> string.trim
 
+      let new_src =
+        [
+          type_srcs,
+          new_func_srcs,
+        ]
+        |> list.flatten
+        |> string.join("\n\n")
+
       let src =
         [
           [src],
           [""], // empty new line after src, before gen'd
-          type_srcs,
-          new_func_srcs,
+          [new_src],
         ]
         |> list.flatten
         |> string.join("\n")
