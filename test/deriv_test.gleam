@@ -35,7 +35,7 @@ import gleam/erlang/process.{type Subject, type Selector}
 import filespy
 import gleam/crypto
 import gleam/bit_array as ba
-import deriv/gen/types.{type AST, type Context, Context, type TypeDef, type GleamPath, type GleamFile, GleamPath, type ExprGen, pwd} as _
+import deriv/gen/types.{type AST, type Context, Context, type TypeDef, type GleamPath, type GleamFile, GleamPath, type ExprGen} as _
 import deriv/gen/supervisor as gs
 import deriv/gen/scan
 import bchase/monad/read_write_result as monad
@@ -280,10 +280,9 @@ pub fn gen_named_params_test() {
 fn context_for(
   filepath filepath: String,
 ) -> Context {
-  let assert Ok(pwd) = pwd()
   let assert Ok(toml) = gen.gleam_toml()
   let assert Ok(file) = gen.load_gleam_file(filepath)
-  Context(pwd:, toml:, file:)
+  Context(toml:, file:)
 }
 
 

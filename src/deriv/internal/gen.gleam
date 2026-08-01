@@ -26,7 +26,7 @@ import shellout
 import deriv/internal/glance.{term, call, call_, pipe, dot, short} as _
 import bchase/casing
 import deriv/internal/types.{type Derivation, type DerivField, type DerivFieldOpt} as _
-import deriv/gen/types.{type TypeGenOpts, type ExprGen, type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type GleamToml, GleamToml, type Imports, type AST, AST, Imports, type Pwd, type Context, Context}
+import deriv/gen/types.{type TypeGenOpts, type ExprGen, type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type GleamToml, GleamToml, type Imports, type AST, AST, Imports, type Context, Context}
 //
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
@@ -481,14 +481,13 @@ pub fn load_gleam_file_for(
 
 fn load_context(
   path path: GleamPath,
-  pwd pwd: Pwd,
   toml toml: GleamToml,
 ) -> Result(Context, GenErr) {
   use dep_src_dir_path <- try(dep_src_dir_path(path:, toml:))
   let filepath = dep_src_dir_path <> { path |> to_relative_src_filepath }
   use file <- try_err(load_gleam_file(filepath:), GleamFileErr(_, nil()))
 
-  Ok(Context(pwd:, toml:, file:))
+  Ok(Context(toml:, file:))
 }
 
 // fn load_gleam_file_in(
@@ -514,7 +513,7 @@ pub fn get_custom_type(
 
     Some(module) -> {
       use path <- try(import_path(module:, ctx:))
-      load_context(pwd: ctx.pwd, path:, toml: ctx.toml)
+      load_context(path:, toml: ctx.toml)
     }
   })
 
@@ -563,7 +562,7 @@ fn get_custom_type_unqualified_import_in(
 
   let module = import_.definition.module
   use path <- try_err(parse_gleam_module_path(path: module), GleamFileErr(_, nil()))
-  use ctx <- try(load_context(pwd: ctx.pwd, path:, toml: ctx.toml))
+  use ctx <- try(load_context(path:, toml: ctx.toml))
 
   get_custom_type_in(ctx:, type_:)
 }
@@ -600,7 +599,7 @@ fn get_custom_type_aliased_in(
       )
 
       use path <- try_err(parse_gleam_module_path(path: import_.module), GleamFileErr(_, nil()))
-      use ctx <- try(load_context(pwd: ctx.pwd, path:, toml: ctx.toml))
+      use ctx <- try(load_context(path:, toml: ctx.toml))
 
       get_custom_type_in(ctx, name)
     }

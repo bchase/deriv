@@ -1,7 +1,7 @@
 import bchase/unsafe
 import glint
 import argv
-import deriv/gen/types.{type GleamToml, type Context, Context, type Pwd, type ExprGen, expr_gen_type_name}
+import deriv/gen/types.{type GleamToml, type Context, Context, type ExprGen, expr_gen_type_name}
 import shellout
 import tom
 import radiate
@@ -61,7 +61,7 @@ pub type Names {
     app: process.Name(Msg),
     lookup: process.Name(LookupMsg),
     refs: process.Name(RefsMsg),
-    gens: process.Name(GensMsg),
+    // gens: process.Name(GensMsg),
   )
 }
 
@@ -71,7 +71,7 @@ pub fn build_config() -> Config {
       app: process.new_name("deriv-app"),
       lookup: process.new_name("deriv-type-ast-lookup"),
       refs: process.new_name("deriv-refs-listener"),
-      gens: process.new_name("deriv-code-gens-server"),
+      // gens: process.new_name("deriv-code-gens-server"),
     )
   )
 }
@@ -114,7 +114,7 @@ pub fn supervisor_(
   //   dir_path:,
   // )))
   |> supervisor.add(worker(app_actor(name: names.app, cfg: AppConfig(
-    gens: names.gens,
+    // gens: names.gens,
     lookup: names.lookup,
     refs: names.refs,
   ))))
@@ -140,7 +140,7 @@ type State {
 
 type AppConfig {
   AppConfig(
-    gens: process.Name(GensMsg),
+    // gens: process.Name(GensMsg),
     lookup: process.Name(LookupMsg),
     refs: process.Name(RefsMsg),
   )
@@ -339,111 +339,111 @@ fn update(
   }
 }
 
-// GENS ACTOR
+// // GENS ACTOR
 
-pub opaque type GensMsg {
-  GensNoOp
-  GensRefresh
-  GensUpdateDirs(dirs: List(String))
-  GensUpdateFile(path: String)
-  GensFetch(module: String, func: String, reply: Subject(Result(ExprGen, Nil)))
-}
+// pub opaque type GensMsg {
+//   GensNoOp
+//   GensRefresh
+//   GensUpdateDirs(dirs: List(String))
+//   GensUpdateFile(path: String)
+//   GensFetch(module: String, func: String, reply: Subject(Result(ExprGen, Nil)))
+// }
 
-type GensConfig {
-  GensConfig(
-    load_gens: fn() -> Dict(#(String, String), ExprGen),
-    dir_path: String,
-  )
-}
+// type GensConfig {
+//   GensConfig(
+//     load_gens: fn() -> Dict(#(String, String), ExprGen),
+//     dir_path: String,
+//   )
+// }
 
-type GensState {
-  GensState(
-    cfg: GensConfig,
-    self: Subject(GensMsg),
-    gen_funcs: scan.ExprGenFuncs,
-    gens: Dict(#(String, String), ExprGen),
-    load_gens: fn() -> Dict(#(String, String), ExprGen),
-  )
-}
+// type GensState {
+//   GensState(
+//     cfg: GensConfig,
+//     self: Subject(GensMsg),
+//     gen_funcs: scan.ExprGenFuncs,
+//     gens: Dict(#(String, String), ExprGen),
+//     load_gens: fn() -> Dict(#(String, String), ExprGen),
+//   )
+// }
 
-fn gens_actor(
-  name name: process.Name(GensMsg),
-  cfg flags: GensConfig,
-) -> actor.Builder(GensState, GensMsg, Nil) {
-  actor(init: gens_init, sel: None, update: gens_update, timeout: 100, return: always(Nil), flags:)
-  |> actor.named(name)
-}
+// fn gens_actor(
+//   name name: process.Name(GensMsg),
+//   cfg flags: GensConfig,
+// ) -> actor.Builder(GensState, GensMsg, Nil) {
+//   actor(init: gens_init, sel: None, update: gens_update, timeout: 100, return: always(Nil), flags:)
+//   |> actor.named(name)
+// }
 
-fn gens_init(
-  cfg: GensConfig,
-  self: Subject(GensMsg),
-) -> GensState {
-  process.send(self, GensRefresh)
+// fn gens_init(
+//   cfg: GensConfig,
+//   self: Subject(GensMsg),
+// ) -> GensState {
+//   process.send(self, GensRefresh)
 
-  GensState(
-    cfg:,
-    self:,
-    gen_funcs: scan.empty_expr_gen_funcs(),
-    gens: dict.new(),
-    load_gens: cfg.load_gens,
-  )
-}
+//   GensState(
+//     cfg:,
+//     self:,
+//     gen_funcs: scan.empty_expr_gen_funcs(),
+//     gens: dict.new(),
+//     load_gens: cfg.load_gens,
+//   )
+// }
 
-fn gens_update(
-  state: GensState,
-  msg: GensMsg,
-) -> actor.Next(GensState, b) {
-  case msg {
-    GensNoOp ->
-      actor.continue(state)
+// fn gens_update(
+//   state: GensState,
+//   msg: GensMsg,
+// ) -> actor.Next(GensState, b) {
+//   case msg {
+//     GensNoOp ->
+//       actor.continue(state)
 
-    GensRefresh -> {
-      actor.continue(GensState(..state, gens: state.load_gens()))
-    }
+//     GensRefresh -> {
+//       actor.continue(GensState(..state, gens: state.load_gens()))
+//     }
 
-    GensUpdateFile(path:) -> {
-      let gen_funcs = scan.add_expr_gen_funcs(filepaths: [path], expr_gen_funcs: state.gen_funcs)
+//     GensUpdateFile(path:) -> {
+//       let gen_funcs = scan.add_expr_gen_funcs(filepaths: [path], expr_gen_funcs: state.gen_funcs)
 
-      scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gen_funcs, dir_path: state.cfg.dir_path)
+//       scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gen_funcs, dir_path: state.cfg.dir_path)
 
-      process.send(state.self, GensRefresh)
+//       process.send(state.self, GensRefresh)
 
-      Ok(actor.continue(GensState(..state, gen_funcs:)))
-    }
-    |> result.unwrap(actor.continue(state))
+//       Ok(actor.continue(GensState(..state, gen_funcs:)))
+//     }
+//     |> result.unwrap(actor.continue(state))
 
-    GensUpdateDirs(dirs:) -> {
-      let assert [_, ..] = watched_dirs() as "specify at least one watched dir"
+//     GensUpdateDirs(dirs:) -> {
+//       let assert [_, ..] = watched_dirs() as "specify at least one watched dir"
 
-      use find <- try_fail_(shellout.command(in: ".", opt: [],  run: "find", with: dirs), fn(_err) {
-        Error(Nil)
-      })
+//       use find <- try_fail_(shellout.command(in: ".", opt: [],  run: "find", with: dirs), fn(_err) {
+//         Error(Nil)
+//       })
 
-      let filepaths =
-        find
-        |> string.split("\n")
-        |> list.map(string.trim)
-        |> list.filter(string.ends_with(_, ".gleam"))
+//       let filepaths =
+//         find
+//         |> string.split("\n")
+//         |> list.map(string.trim)
+//         |> list.filter(string.ends_with(_, ".gleam"))
 
-      let gen_funcs = scan.add_expr_gen_funcs(filepaths:, expr_gen_funcs: state.gen_funcs)
+//       let gen_funcs = scan.add_expr_gen_funcs(filepaths:, expr_gen_funcs: state.gen_funcs)
 
-      scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gen_funcs, dir_path: state.cfg.dir_path)
+//       scan.write_expr_gens_to_gleam_file(expr_gen_funcs: gen_funcs, dir_path: state.cfg.dir_path)
 
-      process.send(state.self, GensRefresh)
+//       process.send(state.self, GensRefresh)
 
-      Ok(actor.continue(GensState(..state, gen_funcs:)))
-    }
-    |> result.unwrap(actor.continue(state))
+//       Ok(actor.continue(GensState(..state, gen_funcs:)))
+//     }
+//     |> result.unwrap(actor.continue(state))
 
-    GensFetch(module:, func:, reply:) -> {
-      state.gens
-      |> dict.get(#(module, func))
-      |> process.send(reply, _)
+//     GensFetch(module:, func:, reply:) -> {
+//       state.gens
+//       |> dict.get(#(module, func))
+//       |> process.send(reply, _)
 
-      actor.continue(state)
-    }
-  }
-}
+//       actor.continue(state)
+//     }
+//   }
+// }
 
 // REFS ACTOR
 
@@ -562,54 +562,54 @@ fn file_change_watching_worker(
   })
 }
 
-// HOT CODE RELOADING ACTOR
+// // HOT CODE RELOADING ACTOR
 
-type HotCodeReloadingConfig {
-  HotCodeReloadingConfig(
-    gens: process.Name(GensMsg),
-    dir_path: String,
-  )
-}
+// type HotCodeReloadingConfig {
+//   HotCodeReloadingConfig(
+//     gens: process.Name(GensMsg),
+//     dir_path: String,
+//   )
+// }
 
-fn hot_code_reloading_worker(
-  cfg cfg: HotCodeReloadingConfig,
-) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
-  supervision.worker(fn() {
-    radiate.new()
-    |> radiate.set_initializer(fn(self) {
-      cfg.gens
-      |> process.named_subject
-      |> process.send(GensUpdateDirs(dirs: watched_dirs()))
-      // TODO tk on gens init
+// fn hot_code_reloading_worker(
+//   cfg cfg: HotCodeReloadingConfig,
+// ) -> supervision.ChildSpecification(Subject(filespy.Change(Nil))) {
+//   supervision.worker(fn() {
+//     radiate.new()
+//     |> radiate.set_initializer(fn(self) {
+//       cfg.gens
+//       |> process.named_subject
+//       |> process.send(GensUpdateDirs(dirs: watched_dirs()))
+//       // TODO tk on gens init
 
-      Nil
-      |> actor.initialised
-      |> actor.returning(self)
-      |> Ok
-    })
-    |> radiate.add_dir(cfg.dir_path)
-    |> radiate.on_reload(fn(state, path) {
-      {
-        let relative_code_gen_defs_path =
-          relative_code_gen_defs_path(dir_path: cfg.dir_path)
+//       Nil
+//       |> actor.initialised
+//       |> actor.returning(self)
+//       |> Ok
+//     })
+//     |> radiate.add_dir(cfg.dir_path)
+//     |> radiate.on_reload(fn(state, path) {
+//       {
+//         let relative_code_gen_defs_path =
+//           relative_code_gen_defs_path(dir_path: cfg.dir_path)
 
-        use <- bool.guard(path |> string.ends_with(relative_code_gen_defs_path), Nil)
+//         use <- bool.guard(path |> string.ends_with(relative_code_gen_defs_path), Nil)
 
-        cfg.gens
-        |> process.named_subject
-        |> process.send(GensUpdateFile(path:))
-      }
+//         cfg.gens
+//         |> process.named_subject
+//         |> process.send(GensUpdateFile(path:))
+//       }
 
-      // notify
-      // |> process.named_subject
-      // |> process.send(GotCodeReload(path:))
+//       // notify
+//       // |> process.named_subject
+//       // |> process.send(GotCodeReload(path:))
 
-      state
-    })
-    // |> list.fold(dirs, _, radiate.add_dir)
-    |> radiate.start_state
-  })
-}
+//       state
+//     })
+//     // |> list.fold(dirs, _, radiate.add_dir)
+//     |> radiate.start_state
+//   })
+// }
 
 fn watched_dirs(
 ) -> List(String) {
@@ -737,7 +737,6 @@ pub opaque type LookupMsg {
 type LookupState {
   LookupState(
     self: Subject(LookupMsg),
-    pwd: Pwd,
     toml: GleamToml,
     filepaths: List(String),
     changes: Dict(String, List(filespy.Change(Nil))),
@@ -747,12 +746,6 @@ type LookupState {
 fn lookup_actor(
   name name: process.Name(LookupMsg),
 ) -> actor.Builder(LookupState, LookupMsg, Nil) {
-  let load_pwd = fn() {
-    let assert Ok(pwd) = types.pwd()
-      as "`gen` failed to get `pwd`"
-    pwd
-  }
-
   let load_toml = fn() {
     let assert Ok(toml) = gen.gleam_toml()
       as "`gen` failed to load `gleam.toml` in pwd"
@@ -779,7 +772,6 @@ fn lookup_actor(
   actor.new_with_initialiser(100, fn(self) {
     LookupState(
       self:,
-      pwd: load_pwd(),
       toml: load_toml(),
       filepaths: load_filepaths(),
       changes: dict.new(),
@@ -803,7 +795,7 @@ fn lookup_actor(
       //
 
       Type(mod:, name: type_, file:, reply:) -> {
-        Context(pwd: state.pwd, toml: state.toml, file:)
+        Context(toml: state.toml, file:)
         |> gen.get_custom_type(ctx: _, mod:, type_:)
         |> process.send(reply, _)
 
@@ -811,7 +803,7 @@ fn lookup_actor(
       }
 
       BuildContext(file:, reply:) -> {
-        Context(pwd: state.pwd, toml: state.toml, file:)
+        Context(toml: state.toml, file:)
         |> process.send(reply, _)
 
         actor.continue(state)
@@ -833,7 +825,6 @@ fn lookup_actor(
 fn filepath(
   path path: GleamPath,
   toml toml: GleamToml,
-  pwd pwd: Pwd,
 ) -> Result(String, Nil) {
 }
 

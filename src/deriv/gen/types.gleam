@@ -94,25 +94,25 @@ pub type GleamToml {
 
 pub type Context {
   Context(
-    pwd: Pwd,
+    // pwd: Pwd,
     toml: GleamToml,
     file: GleamFile,
   )
 }
 
-pub opaque type Pwd {
-  Pwd(pwd: String)
-}
+// pub opaque type Pwd {
+//   Pwd(pwd: String)
+// }
 
-pub fn pwd() -> Result(Pwd, simplifile.FileError) {
-  simplifile.current_directory()
-  |> result.map(fn(pwd) {
-    case string.ends_with(pwd, "/") {
-      True -> Pwd(pwd:)
-      False -> Pwd(pwd: pwd <> "/")
-    }
-  })
-}
+// pub fn pwd() -> Result(Pwd, simplifile.FileError) {
+//   simplifile.current_directory()
+//   |> result.map(fn(pwd) {
+//     case string.ends_with(pwd, "/") {
+//       True -> Pwd(pwd:)
+//       False -> Pwd(pwd: pwd <> "/")
+//     }
+//   })
+// }
 
 pub type AST {
   AST(
