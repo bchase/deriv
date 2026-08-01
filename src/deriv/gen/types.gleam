@@ -399,6 +399,8 @@ pub type Generated(t) {
 //   })
 // }
 
+pub const dummy_span = z
+
 pub fn ensure_imports(
   def def: List(g.Definition(g.Import)),
   cont cont: fn() -> Gen(t, expr),
