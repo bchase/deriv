@@ -1,6 +1,6 @@
 import bchase/casing
 import deriv/gen/types.{type ExprGen}
-import deriv/internal/glance.{term, short, call_} as _
+import deriv/internal/glance.{call_, short, term} as _
 
 pub fn gen() -> ExprGen {
   types.VariantClauseCaseExprGen([

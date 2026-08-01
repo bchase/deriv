@@ -1,5 +1,6 @@
 import bchase/casing
 import deriv/gen/types.{type ExprGen} as x
+import deriv/internal/dummy/api.{type City, type Distance, type Err, type Resp, type Temp, resp_func}
 import deriv/internal/glance.{z} as ast
 import glance as g
 import gleam/json.{type Json}
@@ -27,7 +28,8 @@ pub fn handle_case() -> ExprGen {
         #(g.NamedType(..) as param_type, _param_custom_type),
         #(g.NamedType(name: return_type_name, ..) as return_type, _),
       ] -> {
-        let encode_func = ast.term("encode_" <> casing.snake(return_type_name))
+        let encode_func =
+          "api" |> ast.dot("encode_" <> casing.snake(return_type_name))
 
         x.success(#(param_type, return_type, encode_func))
       }
@@ -72,122 +74,27 @@ pub fn handle_case() -> ExprGen {
   }])
 }
 
-//
-
-pub type Err {
-  Err(msg: String)
-}
-
-pub type Resp {
-  Resp(
-    result: Result(Json, Err),
-  )
-}
-
-//
-
-pub opaque type F(param, return) {
-  F(param: param)
-}
-
-pub fn resp_func(
-  handler handler: fn(param) -> Result(return, Err),
-  f f: F(param, return),
-  encode encode: fn(return) -> Json,
-) -> Resp {
-  f.param
-  |> handler
-  |> result.map(encode)
-  |> Resp
-}
-
-//
-
-pub type City {
-  Kyoto
-}
-
-pub type Temp {
-  //$ deriv.json encode
-  Celcius(degrees: Int)
-}
-
-pub type Distance {
-  //$ deriv.json encode
-  Meters(meters: Float)
-}
-
-//
-
-pub type Req = Api
-pub type Api {
-  GetTemp(f: F(City, Temp))
-  GetAltitude(f: F(City, Distance))
-}
-
 pub fn handle(
-  req req: Req,
+  req req: api.Req,
 ) -> Resp {
-  { //$ deriv/internal/dummy/api.handle_case subject:req
+  { //$ deriv/internal/dummy/server.handle_case subject:req
     case req {
-      GetTemp(f:) -> handle_get_temp |> resp_func(f:, encode: encode_temp)
-      GetAltitude(f:) -> handle_get_altitude |> resp_func(
+      api.GetTemp(f:) -> handle_get_temp |> resp_func(
         f:,
-        encode: encode_distance,
+        encode: api.encode_temp,
+      )
+      api.GetAltitude(f:) -> handle_get_altitude |> resp_func(
+        f:,
+        encode: api.encode_distance,
       )
     }
   }
-}
-
-pub fn encode_distance(value: Distance) -> Json {
-  case value {
-    Meters(..) as value -> json.object([#("meters", json.float(value.meters))])
-  }
-}
-
-pub fn encode_temp(value: Temp) -> Json {
-  case value {
-    Celcius(..) as value -> json.object([#("degrees", json.int(value.degrees))])
-  }
-}
-
-fn handle_get_temp(req: City) -> Result(Temp, Err) {
-  todo
 }
 
 fn handle_get_altitude(req: City) -> Result(Distance, Err) {
   todo
 }
 
-// //
-
-// pub type RespondWith(t) {
-//   RespondWithProxy
-// }
-
-// pub type Api1 {
-//   GetTemp1(City, RespondWith(Temp))
-// }
-
-// pub fn handle1(
-//   req req: Api1,
-// ) -> Resp {
-//   { //0 deriv/internal/dummy/api.handle_case subject:req
-//     case req {
-//       GetTemp1(req, resp) ->
-//         handle_get_temp |> resp_func_(req:, resp:, encode: encode_temp)
-//     }
-//   }
-// }
-
-// fn resp_func_(
-//   handler handler: fn(param) -> Result(return, Err),
-//   req req: param,
-//   resp _resp: RespondWith(return),
-//   encode encode: fn(return) -> Json,
-// ) -> Resp {
-//   req
-//   |> handler
-//   |> result.map(encode)
-//   |> Resp
-// }
+fn handle_get_temp(req: City) -> Result(Temp, Err) {
+  todo
+}

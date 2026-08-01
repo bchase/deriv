@@ -614,30 +614,7 @@ pub fn ensure_named_gen_param_str(
   })
 }
 
-pub fn run_variant_expr_(
-  gen: Gen(g.Expression, g.Variant),
-  variant variant: g.Variant,
-  file file: GleamFile,
-  args args: Args,
-  opts opts: TypeGenOpts,
-  mf mf: #(GleamPath, String),
-  get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-) -> Result(#(g.Clause, List(Generated(g.Function))), String) {
-
-  let #(result, GenWrite(fields:, imports: _, consts: _, types: _, funcs:)) =
-    run_gen(gen, variant, file, args, opts, mf, get_type)
-
-  result
-  |> result.map(fn(expr) {
-    let with_spread = list.length(variant.fields) > set.size(fields)
-    let arguments = fields |> set.map(g.ShorthandField) |> set.to_list
-
-    let pattern =
-      g.PatternVariant(z, None, variant.name, arguments:, with_spread:)
-
-    #(g.Clause(patterns: [[pattern]], guard: None, body: expr), funcs)
-  })
-}
+const qualify_variant_key = "qualify_variant"
 
 pub fn success(val: t) -> Gen(t, expr) {
   pure(val)
@@ -822,8 +799,17 @@ pub fn variant_clause_success(
       in: file,
     )
 
+  let module =
+    variant.module
+    |> option.map(fn(str) {
+      case str |> string.ends_with(".") {
+        True -> str
+        False -> str <> "." // TODO patch `glance_printer` to handle this correctly
+      }
+    })
+
   let pattern = g.PatternVariant(z,
-    module: variant.module,
+    module:,
     constructor: variant.name,
     arguments: fields |> set.map(g.ShorthandField) |> set.to_list,
     with_spread: set.is_empty(fields),
@@ -880,7 +866,7 @@ pub fn scope_custom_type_variant(
   {
     use <- bool.guard(td.path == file.path, Error(Nil))
 
-    use i <- result.try(file.ast.imports |> find_import(file.path))
+    use i <- result.try(file.ast.imports |> find_import(td.path))
 
     use path <- result.try(i.definition.module |> parse_gleam_module_path |> result.replace_error(Nil))
 
@@ -890,16 +876,21 @@ pub fn scope_custom_type_variant(
       None, module -> {
         let module = Some(module)
 
-        use i <- list.find_map(i.definition.unqualified_values)
-        use <- bool.guard(i.name != variant.name, Error(Nil))
+        {
+          use i <- list.find_map(i.definition.unqualified_values)
+          use <- bool.guard(i.name != variant.name, Error(Nil))
 
-        case i.alias {
-          None ->
-            Ok(FileScoped(module:, name: variant.name))
+          case i.alias {
+            None ->
+              Ok(FileScoped(module:, name: variant.name))
 
-          Some(unqualified_alias) ->
-            Ok(FileScoped(module: None, name: unqualified_alias))
+            Some(unqualified_alias) ->
+              Ok(FileScoped(module: None, name: unqualified_alias))
+          }
         }
+        |> result.or(
+          Ok(FileScoped(module:, name: variant.name))
+        )
       }
 
       // use unqualified import value name or alias if discarded

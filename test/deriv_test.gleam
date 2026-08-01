@@ -314,7 +314,6 @@ pub fn gen_test() {
   let assert Ok(#(output, _refs)) = gen.process(ctx:, fetch:)
 
   let assert Ok(after) = simplifile.read("src/deriv/internal/dummy/gen/after.gleam")
-
   log_("AFTER", after)
   log_("OUTPUT", output)
 
