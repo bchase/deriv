@@ -900,11 +900,10 @@ fn process_acc(
 
       let src =
         [
-          [src],
-          [""], // empty new line after src, before gen'd
-          [new_src],
+          src,
+          "", // empty new line after src, before gen'd
+          new_src,
         ]
-        |> list.flatten
         |> string.join("\n")
 
       let imports =

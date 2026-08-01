@@ -138,7 +138,6 @@ pub fn parse_enum_dir(str: String) -> Result(Dir, Nil) {
   }
 }
 
-
 pub fn form_form() -> form.Form(Form) {
   form.new({
     use str <- form.field("str", { form.parse_string })

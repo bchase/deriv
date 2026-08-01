@@ -23,7 +23,6 @@ pub type FormField {
   FormListStr
   FormListInt
 }
-
 pub const form_fields = [
   FormStr,
   FormInt,
