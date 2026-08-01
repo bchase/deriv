@@ -266,6 +266,7 @@ pub fn gleam_format(src: String) -> String {
   let assert Ok(formatted_enc) = shellout.command(run: "sh", with: ["-c", cmd], in: ".", opt: [])
 
   formatted_enc
+  |> string.trim
 }
 
 pub fn get_field_opts(
