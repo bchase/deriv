@@ -42,8 +42,8 @@ fn cmd() -> glint.Command(Nil) {
   use <- glint.command_help("Run `deriv` code gen watcher")
   use _named, _args, _flags <- glint.command()
   let assert Ok(_) = supervisor.start(supervisor(
-    load_gens: defs.expr_gens,
-    write_dir: ["deriv", "gen", "reload"],
+    // load_gens: defs.expr_gens,
+    // write_dir: ["deriv", "gen", "reload"],
   ))
   process.sleep_forever()
 }
@@ -77,31 +77,32 @@ pub fn build_config() -> Config {
 }
 
 pub fn supervisor(
-  load_gens load_gens: fn() -> Dict(#(String, String), ExprGen),
-  write_dir write_dir: List(String),
+  // load_gens load_gens: fn() -> Dict(#(String, String), ExprGen),
+  // write_dir write_dir: List(String),
 ) -> supervisor.Builder {
   let Config(names:) = build_config()
-  supervisor_(names:, load_gens:, write_dir:)
+  supervisor_(names:)
+  // supervisor_(names:, load_gens:, write_dir:)
 }
 
 @internal
 pub fn supervisor_(
   names names: Names,
-  load_gens load_gens: fn() -> Dict(#(String, String), ExprGen),
-  write_dir write_dir: List(String),
+  // load_gens load_gens: fn() -> Dict(#(String, String), ExprGen),
+  // write_dir write_dir: List(String),
 ) -> supervisor.Builder {
-  let dir_path = ["src", ..write_dir] |> string.join("/")
+  // let dir_path = ["src", ..write_dir] |> string.join("/")
 
-  let dir_path =
-    case string.ends_with(dir_path, "/") {
-      True -> dir_path
-      False -> dir_path <> "/"
-    }
+  // let dir_path =
+  //   case string.ends_with(dir_path, "/") {
+  //     True -> dir_path
+  //     False -> dir_path <> "/"
+  //   }
 
-  let assert Ok(True) = simplifile.is_directory(dir_path)
-    as { "Directory must exist for `deriv` to control at: " <> dir_path <> "\n" <>
-       "  as specified by `write_dir`: " <> string.inspect(write_dir)
-    }
+  // let assert Ok(True) = simplifile.is_directory(dir_path)
+  //   as { "Directory must exist for `deriv` to control at: " <> dir_path <> "\n" <>
+  //      "  as specified by `write_dir`: " <> string.inspect(write_dir)
+  //   }
 
   supervisor.new(supervisor.OneForOne)
   |> supervisor.add(file_change_watching_worker(notify: names.app))

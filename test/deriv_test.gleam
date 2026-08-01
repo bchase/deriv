@@ -329,9 +329,8 @@ pub fn gen_test() {
 pub fn custom_type_lookup_test() {
   let cfg = gs.build_config()
   let assert Ok(_) =
-    supervisor.start(gs.supervisor_(names: cfg.names, load_gens: defs.expr_gens, write_dir: [
-      "deriv", "gen", "reload",
-    ]))
+    // supervisor.start(gs.supervisor_(names: cfg.names, load_gens: defs.expr_gens, write_dir: [
+    supervisor.start(gs.supervisor_(names: cfg.names))
 
   // process.sleep_forever()
 
