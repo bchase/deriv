@@ -1,4 +1,3 @@
-import bchase/function
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
 import bchase/monad/read_write_result as monad
@@ -12,20 +11,6 @@ import gleam/result
 import gleam/set.{type Set}
 import gleam/string
 import tom
-
-const z = g.Span(-1, -1)
-
-// TODO rename & mv
-pub fn to_glance_type(
-  type_ type_: g.CustomType,
-  module module: Option(String),
-) -> g.Type {
-  g.NamedType(z,
-    module:,
-    name: type_.name,
-    parameters: type_.parameters |> list.map(g.VariableType(z, _)),
-  )
-}
 
 pub const expr_gen_type_name = "ExprGen"
 pub type ExprGen {
@@ -48,23 +33,6 @@ pub type TypeDef {
 }
 
 pub type TypeGenOpts = Dict(#(String, Option(String), String), List(String))
-
-// pub type ExprGenRef {
-//   ExprGenRef(
-//     module: String,
-//     func: String,
-//   )
-// }
-
-// pub fn expr_gen_ref(
-//   path path: GleamPath,
-//   func func: String,
-// ) -> ExprGenRef {
-//   ExprGenRef(
-//     module: path.full |> string.join("/"),
-//     func:,
-//   )
-// }
 
 pub type GleamPath {
   GleamPath(
@@ -140,27 +108,12 @@ pub fn find_import(
   }
 }
 
-//
-
-// pub opaque type VariantExpr {
-//   VariantExpr(
-//     run: fn(
-//       #(GleamPath,String),
-//       g.Variant,
-//       String,
-//       fn(Option(String), String) -> Result(TypeDef, Nil),
-//       Set(String), // NOTE: fields acc, used to detect need for `with_spread`
-//       List(Generated(g.Function)),
-//     ) -> Result(#(g.Expression, Set(String), List(Generated(g.Function))), String),
-//   )
-// }
-
 pub opaque type Gen(t, expr) {
-  Gen(monad: monad.ReadWriteResult(t, String, GenRead(expr), GenWrite))
+  Gen(monad: monad.ReadWriteResult(t, String, Read(expr), Writeite))
 }
 
-pub opaque type GenRead(expr) {
-  GenRead(
+pub opaque type Read(expr) {
+  Read(
     expr: expr,
     //
     file: GleamFile,
@@ -178,8 +131,8 @@ pub type Args {
   )
 }
 
-pub opaque type GenWrite {
-  GenWrite(
+pub opaque type Writeite {
+  Writeite(
     fields: Set(String), // NOTE: fields acc, used to detect need for `with_spread`
     imports: List(g.Definition(g.Import)),
     consts: List(Generated(g.Constant)),
@@ -189,58 +142,58 @@ pub opaque type GenWrite {
 }
 
 pub fn gen_imports(
-  write write: GenWrite,
+  write write: Writeite,
 ) -> List(g.Definition(g.Import)) {
   write.imports
 }
 
 pub fn gen_types(
-  write write: GenWrite,
+  write write: Writeite,
 ) -> List(Generated(g.CustomType)) {
   write.types
 }
 
 pub fn gen_funcs(
-  write write: GenWrite,
+  write write: Writeite,
 ) -> List(Generated(g.Function)) {
   write.funcs
 }
 
 @internal
 pub const lens_opts = lens.Lens(get: get_opts, set: set_opts)
-fn get_opts(x: GenRead(opts)) { x.opts }
-fn set_opts(x: GenRead(opts), opts) { GenRead(..x, opts:)}
+fn get_opts(x: Read(opts)) { x.opts }
+fn set_opts(x: Read(opts), opts) { Read(..x, opts:)}
 const lens_expr = lens.Lens(get: get_expr, set: set_expr)
-fn get_expr(x: GenRead(expr)) { x.expr }
-fn set_expr(x: GenRead(expr), expr) { GenRead(..x, expr:)}
+fn get_expr(x: Read(expr)) { x.expr }
+fn set_expr(x: Read(expr), expr) { Read(..x, expr:)}
 const lens_file = lens.Lens(get: get_file, set: set_file)
-fn get_file(x: GenRead(file)) { x.file }
-fn set_file(x: GenRead(file), file) { GenRead(..x, file:)}
+fn get_file(x: Read(file)) { x.file }
+fn set_file(x: Read(file), file) { Read(..x, file:)}
 const lens_args = lens.Lens(get: get_args, set: set_args)
-fn get_args(x: GenRead(expr)) { x.args }
-fn set_args(x: GenRead(expr), args) { GenRead(..x, args:)}
-const lens_target = lens.Lens(get: get_target, set: set_target)
-fn get_target(x: GenRead(expr)) { x.target }
-fn set_target(x: GenRead(expr), target) { GenRead(..x, target:)}
+fn get_args(x: Read(expr)) { x.args }
+fn set_args(x: Read(expr), args) { Read(..x, args:)}
 const lens_get_type = lens.Lens(get: get_get_type, set: set_get_type)
-fn get_get_type(x: GenRead(expr)) { x.get_type }
-fn set_get_type(x: GenRead(expr), get_type) { GenRead(..x, get_type:)}
+fn get_get_type(x: Read(expr)) { x.get_type }
+fn set_get_type(x: Read(expr), get_type) { Read(..x, get_type:)}
+// const lens_target = lens.Lens(get: get_target, set: set_target)
+// fn get_target(x: Read(expr)) { x.target }
+// fn set_target(x: Read(expr), target) { Read(..x, target:)}
 
 const lens_fields = lens.Lens(get: get_fields, set: set_fields)
-fn get_fields(x: GenWrite) { x.fields }
-fn set_fields(x: GenWrite, fields) { GenWrite(..x, fields:)}
+fn get_fields(x: Writeite) { x.fields }
+fn set_fields(x: Writeite, fields) { Writeite(..x, fields:)}
 const lens_imports = lens.Lens(get: get_imports, set: set_imports)
-fn get_imports(x: GenWrite) { x.imports }
-fn set_imports(x: GenWrite, imports) { GenWrite(..x, imports:)}
+fn get_imports(x: Writeite) { x.imports }
+fn set_imports(x: Writeite, imports) { Writeite(..x, imports:)}
 const lens_consts = lens.Lens(get: get_consts, set: set_consts)
-fn get_consts(x: GenWrite) { x.consts }
-fn set_consts(x: GenWrite, consts) { GenWrite(..x, consts:)}
+fn get_consts(x: Writeite) { x.consts }
+fn set_consts(x: Writeite, consts) { Writeite(..x, consts:)}
 const lens_types = lens.Lens(get: get_types, set: set_types)
-fn get_types(x: GenWrite) { x.types }
-fn set_types(x: GenWrite, types) { GenWrite(..x, types:)}
+fn get_types(x: Writeite) { x.types }
+fn set_types(x: Writeite, types) { Writeite(..x, types:)}
 const lens_funcs = lens.Lens(get: get_funcs, set: set_funcs)
-fn get_funcs(x: GenWrite) { x.funcs }
-fn set_funcs(x: GenWrite, funcs) { GenWrite(..x, funcs:)}
+fn get_funcs(x: Writeite) { x.funcs }
+fn set_funcs(x: Writeite, funcs) { Writeite(..x, funcs:)}
 
 pub fn try(
   gen gen: Gen(a, expr),
@@ -285,14 +238,14 @@ fn fail(
 
 @internal
 pub fn read(
-  from lens: Lens(GenRead(expr), v),
+  from lens: Lens(Read(expr), v),
   cont cont: fn(v) -> Gen(t, expr)
 ) -> Gen(t, expr) {
   Gen(monad.read(lens, fn(v) { cont(v).monad }))
 }
 
 fn writes(
-  at lens: Lens(GenWrite, vs),
+  at lens: Lens(Writeite, vs),
   cont cont: fn(vs) -> Gen(t, expr)
 ) -> Gen(t, expr) {
   Gen(monad.writes(lens, fn(w) { cont(w).monad }))
@@ -300,7 +253,7 @@ fn writes(
 
 fn write(
   val new: v,
-  into lens: Lens(GenWrite, vs),
+  into lens: Lens(Writeite, vs),
   using f: fn(vs, v) -> vs,
   cont cont: fn() -> Gen(t, expr),
 ) -> Gen(t, expr) {
@@ -321,13 +274,6 @@ fn map_m(
   Gen(monad.map_m(xs, fn(x) { f(x).monad }))
 }
 
-fn bind_ok(
-  result result: Result(a, String),
-  cont cont: fn(a) -> Gen(b, expr),
-) -> Gen(b, expr) {
-  Gen(monad.do_ok(result, function.identity, fn(x) { cont(x).monad }))
-}
-
 fn ok(
   result result: Result(t, e),
   err err: fn(e) -> String
@@ -343,11 +289,11 @@ pub fn run_gen(
   opts opts: TypeGenOpts,
   target target: #(GleamPath, String),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-) -> #(Result(t, String), GenWrite) {
+) -> #(Result(t, String), Writeite) {
   gen.monad
   |> monad.run_(
-    read: GenRead(expr:, file:, args:, opts:, target:, get_type:),
-    write: GenWrite(fields: set.new(), imports: [], consts: [], types: [], funcs: []),
+    read: Read(expr:, file:, args:, opts:, target:, get_type:),
+    write: Writeite(fields: set.new(), imports: [], consts: [], types: [], funcs: []),
   )
 }
 
@@ -359,33 +305,6 @@ pub type Generated(t) {
     overwrite: Bool,
   )
 }
-
-// pub fn parse(variant variant: g.Variant, decoder decoder: VariantExpr) {
-//   todo
-// }
-
-// fn variant_shorthand_field_type(
-//   name name: String,
-//   cont cont: fn(g.Type) -> VariantExpr,
-// ) -> VariantExpr {
-//   VariantExpr(fn(variant, args, get_type, fields) {
-//     use #(field, f) <- result.try(
-//       variant.fields
-//       |> list.find_map(fn(field) {
-//         case field {
-//           g.LabelledVariantField(label:, item:) if label == name ->
-//             Ok(#(name, item))
-
-//           _ -> Error(Nil)
-//         }
-//       }),
-//     )
-
-//     cont(f).run(variant, args, get_type, [field, ..fields])
-//   })
-// }
-
-pub const dummy_span = z
 
 pub fn ensure_imports(
   def def: List(g.Definition(g.Import)),
@@ -452,113 +371,6 @@ pub fn overwrite_func(
   cont()
 }
 
-// pub fn variant_shorthand_field(
-//   name name: String,
-//   cont cont: fn(g.Field(g.Expression)) -> VariantExpr,
-// ) -> VariantExpr  {
-//   variant_shorthand_field_map(name, x(short, pair.first), cont)
-// }
-
-// pub fn variant_shorthand_type(
-//   name name: String,
-//   cont cont: fn(g.Type) -> VariantExpr,
-// ) -> VariantExpr {
-//   variant_shorthand_field_map(name, pair.second, cont)
-// }
-
-// pub fn type_params(
-//   type_ type_: g.Type,
-//   cont cont: fn(List(#(g.Type, Result(TypeDef, Nil)))) -> VariantExpr,
-// ) -> VariantExpr {
-//   VariantExpr(fn(mf, variant, args, get_type, fields, funcs) {
-//     case type_ {
-//       g.NamedType(parameters:, ..) ->
-//         parameters
-//         |> list.map(fn(type_) {
-//           case type_ {
-//             g.NamedType(module:, name:, ..) ->
-//               get_type(module, name)
-
-//             _ ->
-//               Error(Nil)
-//           }
-//           |> pair.new(type_, _)
-//         })
-//         |> fn(x) {
-//           cont(x).run(mf, variant, args, get_type, fields, funcs)
-//         }
-
-//       _ ->
-//         Error("variant param types needs `NamedType`, got: " <> string.inspect(type_))
-//     }
-//   })
-// }
-
-// fn variant_foo(
-//   // name name: String,
-//   type_ type_: g.Type,
-//   apply f: fn(#(String, g.Type)) -> t,
-//   cont cont: fn(t) -> VariantExpr,
-// ) -> VariantExpr {
-//   VariantExpr(fn(variant, args, get_type, orig_fields) {
-//     use type_ <- result.try(get_named_param(variant:, name:))
-
-//     // variant_shorthand_field_map(name, function.identity)
-//     todo
-//   })
-// }
-
-// fn variant_shorthand_field_map(
-//   name name: String,
-//   apply f: fn(#(String, g.Type)) -> t,
-//   cont cont: fn(t) -> VariantExpr,
-// ) -> VariantExpr {
-//   VariantExpr(fn(gen_name, variant, args, get_type, fields, funcs) {
-//     use type_ <- result.try(get_named_param(variant:, name:) |> result.map_error(fn(_) {
-//       "couldn't fine named param " <> string.inspect(name) <> " in: " <> string.inspect(variant)
-//     }))
-
-//     cont(f(#(name, type_))).run(gen_name, variant, args, get_type, fields |> set.insert(name), funcs)
-//   })
-// }
-
-// pub fn variant_success(expr expr: g.Expression) -> VariantExpr {
-//   VariantExpr(fn(_, _, _, _, fields, funcs) { Ok(#(expr, fields, funcs)) })
-// }
-
-// pub fn variant_failure(msg: String) -> VariantExpr {
-//   VariantExpr(fn(_, _, _, _, _, _) { Error(msg) })
-// }
-
-// pub fn run_variant_expr(
-//   ve: VariantExpr,
-//   mf mf: #(GleamPath, String),
-//   variant variant: g.Variant,
-//   args args: String,
-//   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-// ) -> Result(#(g.Clause, List(GenFunc)), String) {
-//   ve.run(mf, variant, args, get_type, set.new(), [])
-//   |> result.map(fn(t) {
-//     let #(expr, fields, funcs) = t
-
-//     let with_spread = list.length(variant.fields) > set.size(fields)
-//     let arguments = fields |> set.map(g.ShorthandField) |> set.to_list
-
-//     let pattern =
-//       g.PatternVariant(z, None, variant.name, arguments:, with_spread:)
-
-//     #(g.Clause(patterns: [[pattern]], guard: None, body: expr), funcs)
-//   })
-// }
-
-// pub fn variant_name(
-//   cont cont: fn(String) -> VariantExpr,
-// ) -> VariantExpr {
-//   VariantExpr(fn(mf, variant, args, get_type, fields, funcs) {
-//     cont(variant.name).run(mf, variant, args, get_type, fields, funcs)
-//   })
-// }
-
 pub fn short(field: String) -> g.Field(t) {
   g.ShorthandField(field)
 }
@@ -599,8 +411,6 @@ pub fn ensure_named_gen_param_str(
     "named gen param " <> string.inspect(name) <> " but got: " <> string.inspect(args)
   })
 }
-
-const qualify_variant_key = "qualify_variant"
 
 pub fn success(val: t) -> Gen(t, expr) {
   pure(val)
@@ -885,6 +695,8 @@ pub fn parse_gleam_module_path(
 
 //
 
+const z = g.Span(-1, -1)
+
 fn read_span(
   src src: String,
   span span: g.Span,
@@ -892,3 +704,16 @@ fn read_span(
   use <- bool.guard(span.end > string.length(src), Error(Nil))
   Ok(string.slice(src, span.start, span.end - span.start))
 }
+
+// TODO rename & mv
+pub fn to_glance_type(
+  type_ type_: g.CustomType,
+  module module: Option(String),
+) -> g.Type {
+  g.NamedType(z,
+    module:,
+    name: type_.name,
+    parameters: type_.parameters |> list.map(g.VariableType(z, _)),
+  )
+}
+
