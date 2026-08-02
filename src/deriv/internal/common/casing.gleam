@@ -35,14 +35,3 @@ fn intersperse_capitalized(
   })
   |> regexp.replace(each: initial_underscore_re, in: _, with: "\\1")
 }
-
-// // // FORM // // //
-
-pub fn snake_case_to_label(
-  str str: String,
-) -> String {
-  str
-  |> string.split("_")
-  |> list.map(string.capitalise)
-  |> string.join(" ")
-}

@@ -15,8 +15,9 @@ import gleam/io
 import shellout
 import simplifile
 import tom
+import deriv/util
 
-pub const snake_case_to_label = casing.snake_case_to_label
+pub const snake_case_to_label = util.snake_case_to_label
 pub const snake_case = casing.snake_case
 pub const hyphen_case = casing.hyphen_case
 pub const pascal_case = casing.pascal_case
