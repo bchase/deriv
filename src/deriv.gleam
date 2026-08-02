@@ -39,7 +39,7 @@ pub fn wrap_legacy(
 ) -> ExprGen {
   x.CustomTypeDeriveExprGen(gens: [{
     use type_ <- x.custom_type()
-    use opts <- x.field_opts()
+    use opts <- field_opts()
     use args <- x.args()
 
     let assert Ok(ws_re) = "\\s+" |> regexp.from_string
@@ -48,10 +48,16 @@ pub fn wrap_legacy(
     use file <- x.file()
     let file = read_file(file.filepath, -1)
     let ctx = Context(deriv:, opts:, file:, module_reader: common.fetch_module)
-    // let Gen(imports:, consts:, types:, funcs:, ..) = gen(Type(type_), ctx)
     let Gen(imports:, consts:, types:, funcs:, ..) = gen(Type(type_), ctx)
 
     use <- x.ensure_imports(imports |> list.map(glance.Definition([], _)))
+    use _overwite_consts <- x.sequence(
+      consts
+      |> list.map(fn(c) {
+        use <- x.overwrite_const(c)
+        x.success(Nil)
+      })
+    )
     use _overwrite_funcs <- x.sequence(
       funcs
       |> list.map(fn(func) {
@@ -69,6 +75,34 @@ pub fn wrap_legacy(
 
     x.success(Nil)
   }])
+}
+
+pub fn field_opts(
+  cont cont: fn(DerivFieldOpts) -> x.Gen(t, glance.Definition(glance.CustomType)),
+) -> x.Gen(t, glance.Definition(glance.CustomType)) {
+  use opts <- x.read(x.lens_opts)
+  use ct <- x.custom_type()
+
+  opts
+  |> dict.to_list
+  |> list.filter_map(fn(t) {
+    let #(#(variant, field, key), strs) = t
+
+    let field = field |> option.unwrap("")
+
+    let field = deriv.DerivField(type_: ct.name , variant:, field:)
+
+    let vals =
+      strs
+      |> list.map(fn(raw) {
+        let raw = key <> " " <> raw
+        deriv.DerivFieldOpt(raw:, strs: raw |> string.split(" ") |> list.map(string.trim))
+      })
+
+    Ok(#(field, vals))
+  })
+  |> dict.from_list
+  |> cont
 }
 
 const all_type_gen_funcs: List(#(String, GenFunc)) =

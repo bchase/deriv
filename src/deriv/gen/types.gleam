@@ -1,20 +1,19 @@
-import tom
-import gleam/bool
+import bchase/function
 import bchase/lens.{type Lens}
-import gleam/string
-import gleam/set.{type Set}
-import bchase/function.{x}
-import bchase/list.{at as list_at} as _
-import deriv/internal/glance.{z, read_span} as _
+import bchase/list.{push as list_push} as _
+import bchase/monad/read_write_result as monad
 import glance as g
-import gleam/list
+import gleam/bool
 import gleam/dict.{type Dict}
+import gleam/list
 import gleam/option.{None, type Option, Some}
 import gleam/pair
 import gleam/result
-import bchase/monad/read_write_result as monad
-import bchase/list.{push as list_push} as _
-import deriv/internal/types.{type DerivFieldOpts, type DerivField, type DerivFieldOpt, DerivField, DerivFieldOpt} as _
+import gleam/set.{type Set}
+import gleam/string
+import tom
+
+const z = g.Span(-1, -1)
 
 // TODO rename & mv
 pub fn to_glance_type(
@@ -207,7 +206,8 @@ pub fn gen_funcs(
   write.funcs
 }
 
-const lens_opts = lens.Lens(get: get_opts, set: set_opts)
+@internal
+pub const lens_opts = lens.Lens(get: get_opts, set: set_opts)
 fn get_opts(x: GenRead(opts)) { x.opts }
 fn set_opts(x: GenRead(opts), opts) { GenRead(..x, opts:)}
 const lens_expr = lens.Lens(get: get_expr, set: set_expr)
@@ -283,7 +283,8 @@ fn fail(
   Gen(monad.fail(err))
 }
 
-fn read(
+@internal
+pub fn read(
   from lens: Lens(GenRead(expr), v),
   cont cont: fn(v) -> Gen(t, expr)
 ) -> Gen(t, expr) {
@@ -623,34 +624,6 @@ pub fn args(
   cont(args)
 }
 
-pub fn field_opts(
-  cont cont: fn(DerivFieldOpts) -> Gen(t, g.Definition(g.CustomType)),
-) -> Gen(t, g.Definition(g.CustomType)) {
-  use opts <- read(lens_opts)
-  use ct <- custom_type()
-
-  opts
-  |> dict.to_list
-  |> list.filter_map(fn(t) {
-    let #(#(variant, field, key), strs) = t
-
-    let field = field |> option.unwrap("")
-
-    let field = DerivField(type_: ct.name , variant:, field:)
-
-    let vals =
-      strs
-      |> list.map(fn(raw) {
-        let raw = key <> " " <> raw
-        DerivFieldOpt(raw:, strs: raw |> string.split(" ") |> list.map(string.trim))
-      })
-
-    Ok(#(field, vals))
-  })
-  |> dict.from_list
-  |> cont
-}
-
 pub fn opts(
   cont cont: fn(TypeGenOpts) -> Gen(t, g.Definition(g.CustomType)),
 ) -> Gen(t, g.Definition(g.CustomType)) {
@@ -908,4 +881,14 @@ pub fn parse_gleam_module_path(
         [module, ..] -> Ok(GleamPath(package:, module:, full:))
       }
   }
+}
+
+//
+
+fn read_span(
+  src src: String,
+  span span: g.Span,
+) -> Result(String, Nil) {
+  use <- bool.guard(span.end > string.length(src), Error(Nil))
+  Ok(string.slice(src, span.start, span.end - span.start))
 }
