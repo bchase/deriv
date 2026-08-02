@@ -1,6 +1,6 @@
 import bchase/casing
 import bchase/id
-import deriv/gen/types.{type ExprGen}
+import deriv/gen/types.{type GenDef}
 import deriv/internal/dummy/lookup_other.{type OtherImport}
 import deriv/internal/dummy/lookup_other_other as oo
 import deriv/internal/glance as ast
@@ -8,7 +8,7 @@ import glance
 import gleam/int
 import gleam/option
 
-pub fn to_str() -> ExprGen {
+pub fn to_str() -> GenDef {
   types.VariantClauseCaseExprGen([
     // // todo
     // //   - register (ensure) import
@@ -29,7 +29,7 @@ pub fn to_str() -> ExprGen {
   ])
 }
 
-pub fn test0() -> ExprGen {
+pub fn test0() -> GenDef {
   types.VariantClauseCaseExprGen(clauses: [
     {
       use variant, _type_def <- types.variant()

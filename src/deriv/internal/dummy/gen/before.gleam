@@ -1,8 +1,8 @@
 import bchase/casing
-import deriv/gen/types.{type ExprGen}
+import deriv/gen/types.{type GenDef}
 import deriv/internal/glance.{call_, short, term} as _
 
-pub fn gen() -> ExprGen {
+pub fn gen() -> GenDef {
   types.VariantClauseCaseExprGen([
     {
       use variant, _type_def <- types.variant()

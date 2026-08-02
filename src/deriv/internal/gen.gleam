@@ -26,11 +26,10 @@ import shellout
 import deriv/internal/glance.{term, call, call_, pipe, dot, short} as _
 import bchase/casing
 import deriv/internal/types.{type Derivation, type DerivField, type DerivFieldOpt} as _
-import deriv/gen/types.{type TypeGenOpts, type ExprGen, type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type GleamToml, GleamToml, type Imports, type AST, AST, Imports, type Context, Context}
+import deriv/gen/types.{type TypeGenOpts, type GenDef, type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type GleamToml, GleamToml, type Imports, type AST, AST, Imports, type Context, Context}
 //
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
-import deriv/gen/reload/defs
 import bchase/monad/read_write_result.{type ReadWriteResult} as monad
 import bchase/option.{guard as some} as _
 import gleam/erlang/process
@@ -136,9 +135,9 @@ pub type GenErr {
   GenExprErr(path: GleamPath, gen_str: String)
   GenExprCommentSpliceErr(path: GleamPath, gen_str: String, expr: g.Expression, expr_src: String)
   //
-  GenAllFailedToMatch(expr_gen: #(GleamPath, String), errs: List(String), detail: Dynamic)
+  GenAllFailedToMatch(gen_def: #(GleamPath, String), errs: List(String), detail: Dynamic)
   //
-  GenExprWiredWithWrongArg(expr_gen: ExprGen, def: Def)
+  GenExprWiredWithWrongArg(gen_def: GenDef, def: Def)
   //
   GenExprGenLookupTimedOut(module: String, func: String, timeout_ms: Int)
   //
@@ -630,7 +629,7 @@ const skip: Result(#(String, List(Ref)), Result(Skip, GenErr)) =
 type Lookups {
   Lookups(
     get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-    fetch: fn(#(String, String)) -> Result(ExprGen, Nil),
+    fetch: fn(#(String, String)) -> Result(GenDef, Nil),
   )
 }
 
@@ -723,12 +722,12 @@ fn gen_for_types(
 }
 
 type ExprGensMsg {
-  ExprGenFor(gen: #(String, String), reply: process.Subject(ExprGen))
+  ExprGenFor(gen: #(String, String), reply: process.Subject(GenDef))
 }
 
 pub fn process(
   ctx ctx: Context,
-  fetch fetch: fn(#(String, String)) -> Result(ExprGen, Nil),
+  fetch fetch: fn(#(String, String)) -> Result(GenDef, Nil),
 ) -> Result(#(String, List(Ref)), Result(Skip, GenErr)) {
   let src = ctx.file.src
 
@@ -932,11 +931,11 @@ fn run_func_gen(
   // offset positions based on previous code gen results
   let gen = Gen(..gen, pos: gen.pos + offset)
 
-  use #(expr_gen, args, #(path, _func) as mf) <- monad.do(get_expr_gen_from(str: gen.str, fetch:))
+  use #(gen_def, args, #(path, _func) as mf) <- monad.do(get_gen_def_from(str: gen.str, fetch:))
 
   // gen expr
   use GenExpr(expr:, imports:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
-    build_expr(mf, expr_gen, args, def, dict.new(), get_type, ctx),
+    build_expr(mf, gen_def, args, def, dict.new(), get_type, ctx),
   )
 
   // register funcs to be added to src
@@ -1004,11 +1003,11 @@ fn run_type_gen(
 
   let gen_str = string.join(gen.path.full, "/") <> "." <> gen.func <> " " <> gen.args
 
-  use #(expr_gen, args, mf) <- monad.do(get_expr_gen_from(str: gen_str, fetch:))
+  use #(gen_def, args, mf) <- monad.do(get_gen_def_from(str: gen_str, fetch:))
 
   // gen expr
   use GenExpr(expr: _, imports:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
-    build_expr(mf, expr_gen, args, def, opts, get_type, ctx) |> fn(x) {
+    build_expr(mf, gen_def, args, def, opts, get_type, ctx) |> fn(x) {
       // panic
       // io.println(string.inspect(x))
       x
@@ -1045,10 +1044,10 @@ pub type Ref {
   )
 }
 
-fn get_expr_gen_from(
+fn get_gen_def_from(
   str str: String,
-  fetch fetch: fn(#(String, String)) -> Result(ExprGen, Nil),
-) -> ReadWriteResult(#(ExprGen, String, #(GleamPath, String)), GenErr, r, w) {
+  fetch fetch: fn(#(String, String)) -> Result(GenDef, Nil),
+) -> ReadWriteResult(#(GenDef, String, #(GleamPath, String)), GenErr, r, w) {
   use #(str, args) <- monad.do_ok(case str |> string.split(" ") {
     [] -> Error(GenStrGleamModuleParseErr(gen_str: str))
     [path, ..rest] -> Ok(#(path, rest |> string.join(" ")))
@@ -1064,12 +1063,12 @@ fn get_expr_gen_from(
     GleamFileErr(_, dyn.from("//$ " <> str)),
   )
 
-  use expr_gen <- monad.do(monad.ok(
+  use gen_def <- monad.do(monad.ok(
     fetch(#(path.full |> string.join("/"), func)),
     always(GenNotFound(path:, func:, gen_str: str))
   ))
 
-  monad.pure(#(expr_gen, args, #(path, func)))
+  monad.pure(#(gen_def, args, #(path, func)))
 }
 
 // TODO partially dup'd in `types`
@@ -1275,7 +1274,7 @@ pub type Def {
 
 fn build_expr(
   target target: #(GleamPath, String),
-  gen gen: types.ExprGen,
+  gen gen: types.GenDef,
   args args: String,
   def def: Def,
   opts opts: TypeGenOpts,
@@ -1293,7 +1292,7 @@ fn build_expr(
 
     types.VariantClauseCaseExprGen(..), CustomType(..) |
     types.CustomTypeDeriveExprGen(..), Function(..) ->
-      Error(GenExprWiredWithWrongArg(expr_gen: gen, def:))
+      Error(GenExprWiredWithWrongArg(gen_def: gen, def:))
   }
 }
 
@@ -1354,7 +1353,7 @@ fn build_case_clause_expr(
     gens
     |> list.map(fn(gen) { // TODO perf `fold_until`
       let #(result, write) =
-        types.run_gen(gen:, expr: #(variant, type_), file:, args:, opts: dict.new(), target:, get_type:)
+        types.run_gen(gen:, ctx: #(variant, type_), file:, args:, opts: dict.new(), target:, get_type:)
 
       result
       |> result.map(fn(clause) {
@@ -1389,7 +1388,7 @@ fn custom_type_derive(
 
   let #(gens, errs) =
     gens
-    |> list.map(types.run_gen(gen: _, expr: type_, file:, args:, opts:, target:, get_type:))
+    |> list.map(types.run_gen(gen: _, ctx: type_, file:, args:, opts:, target:, get_type:))
     |> list.map(fn(t) {
       case t.0 {
         Ok(Nil) -> Ok(t.1)
@@ -1438,4 +1437,48 @@ fn scan_for_magic_comment_refs_to_other_modules(
   })
   |> monad.run_(Nil, [])
   |> pair.second
+}
+
+pub fn fetch(
+  mod_func mod_func: #(String, String),
+  ctx ctx: Context,
+) -> Result(GenDef, Nil) {
+  let #(module, func) = mod_func
+
+  let module =
+    case module {
+      "derive" -> "deriv"
+      _ -> module
+    }
+
+  // get the function definition
+  use path <- result.try(parse_gleam_module_path(module) |> result.replace_error(Nil))
+  use file <- result.try(load_gleam_file_for(path:, toml: ctx.toml) |> result.replace_error(Nil))
+  use def <- result.try(file.ast.functions |> dict.get(func))
+
+  // "type check" (ensure that it is a nullary function of the correct type)
+  use Nil <- result.try(
+    case def.definition.parameters, def.definition.return {
+      [], Some(g.NamedType(name: return_type, parameters: [], ..))
+        if return_type == types.type_name
+          -> Ok(Nil)
+
+      _, _ ->
+        Error(Nil)
+    }
+  )
+
+  let module = module |> string.split("/")
+
+  unsafe.apply(module, func, [])
+
+  // let self = process.new_subject()
+
+  // state.cfg.gens
+  // |> process.named_subject
+  // |> process.send(GensFetch(module:, func:, reply: self))
+
+  // self
+  // |> process.receive(expr_gen_lookup_timeout_ms)
+  // |> result.flatten
 }

@@ -1,5 +1,5 @@
 import bchase/casing
-import deriv/gen/types.{type ExprGen} as x
+import deriv/gen/types.{type GenDef} as x
 import deriv/internal/glance.{z} as ast
 import glance as g
 import gleam/json.{type Json}
@@ -8,7 +8,7 @@ import gleam/result
 import gleam/string
 import gleam/time/timestamp.{type Timestamp}
 
-pub fn handle_case() -> ExprGen {
+pub fn handle_case() -> GenDef {
   x.VariantClauseCaseExprGen(clauses: [{
     use var, _type_def <- x.variant()
     let handler_func_name = "handle_" <> casing.snake(var.name)

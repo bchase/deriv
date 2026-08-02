@@ -1,7 +1,7 @@
 import bchase/unsafe
 import glint
 import argv
-import deriv/gen/types.{type GleamToml, type Context, Context, type ExprGen, expr_gen_type_name}
+import deriv/gen/types.{type GleamToml, type Context, Context, type GenDef}
 import shellout
 import tom
 import radiate
@@ -28,7 +28,6 @@ import gleam/bit_array as ba
 import deriv/gen/types.{type TypeDef, type GleamPath, type GleamFile} as _
 import deriv/gen/scan.{relative_code_gen_defs_path}
 import deriv/gen/types as _
-import deriv/gen/reload/defs
 import glance as g
 
 pub fn main() -> Nil {
@@ -77,7 +76,7 @@ pub fn build_config() -> Config {
 }
 
 pub fn supervisor(
-  // load_gens load_gens: fn() -> Dict(#(String, String), ExprGen),
+  // load_gens load_gens: fn() -> Dict(#(String, String), GenDef),
   // write_dir write_dir: List(String),
 ) -> supervisor.Builder {
   let Config(names:) = build_config()
@@ -88,7 +87,7 @@ pub fn supervisor(
 @internal
 pub fn supervisor_(
   names names: Names,
-  // load_gens load_gens: fn() -> Dict(#(String, String), ExprGen),
+  // load_gens load_gens: fn() -> Dict(#(String, String), GenDef),
   // write_dir write_dir: List(String),
 ) -> supervisor.Builder {
   // let dir_path = ["src", ..write_dir] |> string.join("/")
@@ -232,48 +231,7 @@ fn update(
         Error(Nil)
       })
 
-      let fetch = fn(mod_func: #(String, String)) -> Result(ExprGen, Nil) {
-        let #(module, func) = mod_func
-
-        let module =
-          case module {
-            "derive" -> "deriv"
-            _ -> module
-          }
-
-        // get the function definition
-        use path <- result.try(gen.parse_gleam_module_path(module) |> result.replace_error(Nil))
-        use file <- result.try(gen.load_gleam_file_for(path:, toml: ctx.toml) |> result.replace_error(Nil))
-        use def <- result.try(file.ast.functions |> dict.get(func))
-
-        // "type check" (ensure that it is a nullary function of the correct type)
-        use Nil <- result.try(
-          case def.definition.parameters, def.definition.return {
-            [], Some(g.NamedType(name: return_type, parameters: [], ..))
-              if return_type == expr_gen_type_name
-                -> Ok(Nil)
-
-            _, _ ->
-              Error(Nil)
-          }
-        )
-
-        let module = module |> string.split("/")
-
-        unsafe.apply(module, func, [])
-
-        // let self = process.new_subject()
-
-        // state.cfg.gens
-        // |> process.named_subject
-        // |> process.send(GensFetch(module:, func:, reply: self))
-
-        // self
-        // |> process.receive(expr_gen_lookup_timeout_ms)
-        // |> result.flatten
-      }
-
-      use #(new, refs) <- try_fail_(gen.process(ctx:, fetch:), fn(err) {
+      use #(new, refs) <- try_fail_(gen.process(ctx:, fetch: gen.fetch(_, ctx)), fn(err) {
         case err {
           Ok(gen.Skip) ->
             Nil
@@ -346,12 +304,12 @@ fn update(
 //   GensRefresh
 //   GensUpdateDirs(dirs: List(String))
 //   GensUpdateFile(path: String)
-//   GensFetch(module: String, func: String, reply: Subject(Result(ExprGen, Nil)))
+//   GensFetch(module: String, func: String, reply: Subject(Result(GenDef, Nil)))
 // }
 
 // type GensConfig {
 //   GensConfig(
-//     load_gens: fn() -> Dict(#(String, String), ExprGen),
+//     load_gens: fn() -> Dict(#(String, String), GenDef),
 //     dir_path: String,
 //   )
 // }
@@ -361,8 +319,8 @@ fn update(
 //     cfg: GensConfig,
 //     self: Subject(GensMsg),
 //     gen_funcs: scan.ExprGenFuncs,
-//     gens: Dict(#(String, String), ExprGen),
-//     load_gens: fn() -> Dict(#(String, String), ExprGen),
+//     gens: Dict(#(String, String), GenDef),
+//     load_gens: fn() -> Dict(#(String, String), GenDef),
 //   )
 // }
 

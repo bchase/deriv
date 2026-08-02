@@ -21,22 +21,22 @@ import deriv/internal/derivs/enum as deriv_enum
 import deriv/internal/derivs/form as deriv_form
 import deriv/internal/derivs/functor as deriv_functor
 import deriv/internal/common
-import deriv/gen/types.{type ExprGen} as x
+import deriv/gen/types.{type GenDef} as x
 import gleam/io
 import argv
 import glint
 
-pub fn json() -> ExprGen { wrap_legacy(name: "json", gen: deriv_json.gen) }
-pub fn from() -> ExprGen { wrap_legacy(name: "from", gen: deriv_from_into.gen_from) }
-pub fn into() -> ExprGen { wrap_legacy(name: "into", gen: deriv_from_into.gen_into) }
-pub fn enum() -> ExprGen { wrap_legacy(name: "enum", gen: deriv_enum.gen) }
-pub fn zero() -> ExprGen { wrap_legacy(name: "zero", gen: deriv_zero.gen) }
-pub fn form() -> ExprGen { wrap_legacy(name: "form", gen: deriv_form.gen) }
-pub fn functor() -> ExprGen { wrap_legacy(name: "functor", gen: deriv_functor.gen) }
+pub fn json() -> GenDef { wrap_legacy(name: "json", gen: deriv_json.gen) }
+pub fn from() -> GenDef { wrap_legacy(name: "from", gen: deriv_from_into.gen_from) }
+pub fn into() -> GenDef { wrap_legacy(name: "into", gen: deriv_from_into.gen_into) }
+pub fn enum() -> GenDef { wrap_legacy(name: "enum", gen: deriv_enum.gen) }
+pub fn zero() -> GenDef { wrap_legacy(name: "zero", gen: deriv_zero.gen) }
+pub fn form() -> GenDef { wrap_legacy(name: "form", gen: deriv_form.gen) }
+pub fn functor() -> GenDef { wrap_legacy(name: "functor", gen: deriv_functor.gen) }
 pub fn wrap_legacy(
   name name: String,
   gen gen: fn(deriv.Type, deriv.Context) -> Gen,
-) -> ExprGen {
+) -> GenDef {
   x.CustomTypeDeriveExprGen(gens: [{
     use type_ <- x.custom_type()
     use opts <- field_opts()

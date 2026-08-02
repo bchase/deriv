@@ -1,4 +1,3 @@
-import deriv/gen/reload/defs
 import gleam/set.{type Set}
 import bchase/result.{try_err, try_fail, try_fail_} as _
 import bchase/function.{always}
@@ -35,15 +34,10 @@ import gleam/erlang/process.{type Subject, type Selector}
 import filespy
 import gleam/crypto
 import gleam/bit_array as ba
-import deriv/gen/types.{type AST, type Context, Context, type TypeDef, type GleamPath, type GleamFile, GleamPath, type ExprGen} as _
+import deriv/gen/types.{type AST, type Context, Context, type TypeDef, type GleamPath, type GleamFile, GleamPath, type GenDef} as _
 import deriv/gen/supervisor as gs
 import deriv/gen/scan
 import bchase/monad/read_write_result as monad
-
-// init flow
-//   - create app src dir for `deriv`
-//   - copy/paste empty `fn defs.expr_gens` into `DIR/defs.gleam`
-//   - add `deriv` supervisor to app's supervision tree, pointing it at above dir & `defs`
 
 // convention
 //   - `func` takes extra, e.g. lens, mapping func
@@ -72,7 +66,7 @@ import bchase/monad/read_write_result as monad
 // todo
 //   make kinds-of-gen user-extensible... (e.g. things other than variant case clause)
 //   ! - wait for a few variations before trying to detect the pattern
-//     - maybe it's a  `ExprGen` variant `Custom` wrapping generic fn sig?
+//     - maybe it's a  `GenDef` variant `Custom` wrapping generic fn sig?
 //     - maybe `case_expr_with_variant_clauses` fn logic goes more generic?
 //   organize
 //     - figure out modules
@@ -83,7 +77,7 @@ import bchase/monad/read_write_result as monad
 //       * reexportsgen  target module consts, types, aliases, & funcs *w/ params*
 //   tests
 //     - write tests for code reloading / file changes
-//       * saved changes with new `ExprGen` (overwrite `defs.gleam`)
+//       * saved changes with new `GenDef` (overwrite `defs.gleam`)
 //       * saved changes with `//$ gen` (overwrite src w/ gen'd code)
 
 // MAYBE
@@ -286,10 +280,6 @@ fn context_for(
 }
 
 
-fn fetch(mod_func: #(String, String)) -> Result(ExprGen, Nil) {
-  dict.get(defs.expr_gens(), mod_func)
-}
-
 pub fn gen_derive_zero_test() {
   let before = "test/examples/gen_derive_zero/before.gleam"
   let after = "test/examples/gen_derive_zero/after.gleam"
@@ -299,7 +289,7 @@ pub fn gen_derive_zero_test() {
   let assert Ok(expected) = simplifile.read(after)
   let expected = string.trim(expected)
 
-  let generated = gen.process(ctx:, fetch:)
+  let generated = gen.process(ctx:, fetch: gen.fetch(_, ctx))
 
   generated
   |> should.be_ok
@@ -310,7 +300,7 @@ pub fn gen_derive_zero_test() {
 pub fn gen_test() {
   let ctx = context_for(filepath: "src/deriv/internal/dummy/gen/before.gleam")
 
-  let assert Ok(#(output, _refs)) = gen.process(ctx:, fetch:)
+  let assert Ok(#(output, _refs)) = gen.process(ctx:, fetch: gen.fetch(_, ctx))
 
   let assert Ok(after) = simplifile.read("src/deriv/internal/dummy/gen/after.gleam")
   log_("AFTER", after)
