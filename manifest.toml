@@ -10,7 +10,6 @@ packages = [
   { name = "argv", version = "1.1.0", build_tools = ["gleam"], requirements = [], otp_app = "argv", source = "hex", outer_checksum = "3277D100448BDB4A29B6D58C0F36F631CBC349E8BDD09766C6309DF202831140" },
   { name = "bchase", version = "0.1.0", build_tools = ["gleam"], requirements = ["gleam_json", "gleam_regexp", "gleam_stdlib", "lustre"], source = "git", repo = "https://github.com/bchase/gleam-bchase", commit = "029515be414130d26d029a282640ea76c3724d0b" },
   { name = "birl", version = "1.9.0", build_tools = ["gleam"], requirements = ["gleam_regexp", "gleam_stdlib", "gleam_time", "ranger"], otp_app = "birl", source = "hex", outer_checksum = "9924A2C3EECD33A5C94CD6859570261F2620435C54DAC5F2B00E5E6C806EEC6F" },
-  { name = "deriv_util", version = "0.1.0", build_tools = ["gleam"], requirements = ["bchase", "birl", "formal", "gleam_json", "gleam_stdlib", "youid"], source = "git", repo = "git@github.com:bchase/deriv.git", commit = "c3aafadf01006cd4b98148083878f3f350efa902", path = "util" },
   { name = "exception", version = "2.1.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "exception", source = "hex", outer_checksum = "6BDEA95248093599391C3B5DF1835C5C6A86C353C2F99CE539B450E3432FE117" },
   { name = "filepath", version = "1.1.2", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "filepath", source = "hex", outer_checksum = "B06A9AF0BF10E51401D64B98E4B627F1D2E48C154967DA7AF4D0914780A6D40A" },
   { name = "filespy", version = "0.7.0", build_tools = ["gleam"], requirements = ["fs", "gleam_erlang", "gleam_otp", "gleam_stdlib"], otp_app = "filespy", source = "hex", outer_checksum = "1136C7DB512B83DF544CDA4632A633412281B48489428391DB0356F66423D7C0" },
@@ -50,7 +49,6 @@ packages = [
 argv = { version = ">= 1.0.0 and < 2.0.0" }
 bchase = { git = "https://github.com/bchase/gleam-bchase", ref = "master" }
 birl = { version = ">= 1.8.0 and < 2.0.0" }
-deriv_util = { git = "git@github.com:bchase/deriv.git", ref = "dev", path = "util" }
 filespy = { version = ">= 0.7.0 and < 1.0.0" }
 formal = { version = ">= 3.0.0 and < 4.0.0" }
 glance = { version = ">= 5.0.0 and < 6.0.0" }
