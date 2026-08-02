@@ -30,6 +30,7 @@ filespy = ">= 0.7.0 and < 1.0.0"
 # nibble = ">= 1.1.4 and < 2.0.0"
 nibble = { git = "git@github.com:bchase/nibble.git", ref = "main" }
 glint = ">= 1.0.0 and < 2.0.0"
+deriv_util = { git = "git@github.com:bchase/deriv.git", ref = "dev", path = "util" }
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"

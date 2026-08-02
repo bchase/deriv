@@ -1,3 +1,5 @@
+import gleam/dynamic
+import bchase/unsafe
 import gleam/bool
 import gleam/pair
 import gleam/list
@@ -11,9 +13,8 @@ import gleam/json.{type Json}
 import gleam/dynamic/decode.{type Decoder}
 import youid/uuid.{type Uuid}
 import birl
-import deriv/internal/common/casing
+import bchase/casing
 import gleam/option.{type Option, Some, None}
-import deriv/unsafe
 
 // stdlib re-exports
 
@@ -264,7 +265,7 @@ fn decoder_birl_int_to_time(
 }
 
 pub fn snake_case(str: String) -> String {
-  casing.snake_case(str)
+  casing.snake(str)
 }
 
 pub fn formal_scalar_parser(
@@ -349,7 +350,16 @@ pub fn field_to_default_label(
 ) -> String {
   field
   |> field_to_name
-  |> casing.snake_case_to_label
+  |> snake_case_to_label
+}
+
+pub fn snake_case_to_label(
+  str str: String,
+) -> String {
+  str
+  |> string.split("_")
+  |> list.map(string.capitalise)
+  |> string.join(" ")
 }
 
 pub fn field_to_dom_id(
@@ -413,5 +423,5 @@ pub fn encode_set(
 pub fn decode_failure(
   name name: String,
 ) -> Decoder(t) {
-  decode.failure(unsafe.zero(), name)
+  decode.failure(unsafe.cast(dynamic.nil()), name)
 }
