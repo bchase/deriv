@@ -298,11 +298,12 @@ pub fn dep_src_dir_path(
       Ok(build_packages_path(dep:))
 
     DepTable(table:, ..) ->
-      case tom.get_string(table, ["path"]) {
-        Ok(path) ->
+      case tom.get_string(table, ["git"]), tom.get_string(table, ["path"]) {
+        Error(_dir_dep), Ok(path) ->
           Ok(path <> "/src/")
 
-        Error(_) ->
+        Ok(_git_dep), Ok(_path) |
+        _, Error(_) ->
           Ok(build_packages_path(dep:))
       }
   }
@@ -323,11 +324,12 @@ pub fn dep_src_dir_path_(
       Ok(build_packages_path(dep:))
 
     DepTable(table:, ..) ->
-      case tom.get_string(table, ["path"]) {
-        Ok(path) ->
+      case tom.get_string(table, ["git"]), tom.get_string(table, ["path"]) {
+        Error(_dir_dep), Ok(path) ->
           Ok(path <> "/src/")
 
-        Error(_) ->
+        Ok(_git_dep), Ok(_path) |
+        _, Error(_) ->
           Ok(build_packages_path(dep:))
       }
   }
