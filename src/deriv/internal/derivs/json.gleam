@@ -1,3 +1,4 @@
+import bchase/casing
 import gleam/float
 import gleam/int
 import gleam/regexp
@@ -1682,12 +1683,16 @@ fn decode_field_call(
     }
 
     [prop], "Dict", [key, val] -> {
-      let key =
+      let key_decoder =
         case key.name, key.params {
-          "String", [] -> "string"
-          "Int", [] -> "int"
-          "Float", [] -> "float"
-          "Bool", [] -> "bool"
+          "String", [] ->
+            "decode" |> dot("string")
+
+          "Int", [] |
+          "Float", [] |
+          "Bool", [] ->
+            "deriv" |> dot("decoder_" <> casing.snake(key.name) <> "_string") |> call([])
+
           _, _ -> panic as {
             "`derive json` doesn't know what to do with `Dict` key type `" <> key.name <> "` \n" <>
               string.inspect(f.type_)
@@ -1698,7 +1703,7 @@ fn decode_field_call(
       "decode" |> dot("field") |> call([
         string(prop),
         "decode" |> dot("dict") |> call([
-          "decode" |> dot(key),
+          key_decoder,
           decoder_call(val),
         ])
       ])

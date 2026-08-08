@@ -63,7 +63,10 @@ pub fn decoder_foo() -> Decoder(Foo) {
 }
 
 pub fn decoder_foo_foo() -> Decoder(Foo) {
-  use foo <- decode.field("foo", decode.dict(decode.int, decode.string))
+  use foo <- decode.field(
+    "foo",
+    decode.dict(deriv.decoder_int_string(), decode.string),
+  )
   decode.success(Foo(foo:))
 }
 
