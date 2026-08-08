@@ -1681,11 +1681,24 @@ fn decode_field_call(
       panic as { "`derive decode` needs a JSON property, but found none for: " <> string.inspect(f) }
     }
 
-    [prop], "Dict", [_key, val] -> {
+    [prop], "Dict", [key, val] -> {
+      let key =
+        case key.name, key.params {
+          "String", [] -> "string"
+          "Int", [] -> "int"
+          "Float", [] -> "float"
+          "Bool", [] -> "bool"
+          _, _ -> panic as {
+            "`derive json` doesn't know what to do with `Dict` key type `" <> key.name <> "` \n" <>
+              string.inspect(f.type_)
+          }
+        }
+
+
       "decode" |> dot("field") |> call([
         string(prop),
         "decode" |> dot("dict") |> call([
-          "decode" |> dot("string"),
+          "decode" |> dot(key),
           decoder_call(val),
         ])
       ])

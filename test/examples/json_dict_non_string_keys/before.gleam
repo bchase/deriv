@@ -15,3 +15,10 @@ pub type FloatKeyDict =
 pub type BoolKeyDict =
   //$ derive json decode encode
   Dict(Bool, String)
+
+pub type Foo {
+  //$ derive json decode encode
+  Foo(
+    foo: Dict(Int, String),
+  )
+}
