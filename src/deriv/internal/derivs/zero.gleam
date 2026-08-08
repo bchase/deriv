@@ -195,6 +195,7 @@ fn default_zero_call(
   field: VariantField
 ) -> Result(Expression, Nil) {
   case field.item {
+    NamedType(name: "Nil", ..) -> Ok(zero_nil())
     NamedType(name: "String", ..) -> Ok(zero_string())
     NamedType(name: "Bool", ..) -> Ok(zero_bool())
     NamedType(name: "Int", ..) -> Ok(zero_int())
@@ -222,6 +223,10 @@ fn zero_uuid() -> Expression {
 
 fn zero_time() -> Expression {
   Call(common.dummy_location(), FieldAccess(common.dummy_location(), Variable(common.dummy_location(), "util"), "zero_time"), [])
+}
+
+fn zero_nil() -> Expression {
+  Variable(common.dummy_location(), "Nil")
 }
 
 fn zero_string() -> Expression {
