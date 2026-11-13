@@ -111,7 +111,7 @@ pub fn find_import(
 }
 
 pub opaque type Gen(t, ctx) {
-  Gen(monad: monad.ReadWriteResult(t, String, Read(ctx), Writeite))
+  Gen(monad: monad.ReadWriteResult(t, String, Read(ctx), Write))
 }
 
 pub opaque type Read(ctx) {
@@ -133,8 +133,8 @@ pub type Args {
   )
 }
 
-pub opaque type Writeite {
-  Writeite(
+pub opaque type Write {
+  Write(
     fields: Set(String), // NOTE: fields acc, used to detect need for `with_spread`
     imports: List(g.Definition(g.Import)),
     consts: List(Generated(g.Constant)),
@@ -144,19 +144,19 @@ pub opaque type Writeite {
 }
 
 pub fn gen_imports(
-  write write: Writeite,
+  write write: Write,
 ) -> List(g.Definition(g.Import)) {
   write.imports
 }
 
 pub fn gen_types(
-  write write: Writeite,
+  write write: Write,
 ) -> List(Generated(g.CustomType)) {
   write.types
 }
 
 pub fn gen_funcs(
-  write write: Writeite,
+  write write: Write,
 ) -> List(Generated(g.Function)) {
   write.funcs
 }
@@ -182,20 +182,20 @@ fn set_get_type(x: Read(ctx), get_type) { Read(..x, get_type:)}
 // fn set_target(x: Read(ctx), target) { Read(..x, target:)}
 
 const lens_fields = lens.Lens(get: get_fields, set: set_fields)
-fn get_fields(x: Writeite) { x.fields }
-fn set_fields(x: Writeite, fields) { Writeite(..x, fields:)}
+fn get_fields(x: Write) { x.fields }
+fn set_fields(x: Write, fields) { Write(..x, fields:)}
 const lens_imports = lens.Lens(get: get_imports, set: set_imports)
-fn get_imports(x: Writeite) { x.imports }
-fn set_imports(x: Writeite, imports) { Writeite(..x, imports:)}
+fn get_imports(x: Write) { x.imports }
+fn set_imports(x: Write, imports) { Write(..x, imports:)}
 const lens_consts = lens.Lens(get: get_consts, set: set_consts)
-fn get_consts(x: Writeite) { x.consts }
-fn set_consts(x: Writeite, consts) { Writeite(..x, consts:)}
+fn get_consts(x: Write) { x.consts }
+fn set_consts(x: Write, consts) { Write(..x, consts:)}
 const lens_types = lens.Lens(get: get_types, set: set_types)
-fn get_types(x: Writeite) { x.types }
-fn set_types(x: Writeite, types) { Writeite(..x, types:)}
+fn get_types(x: Write) { x.types }
+fn set_types(x: Write, types) { Write(..x, types:)}
 const lens_funcs = lens.Lens(get: get_funcs, set: set_funcs)
-fn get_funcs(x: Writeite) { x.funcs }
-fn set_funcs(x: Writeite, funcs) { Writeite(..x, funcs:)}
+fn get_funcs(x: Write) { x.funcs }
+fn set_funcs(x: Write, funcs) { Write(..x, funcs:)}
 
 pub fn try(
   gen gen: Gen(a, ctx),
@@ -247,7 +247,7 @@ pub fn read(
 }
 
 fn writes(
-  at lens: Lens(Writeite, vs),
+  at lens: Lens(Write, vs),
   cont cont: fn(vs) -> Gen(t, ctx)
 ) -> Gen(t, ctx) {
   Gen(monad.writes(lens, fn(w) { cont(w).monad }))
@@ -255,7 +255,7 @@ fn writes(
 
 fn write(
   val new: v,
-  into lens: Lens(Writeite, vs),
+  into lens: Lens(Write, vs),
   using f: fn(vs, v) -> vs,
   cont cont: fn() -> Gen(t, ctx),
 ) -> Gen(t, ctx) {
@@ -291,11 +291,11 @@ pub fn run_gen(
   opts opts: TypeGenOpts,
   target target: #(GleamPath, String),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-) -> #(Result(t, String), Writeite) {
+) -> #(Result(t, String), Write) {
   gen.monad
   |> monad.run_(
     read: Read(ctx:, file:, args:, opts:, target:, get_type:),
-    write: Writeite(fields: set.new(), imports: [], consts: [], types: [], funcs: []),
+    write: Write(fields: set.new(), imports: [], consts: [], types: [], funcs: []),
   )
 }
 
