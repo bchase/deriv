@@ -774,6 +774,8 @@ pub fn process(
     |> monad.sequence
     |> monad.run_(lookups, acc)
 
+
+echo result
   use acc <- result.try(
     case result {
       #(Ok(_), acc) -> Ok(acc)
@@ -784,7 +786,13 @@ pub fn process(
   let tgs =
     type_gens(ctx:)
     |> list.flat_map(fn(t) {
-      let #(ct, parser.TypeGens(gens:, opts:)) = t
+      let #(ct, parser.TypeGens(gens:, opts:, fields:)) = t
+
+      echo fields
+      echo fields
+      echo fields
+      echo fields
+      echo fields
 
       gens
       |> list.map(fn(t) {
@@ -934,6 +942,11 @@ fn run_func_gen(
   let gen = Gen(..gen, pos: gen.pos + offset)
 
   use #(gen_def, args, #(path, _func) as mf) <- monad.do(get_gen_def_from(str: gen.str, fetch:))
+
+  echo gen_def
+  echo args
+  echo path
+  echo mf
 
   // gen expr
   use GenExpr(expr:, imports:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
@@ -1291,6 +1304,11 @@ fn build_expr(
 
     types.CustomTypeDeriveExprGen(gens:), CustomType(type_:) ->
       custom_type_derive(target:, gens:, args:, type_:, opts:, get_type:, ctx:)
+
+    types.CustomTypeVariantLabelledFieldDeriveExprGen(gens:), Function(func:) ->
+      todo
+    types.CustomTypeVariantLabelledFieldDeriveExprGen(gens:), CustomType(type_:) ->
+      todo
 
     types.VariantClauseCaseExprGen(..), CustomType(..) |
     types.CustomTypeDeriveExprGen(..), Function(..) ->

@@ -11,6 +11,7 @@ import gleam/result
 import gleam/set.{type Set}
 import gleam/string
 import tom
+import gleam/regexp as re
 
 pub const z = g.Span(-1, -1)
 
@@ -22,9 +23,36 @@ pub type GenDef {
   CustomTypeDeriveExprGen(
     gens: List(Gen(Nil, g.Definition(g.CustomType))),
   )
+  CustomTypeVariantLabelledFieldDeriveExprGen(
+    gens: List(Gen(Nil, CustomTypeVariantLabelledField)),
+  )
+}
+
+pub type CustomTypeVariantLabelledField {
+  CustomTypeVariantLabelledField(
+    custom_type: g.CustomType,
+    variant: g.Variant,
+    field_idx: Int,
+    field_name: String,
+    field_type: g.Type,
+  )
 }
 
 pub type GenVariantCaseClause(t) = Gen(t, #(g.Variant, TypeDef))
+
+pub type Gen1 {
+  Gen1(
+    module_path: GleamPath,
+    func: String,
+    opts: Opts,
+  )
+}
+
+pub type Opts {
+  Opts(
+    raw: String,
+  )
+}
 
 pub type TypeDef {
   TypeDef(
@@ -715,4 +743,47 @@ pub fn to_glance_type(
     name: type_.name,
     parameters: type_.parameters |> list.map(g.VariableType(z, _)),
   )
+}
+
+// TODO unify
+
+pub fn keyed_opt_re() -> re.Regexp {
+  let assert Ok(re) =
+    "([-\\w]+)[:]([^ ]+)$"
+    |> re.from_string
+
+  re
+}
+
+pub fn unkeyed_opts(
+  opts opts: Opts,
+) -> List(String) {
+  let assert Ok(ws_re) = "\\s+" |> re.from_string
+
+  let keyed_opt_re = keyed_opt_re()
+
+  opts.raw
+  |> re.split(ws_re, _)
+  |> list.filter(fn(str) { !re.check(keyed_opt_re, str) })
+}
+
+pub fn keyed_opt(
+  opts opts: Opts,
+  key target: String,
+  parse parse: fn(String) -> Result(t, String)
+) -> Result(t, String) {
+  let assert Ok(re) =
+    "([-\\w]+)[:]([^ ]+)"
+    |> re.from_string
+
+  opts.raw
+  |> re.scan(re, _)
+  |> list.find_map(fn(match) {
+    case match.submatches {
+      [Some(key), Some(val)] if key == target -> Ok(val)
+      _ -> Error(Nil)
+    }
+  })
+  |> result.replace_error("key `" <> target <> "` not found")
+  |> result.try(parse)
 }
