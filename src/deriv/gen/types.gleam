@@ -1,3 +1,4 @@
+import bchase/function
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
 import bchase/monad/read_write_result as monad
@@ -175,6 +176,12 @@ pub fn gen_imports(
   write write: Write,
 ) -> List(g.Definition(g.Import)) {
   write.imports
+}
+
+pub fn gen_consts(
+  write write: Write,
+) -> List(Generated(g.Constant)) {
+  write.consts
 }
 
 pub fn gen_types(
@@ -407,39 +414,75 @@ pub fn short(field: String) -> g.Field(t) {
 
 //
 
+pub fn named_gen_param_or(
+  name name: String,
+  parse f: fn(String) -> Result(a, Nil),
+  default default: a,
+  cont cont: fn(a) -> Gen(b, ctx),
+) -> Gen(b, ctx) {
+  use result <- named_gen_param_str(name)
+
+  result
+  |> result.try(f)
+  |> result.unwrap(default)
+  |> cont
+}
+
 pub fn named_gen_param(
   name name: String,
-  parse f: fn(String) -> Result(t, e),
-) -> Gen(Result(t, e), ctx) {
-  use str <- bind(ensure_named_gen_param_str(name))
-  pure(f(str))
+  parse f: fn(String) -> Result(a, Nil),
+  cont cont: fn(Result(a, Nil)) -> Gen(b, ctx),
+) -> Gen(b, ctx) {
+  use result <- named_gen_param_str(name)
+
+  result
+  |> result.try(f)
+  |> cont
 }
 
 pub fn ensure_named_gen_param(
   name name: String,
   parse f: fn(String) -> Result(t, String),
 ) -> Gen(t, ctx) {
-  use str <- bind(ensure_named_gen_param_str(name))
+  use str <- ensure_named_gen_param_str(name)
   ok(f(str), fn(err) {
     "named gen param " <> string.inspect(#(name, str)) <> " parse failed with err: " <> string.inspect(err)
   })
 }
 
-pub fn named_gen_param_str(
-  name name: String,
-) -> Gen(Result(String, Nil), ctx) {
-  use args <- read(lens_args)
-  pure(dict.get(args.named, name))
-}
-
 pub fn ensure_named_gen_param_str(
   name name: String,
-) -> Gen(String, ctx) {
+  cont cont: fn(String) -> Gen(t, ctx),
+) -> Gen(t, ctx) {
   use args <- read(lens_args)
-  use result <- bind(named_gen_param_str(name))
-  ok(result, fn(_err) {
+  use result <- named_gen_param_str(name)
+  use str <- bind(ok(result, fn(_err) {
     "named gen param " <> string.inspect(name) <> " but got: " <> string.inspect(args)
-  })
+  }))
+  cont(str)
+}
+
+pub fn named_gen_param_str(
+  name name: String,
+  cont cont: fn(Result(String, Nil)) -> Gen(t, ctx),
+) -> Gen(t, ctx) {
+  use args <- read(lens_args)
+  cont(dict.get(args.named, name))
+}
+
+pub fn has_gen_param(
+  str str: String,
+  cont cont: fn(Bool) -> Gen(t, ctx),
+) -> Gen(t, ctx) {
+  use args <- read(lens_args)
+
+  let assert Ok(ws_re) =
+    "\\s+" |> re.from_string
+
+  args.raw
+  |> re.split(ws_re, _)
+  |> list.any(fn(token) { token == str })
+  |> cont
 }
 
 pub fn success(val: t) -> Gen(t, ctx) {
@@ -469,6 +512,14 @@ pub fn opts(
 ) -> Gen(t, g.Definition(g.CustomType)) {
   use opts <- read(lens_opts)
   cont(opts)
+}
+
+pub fn field(
+  cont cont: fn(CustomTypeVariantLabelledField) -> Gen(t, CustomTypeVariantLabelledField),
+) -> Gen(t, CustomTypeVariantLabelledField) {
+  use read <- read(lens.identity)
+  let field = read.ctx
+  cont(field)
 }
 
 pub fn custom_type(
@@ -580,6 +631,11 @@ fn get_type_def_for(
     _ ->
       pure(Error(Nil))
   }
+}
+
+pub fn custom_type_variant_labelled_field_success(
+) -> Gen(Nil, CustomTypeVariantLabelledField) {
+  success(Nil)
 }
 
 pub fn variant_clause_success(

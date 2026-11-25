@@ -10,6 +10,12 @@ pub type Foo {
 
 // DERIVED
 
-pub const bar: Lens(Foo, String) = Lens(lens_foo_bar_get, lens_foo_bar_set)
-fn lens_foo_bar_get(o: Foo) -> String { o.bar }
-fn lens_foo_bar_set(o: Foo, i: String) -> Foo { Foo(..o, bar: i) }
+fn bar_get(o: Foo) -> String {
+  o.bar
+}
+
+fn bar_set(o: Foo, i: String) -> Foo {
+  Foo(..o, bar: i)
+}
+
+pub const bar: Lens(Foo, String) = Lens(bar_get, bar_set)

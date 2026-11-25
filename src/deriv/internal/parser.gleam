@@ -422,8 +422,11 @@ fn parse_custom_type_variant_labelled_field_derives(
       #(#(variant, field_name), opts) -> {
         opts
         |> list.filter_map(fn(opt) {
-          case re.scan(derive_re, opt) {
-            [re.Match(_, [Some(module_path), Some(func), _, opts])] -> {
+          let default_opts = None
+
+          case default_opts, re.scan(derive_re, opt) {
+            opts, [re.Match(_, [Some(module_path), Some(func)])] |
+            _, [re.Match(_, [Some(module_path), Some(func), _, opts])] -> {
               use module_path <- result.try({
                 parse(module_path) |> result.map_error(fn(_err) { Nil }) // TODO
               })
@@ -467,7 +470,7 @@ fn parse_custom_type_variant_labelled_field_derives(
               Ok(#(field, gen))
             }
 
-            _ ->
+            _, _ ->
               Error(Nil)
           }
         })

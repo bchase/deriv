@@ -20,12 +20,13 @@ import deriv/internal/derivs/zero as deriv_zero
 import deriv/internal/derivs/enum as deriv_enum
 import deriv/internal/derivs/form as deriv_form
 import deriv/internal/derivs/functor as deriv_functor
+import deriv/internal/derivs/lens as deriv_lens
 import deriv/internal/common
 import deriv/gen/types.{type GenDef} as x
-import gleam/io
 import argv
 import glint
 
+pub fn lens() -> GenDef { deriv_lens.lens() }
 pub fn json() -> GenDef { wrap_legacy(name: "json", gen: deriv_json.gen) }
 pub fn from() -> GenDef { wrap_legacy(name: "from", gen: deriv_from_into.gen_from) }
 pub fn into() -> GenDef { wrap_legacy(name: "into", gen: deriv_from_into.gen_into) }

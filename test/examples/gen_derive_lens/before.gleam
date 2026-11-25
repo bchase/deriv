@@ -1,7 +1,7 @@
 pub type Foo {
   Foo(
     bar: String,
-    //$ derive.lens asdf qwer
+    //$ derive.lens
     baz: Int,
   )
 }
