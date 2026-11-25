@@ -7,9 +7,9 @@ import gleam/result
 import gleam/list
 import gleam/string
 import gleam/regexp.{Match} as re
-import glance.{type CustomType, type TypeAlias}
+import glance.{type CustomType, type TypeAlias} as g
 import deriv/internal/types.{type Derivation, Derivation, DerivField, type DerivFieldOpt, DerivFieldOpt, type DerivFieldOpts}
-import deriv/gen/types.{type AST, type GleamPath} as _
+import deriv/gen/types.{type Gen1, Gen1, type AST, type GleamPath, type CustomTypeVariantLabelledField, type Opts, Opts, CustomTypeVariantLabelledField} as _
 import deriv/internal/glance.{z} as dg
 import nibble
 import nibble/lexer
@@ -86,7 +86,7 @@ fn type_alias_src_from(
     let src = string.join([src, line], "\n")
 
     {
-      use module <- result.try(glance.module(src) |> result.replace_error(Nil))
+      use module <- result.try(g.module(src) |> result.replace_error(Nil))
       use type_alias <- result.try(module.type_aliases |> list.first())
 
       Ok(list.Stop(#(Ok(#(type_alias.definition, src)), src)))
@@ -160,7 +160,7 @@ fn parse_derivations_from_inside_type_def_lines(
   #(derivs, opts)
 }
 
-pub fn parse_import_with_derivations(import_: glance.Import, src: String) -> Result(#(glance.Import, List(Derivation)), Nil) {
+pub fn parse_import_with_derivations(import_: g.Import, src: String) -> Result(#(g.Import, List(Derivation)), Nil) {
   let magic_comment =
     src
     |> string.split("\n")
@@ -393,23 +393,100 @@ pub fn parse_named_params(
 
 //
 
+type Gen = #(#(GleamPath, Option(String)), Opts)
 
 pub fn parse_type_gens(
-  type_ type_: glance.CustomType,
+  type_ type_: g.CustomType,
   src src: String,
   ast ast: AST,
   parse parse: fn(String) -> Result(GleamPath, String),
 ) -> Result(TypeGens, Nil) {
   use raw <- result.try(parse_raw_type_gens(type_:, src:, ast:))
-  Ok(from_raw(raw, parse))
+  Ok(from_raw(raw, type_, parse))
+}
+
+fn parse_custom_type_variant_labelled_field_derives(
+  raw raw: RawTypeGens,
+  type_ custom_type: g.CustomType,
+  parse parse: fn(String) -> Result(GleamPath, String),
+// ) -> List(#(CustomTypeVariantLabelledField, Gen1)) {
+) -> Dict(CustomTypeVariantLabelledField, List(Gen1)) {
+  let assert Ok(derive_re) =
+    "^([/\\w]+)[.](\\w+)(\\s+(.+))?$"
+    |> re.from_string
+
+  raw.opts
+  |> dict.to_list
+  |> list.flat_map(fn(opt) {
+    case opt {
+      #(#(variant, field_name), opts) -> {
+        opts
+        |> list.filter_map(fn(opt) {
+          let default_opts = None
+
+          case default_opts, re.scan(derive_re, opt) {
+            opts, [re.Match(_, [Some(module_path), Some(func)])] |
+            _, [re.Match(_, [Some(module_path), Some(func), _, opts])] -> {
+              use module_path <- result.try({
+                parse(module_path) |> result.map_error(fn(_err) { Nil }) // TODO
+              })
+
+              use field_name <- result.try({
+                option.to_result(field_name, Nil)
+              })
+
+              use variant <- result.try({
+                custom_type.variants
+                |> list.find(fn(v) { v.name == variant })
+              })
+
+              use #(field_idx, field_type) <- result.try({
+                variant.fields
+                |> list.index_map(pair.new)
+                |> list.find_map(fn(x) {
+                  let #(field, idx) = x
+
+                  case field {
+                    g.LabelledVariantField(item: type_, label:) if label == field_name  ->
+                      Ok(#(idx, type_))
+
+                    g.LabelledVariantField(..) |
+                    g.UnlabelledVariantField(..) ->
+                      Error(Nil)
+                  }
+                })
+              })
+
+              let gen = Gen1(module_path:, func:, opts: opts |> option.unwrap("") |> Opts)
+
+              let field = CustomTypeVariantLabelledField(
+                custom_type:,
+                variant:,
+                field_idx:,
+                field_name:,
+                field_type:,
+              )
+
+              Ok(#(field, gen))
+            }
+
+            _, _ ->
+              Error(Nil)
+          }
+        })
+      }
+    }
+  })
+  |> list.group(pair.first)
+  |> dict.map_values(fn(_, xs) { xs |> list.map(pair.second) })
 }
 
 pub fn parse_raw_type_gens(
-  type_ type_: glance.CustomType,
+  type_ type_: g.CustomType,
   src src: String,
   ast ast: AST
 ) -> Result(RawTypeGens, Nil) {
-  use glance.Definition(_, ct) <- result.try(dict.get(ast.custom_types, type_.name))
+  use g.Definition(_, ct) <- result.try(dict.get(ast.custom_types, type_.name))
 
   use src <- result.try(dg.read_span(src:, span: ct.location))
 
@@ -435,11 +512,20 @@ pub type TypeGens {
   TypeGens(
     gens: List(#(#(GleamPath, String), String)),
     opts: Dict(#(String, Option(String), String), List(String)),
+    fields: Dict(CustomTypeVariantLabelledField, List(Gen1))
+  )
+}
+
+pub type FieldGens {
+  FieldsGens(
+    field: CustomTypeVariantLabelledField,
+    gens: List(#(#(GleamPath, String), String)),
   )
 }
 
 pub fn from_raw(
   gen gen: RawTypeGens,
+  type_ type_: g.CustomType,
   parse parse: fn(String) -> Result(GleamPath, String),
 ) -> TypeGens {
   let gens =
@@ -497,7 +583,10 @@ pub fn from_raw(
       list.map(vals, pair.second)
     })
 
-  TypeGens(gens:, opts:)
+  let fields =
+    parse_custom_type_variant_labelled_field_derives(raw: gen, type_:, parse:)
+
+  TypeGens(gens:, opts:, fields:)
 }
 
 type Match {

@@ -26,7 +26,7 @@ import shellout
 import deriv/internal/glance.{term, call, call_, pipe, dot, short} as _
 import bchase/casing
 import deriv/internal/types.{type Derivation, type DerivField, type DerivFieldOpt} as _
-import deriv/gen/types.{type TypeGenOpts, type GenDef, type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type GleamToml, GleamToml, type Imports, type AST, AST, Imports, type Context, Context}
+import deriv/gen/types.{type TypeGenOpts, type GenDef, type TypeDef, TypeDef, type GleamPath, GleamPath, type GleamFile, GleamFile, type GleamToml, GleamToml, type Imports, type AST, AST, Imports, type Context, Context, type CustomTypeVariantLabelledField}
 //
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
@@ -639,6 +639,7 @@ type Acc {
   Acc(
     src: String,
     imports: List(g.Definition(g.Import)),
+    consts: List(types.Generated(g.Constant)),
     types: List(types.Generated(g.CustomType)),
     funcs: List(types.Generated(g.Function)),
     offset: Int,
@@ -659,6 +660,9 @@ fn set_src(x: Acc, src) { Acc(..x, src:)}
 const lens_imports = lens.Lens(get: get_imports, set: set_imports)
 fn get_imports(x: Acc) { x.imports }
 fn set_imports(x: Acc, imports) { Acc(..x, imports:)}
+const lens_consts = lens.Lens(get: get_consts, set: set_consts)
+fn get_consts(x: Acc) { x.consts }
+fn set_consts(x: Acc, consts) { Acc(..x, consts:)}
 const lens_types = lens.Lens(get: get_types, set: set_types)
 fn get_types(x: Acc) { x.types }
 fn set_types(x: Acc, types) { Acc(..x, types:)}
@@ -743,6 +747,7 @@ pub fn process(
   let acc = Acc(
     src: ctx.file.src,
     imports: [],
+    consts: [],
     types: [],
     funcs: [],
     offset: 0,
@@ -781,21 +786,54 @@ pub fn process(
     }
   )
 
-  let tgs =
+  let #(tgs, fgs) =
     type_gens(ctx:)
-    |> list.flat_map(fn(t) {
-      let #(ct, parser.TypeGens(gens:, opts:)) = t
+    |> list.map(fn(t) {
+      let #(ct, parser.TypeGens(gens:, opts:, fields:)) = t
 
-      gens
-      |> list.map(fn(t) {
-        let #(#(path, func), args) = t
-        let gen = TypeGen(path:, func:, args:)
-        #(gen, opts, CustomType(type_: ct), ctx)
-      })
+      let type_gens =
+        gens
+        |> list.map(fn(t) {
+          let #(#(path, func), args) = t
+          let gen = TypeGen(path:, func:, args:)
+          #(gen, opts, CustomType(type_: ct), ctx)
+        })
+
+      let field_gens =
+        fields
+        |> dict.to_list
+
+      #(type_gens, field_gens)
     })
+    |> list.unzip
+    |> pair.map_first(list.flatten)
+    |> pair.map_second(list.flatten)
+
+  let to_type_gens: fn(#(CustomTypeVariantLabelledField, List(types.Gen1))) -> List(#(TypeGen, TypeGenOpts, Def, Context)) = fn(fg) {
+    let #(field, gens) = fg
+
+    gens
+    |> list.map(fn(gen: types.Gen1) {
+      #(
+        TypeGen(path: gen.module_path, func: gen.func, args: gen.opts.raw),
+        dict.new(),
+        CustomTypeVariantLabelledField(field:),
+        ctx,
+      )
+    })
+  }
+
+  // fgs
+  // |> list.map(fn(fg) {
+  //   let #(x, y) = fg
+  //   let assert Ok(z) = list.first(y)
+  //   let gen = TypeGen(path: z.module_path, func: z.func, args: z.opts.raw)
+  //   todo
+  // })
 
   let result =
     tgs
+    |> list.append(fgs |> list.flat_map(to_type_gens))
     |> list.map(run_type_gen)
     |> monad.sequence
     |> monad.run_(lookups, acc)
@@ -820,6 +858,7 @@ fn process_acc(
         |> dict.keys
 
       let extant_func_names = ctx.file.ast.functions
+      let extant_const_names = ctx.file.ast.constants
 
       let #(overwrite_funcs, new_funcs) =
         acc.funcs
@@ -879,6 +918,32 @@ fn process_acc(
           common.type_str(f.def)
         })
 
+      let const_srcs =
+        acc.consts
+        |> list.filter(fn(f) {
+          case f.overwrite {
+            True -> True
+            False -> !dict.has_key(extant_const_names, f.def.definition.name)
+          }
+        })
+        |> list.group(fn(f) { f.def.definition.name })
+        |> dict.to_list
+        |> list.filter_map(fn(t) {
+          case t.1 {
+            [] -> Error(Nil)
+            [f] -> Ok(f)
+            _ -> {
+              io.log_err([
+                "An expression generator is trying to define multiple functions with the name: " <> t.0
+              ])
+              Error(Nil)
+            }
+          }
+        })
+        |> list.map(fn(f) {
+          common.const_str(f.def)
+        })
+
       let src =
         acc.src
         |> list.fold(overwrite_funcs, _, fn(src, func) {
@@ -894,6 +959,7 @@ fn process_acc(
         [
           type_srcs,
           new_func_srcs,
+          const_srcs,
         ]
         |> list.flatten
         |> string.join("\n\n")
@@ -936,12 +1002,13 @@ fn run_func_gen(
   use #(gen_def, args, #(path, _func) as mf) <- monad.do(get_gen_def_from(str: gen.str, fetch:))
 
   // gen expr
-  use GenExpr(expr:, imports:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
+  use GenExpr(expr:, imports:, consts:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
     build_expr(mf, gen_def, args, def, dict.new(), get_type, ctx),
   )
 
   // register funcs to be added to src
   use <- monad.concat(imports, lens_imports)
+  use <- monad.concat(consts, lens_consts)
   use <- monad.concat(types, lens_types)
   use <- monad.concat(funcs, lens_funcs)
 
@@ -1008,7 +1075,7 @@ fn run_type_gen(
   use #(gen_def, args, mf) <- monad.do(get_gen_def_from(str: gen_str, fetch:))
 
   // gen expr
-  use GenExpr(expr: _, imports:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
+  use GenExpr(expr: _, imports:, consts:, types:, funcs:, refs: new_refs) <- monad.do_ok_(
     build_expr(mf, gen_def, args, def, opts, get_type, ctx) |> fn(x) {
       // panic
       // io.println(string.inspect(x))
@@ -1018,6 +1085,7 @@ fn run_type_gen(
 
   // register funcs to be added to src
   use <- monad.concat(imports, lens_imports)
+  use <- monad.concat(consts, lens_consts)
   use <- monad.concat(types, lens_types)
   use <- monad.concat(funcs, lens_funcs)
 
@@ -1032,6 +1100,7 @@ pub type GenExpr {
   GenExpr(
     expr: Option(g.Expression),
     imports: List(g.Definition(g.Import)),
+    consts: List(types.Generated(g.Constant)),
     types: List(types.Generated(g.CustomType)),
     funcs: List(types.Generated(g.Function)),
     refs: List(Ref),
@@ -1272,6 +1341,7 @@ fn bracket_pos(
 pub type Def {
   Function(func: g.Definition(g.Function))
   CustomType(type_: g.Definition(g.CustomType))
+  CustomTypeVariantLabelledField(field: CustomTypeVariantLabelledField)
 }
 
 fn build_expr(
@@ -1292,8 +1362,15 @@ fn build_expr(
     types.CustomTypeDeriveExprGen(gens:), CustomType(type_:) ->
       custom_type_derive(target:, gens:, args:, type_:, opts:, get_type:, ctx:)
 
+    types.CustomTypeVariantLabelledFieldDeriveExprGen(gens:), CustomTypeVariantLabelledField(field:) ->
+      field_derive(target:, gens:, args:, field:, opts:, get_type:, ctx:)
+
+    types.CustomTypeDeriveExprGen(..), CustomTypeVariantLabelledField(..) |
+    types.CustomTypeDeriveExprGen(..), Function(..) |
+    types.VariantClauseCaseExprGen(..), CustomTypeVariantLabelledField(..) |
     types.VariantClauseCaseExprGen(..), CustomType(..) |
-    types.CustomTypeDeriveExprGen(..), Function(..) ->
+    types.CustomTypeVariantLabelledFieldDeriveExprGen(..), Function(..) |
+    types.CustomTypeVariantLabelledFieldDeriveExprGen(..), CustomType(..) ->
       Error(GenExprWiredWithWrongArg(gen_def: gen, def:))
   }
 }
@@ -1338,7 +1415,7 @@ fn case_expr_with_variant_clauses(
   )
 
   let expr = g.Case(z, subjects: [term(subject)], clauses:) |> Some
-  Ok(GenExpr(expr:, imports: [], types: [], funcs:, refs: [ref]))
+  Ok(GenExpr(expr:, imports: [], consts: [], types: [], funcs:, refs: [ref]))
 }
 
 fn build_case_clause_expr(
@@ -1408,6 +1485,46 @@ fn custom_type_derive(
     expr: None,
     refs: [],
     imports: gens |> list.flat_map(types.gen_imports),
+    consts: gens |> list.flat_map(types.gen_consts),
+    types: gens |> list.flat_map(types.gen_types),
+    funcs: gens |> list.flat_map(types.gen_funcs),
+  ))
+}
+
+fn field_derive(
+  target target: #(GleamPath, String),
+  gens gens: List(types.Gen(Nil, CustomTypeVariantLabelledField)),
+  args args: types.Args,
+  field field: CustomTypeVariantLabelledField,
+  opts opts: TypeGenOpts,
+  get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
+  ctx ctx: Context,
+) -> Result(GenExpr, GenErr) {
+  // let fail = fn(msg) { Failed("[custom type derive expr] " <> msg) }
+
+  let file = ctx.file
+
+  let #(gens, errs) =
+    gens
+    |> list.map(types.run_gen(gen: _, ctx: field, file:, args:, opts:, target:, get_type:))
+    |> list.map(fn(t) {
+      case t.0 {
+        Ok(Nil) -> Ok(t.1)
+        Error(err) -> Error(err)
+      }
+    })
+    |> result.partition
+
+  case errs {
+    [] -> Nil
+    _ -> io.log_err(["field derive had issue with: " <> string.inspect(field), ..errs])
+  }
+
+  Ok(GenExpr(
+    expr: None,
+    refs: [],
+    imports: gens |> list.flat_map(types.gen_imports),
+    consts: gens |> list.flat_map(types.gen_consts),
     types: gens |> list.flat_map(types.gen_types),
     funcs: gens |> list.flat_map(types.gen_funcs),
   ))

@@ -1,3 +1,4 @@
+import bchase/function
 import bchase/lens.{type Lens}
 import bchase/list.{push as list_push} as _
 import bchase/monad/read_write_result as monad
@@ -11,6 +12,7 @@ import gleam/result
 import gleam/set.{type Set}
 import gleam/string
 import tom
+import gleam/regexp as re
 
 pub const z = g.Span(-1, -1)
 
@@ -22,9 +24,36 @@ pub type GenDef {
   CustomTypeDeriveExprGen(
     gens: List(Gen(Nil, g.Definition(g.CustomType))),
   )
+  CustomTypeVariantLabelledFieldDeriveExprGen(
+    gens: List(Gen(Nil, CustomTypeVariantLabelledField)),
+  )
+}
+
+pub type CustomTypeVariantLabelledField {
+  CustomTypeVariantLabelledField(
+    custom_type: g.CustomType,
+    variant: g.Variant,
+    field_idx: Int,
+    field_name: String,
+    field_type: g.Type,
+  )
 }
 
 pub type GenVariantCaseClause(t) = Gen(t, #(g.Variant, TypeDef))
+
+pub type Gen1 {
+  Gen1(
+    module_path: GleamPath,
+    func: String,
+    opts: Opts,
+  )
+}
+
+pub type Opts {
+  Opts(
+    raw: String,
+  )
+}
 
 pub type TypeDef {
   TypeDef(
@@ -111,7 +140,7 @@ pub fn find_import(
 }
 
 pub opaque type Gen(t, ctx) {
-  Gen(monad: monad.ReadWriteResult(t, String, Read(ctx), Writeite))
+  Gen(monad: monad.ReadWriteResult(t, String, Read(ctx), Write))
 }
 
 pub opaque type Read(ctx) {
@@ -133,8 +162,8 @@ pub type Args {
   )
 }
 
-pub opaque type Writeite {
-  Writeite(
+pub opaque type Write {
+  Write(
     fields: Set(String), // NOTE: fields acc, used to detect need for `with_spread`
     imports: List(g.Definition(g.Import)),
     consts: List(Generated(g.Constant)),
@@ -144,19 +173,25 @@ pub opaque type Writeite {
 }
 
 pub fn gen_imports(
-  write write: Writeite,
+  write write: Write,
 ) -> List(g.Definition(g.Import)) {
   write.imports
 }
 
+pub fn gen_consts(
+  write write: Write,
+) -> List(Generated(g.Constant)) {
+  write.consts
+}
+
 pub fn gen_types(
-  write write: Writeite,
+  write write: Write,
 ) -> List(Generated(g.CustomType)) {
   write.types
 }
 
 pub fn gen_funcs(
-  write write: Writeite,
+  write write: Write,
 ) -> List(Generated(g.Function)) {
   write.funcs
 }
@@ -182,20 +217,20 @@ fn set_get_type(x: Read(ctx), get_type) { Read(..x, get_type:)}
 // fn set_target(x: Read(ctx), target) { Read(..x, target:)}
 
 const lens_fields = lens.Lens(get: get_fields, set: set_fields)
-fn get_fields(x: Writeite) { x.fields }
-fn set_fields(x: Writeite, fields) { Writeite(..x, fields:)}
+fn get_fields(x: Write) { x.fields }
+fn set_fields(x: Write, fields) { Write(..x, fields:)}
 const lens_imports = lens.Lens(get: get_imports, set: set_imports)
-fn get_imports(x: Writeite) { x.imports }
-fn set_imports(x: Writeite, imports) { Writeite(..x, imports:)}
+fn get_imports(x: Write) { x.imports }
+fn set_imports(x: Write, imports) { Write(..x, imports:)}
 const lens_consts = lens.Lens(get: get_consts, set: set_consts)
-fn get_consts(x: Writeite) { x.consts }
-fn set_consts(x: Writeite, consts) { Writeite(..x, consts:)}
+fn get_consts(x: Write) { x.consts }
+fn set_consts(x: Write, consts) { Write(..x, consts:)}
 const lens_types = lens.Lens(get: get_types, set: set_types)
-fn get_types(x: Writeite) { x.types }
-fn set_types(x: Writeite, types) { Writeite(..x, types:)}
+fn get_types(x: Write) { x.types }
+fn set_types(x: Write, types) { Write(..x, types:)}
 const lens_funcs = lens.Lens(get: get_funcs, set: set_funcs)
-fn get_funcs(x: Writeite) { x.funcs }
-fn set_funcs(x: Writeite, funcs) { Writeite(..x, funcs:)}
+fn get_funcs(x: Write) { x.funcs }
+fn set_funcs(x: Write, funcs) { Write(..x, funcs:)}
 
 pub fn try(
   gen gen: Gen(a, ctx),
@@ -247,7 +282,7 @@ pub fn read(
 }
 
 fn writes(
-  at lens: Lens(Writeite, vs),
+  at lens: Lens(Write, vs),
   cont cont: fn(vs) -> Gen(t, ctx)
 ) -> Gen(t, ctx) {
   Gen(monad.writes(lens, fn(w) { cont(w).monad }))
@@ -255,7 +290,7 @@ fn writes(
 
 fn write(
   val new: v,
-  into lens: Lens(Writeite, vs),
+  into lens: Lens(Write, vs),
   using f: fn(vs, v) -> vs,
   cont cont: fn() -> Gen(t, ctx),
 ) -> Gen(t, ctx) {
@@ -291,11 +326,11 @@ pub fn run_gen(
   opts opts: TypeGenOpts,
   target target: #(GleamPath, String),
   get_type get_type: fn(Option(String), String) -> Result(TypeDef, Nil),
-) -> #(Result(t, String), Writeite) {
+) -> #(Result(t, String), Write) {
   gen.monad
   |> monad.run_(
     read: Read(ctx:, file:, args:, opts:, target:, get_type:),
-    write: Writeite(fields: set.new(), imports: [], consts: [], types: [], funcs: []),
+    write: Write(fields: set.new(), imports: [], consts: [], types: [], funcs: []),
   )
 }
 
@@ -379,39 +414,75 @@ pub fn short(field: String) -> g.Field(t) {
 
 //
 
+pub fn named_gen_param_or(
+  name name: String,
+  parse f: fn(String) -> Result(a, Nil),
+  default default: a,
+  cont cont: fn(a) -> Gen(b, ctx),
+) -> Gen(b, ctx) {
+  use result <- named_gen_param_str(name)
+
+  result
+  |> result.try(f)
+  |> result.unwrap(default)
+  |> cont
+}
+
 pub fn named_gen_param(
   name name: String,
-  parse f: fn(String) -> Result(t, e),
-) -> Gen(Result(t, e), ctx) {
-  use str <- bind(ensure_named_gen_param_str(name))
-  pure(f(str))
+  parse f: fn(String) -> Result(a, Nil),
+  cont cont: fn(Result(a, Nil)) -> Gen(b, ctx),
+) -> Gen(b, ctx) {
+  use result <- named_gen_param_str(name)
+
+  result
+  |> result.try(f)
+  |> cont
 }
 
 pub fn ensure_named_gen_param(
   name name: String,
   parse f: fn(String) -> Result(t, String),
 ) -> Gen(t, ctx) {
-  use str <- bind(ensure_named_gen_param_str(name))
+  use str <- ensure_named_gen_param_str(name)
   ok(f(str), fn(err) {
     "named gen param " <> string.inspect(#(name, str)) <> " parse failed with err: " <> string.inspect(err)
   })
 }
 
-pub fn named_gen_param_str(
-  name name: String,
-) -> Gen(Result(String, Nil), ctx) {
-  use args <- read(lens_args)
-  pure(dict.get(args.named, name))
-}
-
 pub fn ensure_named_gen_param_str(
   name name: String,
-) -> Gen(String, ctx) {
+  cont cont: fn(String) -> Gen(t, ctx),
+) -> Gen(t, ctx) {
   use args <- read(lens_args)
-  use result <- bind(named_gen_param_str(name))
-  ok(result, fn(_err) {
+  use result <- named_gen_param_str(name)
+  use str <- bind(ok(result, fn(_err) {
     "named gen param " <> string.inspect(name) <> " but got: " <> string.inspect(args)
-  })
+  }))
+  cont(str)
+}
+
+pub fn named_gen_param_str(
+  name name: String,
+  cont cont: fn(Result(String, Nil)) -> Gen(t, ctx),
+) -> Gen(t, ctx) {
+  use args <- read(lens_args)
+  cont(dict.get(args.named, name))
+}
+
+pub fn has_gen_param(
+  str str: String,
+  cont cont: fn(Bool) -> Gen(t, ctx),
+) -> Gen(t, ctx) {
+  use args <- read(lens_args)
+
+  let assert Ok(ws_re) =
+    "\\s+" |> re.from_string
+
+  args.raw
+  |> re.split(ws_re, _)
+  |> list.any(fn(token) { token == str })
+  |> cont
 }
 
 pub fn success(val: t) -> Gen(t, ctx) {
@@ -441,6 +512,14 @@ pub fn opts(
 ) -> Gen(t, g.Definition(g.CustomType)) {
   use opts <- read(lens_opts)
   cont(opts)
+}
+
+pub fn field(
+  cont cont: fn(CustomTypeVariantLabelledField) -> Gen(t, CustomTypeVariantLabelledField),
+) -> Gen(t, CustomTypeVariantLabelledField) {
+  use read <- read(lens.identity)
+  let field = read.ctx
+  cont(field)
 }
 
 pub fn custom_type(
@@ -552,6 +631,11 @@ fn get_type_def_for(
     _ ->
       pure(Error(Nil))
   }
+}
+
+pub fn custom_type_variant_labelled_field_success(
+) -> Gen(Nil, CustomTypeVariantLabelledField) {
+  success(Nil)
 }
 
 pub fn variant_clause_success(
@@ -715,4 +799,47 @@ pub fn to_glance_type(
     name: type_.name,
     parameters: type_.parameters |> list.map(g.VariableType(z, _)),
   )
+}
+
+// TODO unify
+
+pub fn keyed_opt_re() -> re.Regexp {
+  let assert Ok(re) =
+    "([-\\w]+)[:]([^ ]+)$"
+    |> re.from_string
+
+  re
+}
+
+pub fn unkeyed_opts(
+  opts opts: Opts,
+) -> List(String) {
+  let assert Ok(ws_re) = "\\s+" |> re.from_string
+
+  let keyed_opt_re = keyed_opt_re()
+
+  opts.raw
+  |> re.split(ws_re, _)
+  |> list.filter(fn(str) { !re.check(keyed_opt_re, str) })
+}
+
+pub fn keyed_opt(
+  opts opts: Opts,
+  key target: String,
+  parse parse: fn(String) -> Result(t, String)
+) -> Result(t, String) {
+  let assert Ok(re) =
+    "([-\\w]+)[:]([^ ]+)"
+    |> re.from_string
+
+  opts.raw
+  |> re.scan(re, _)
+  |> list.find_map(fn(match) {
+    case match.submatches {
+      [Some(key), Some(val)] if key == target -> Ok(val)
+      _ -> Error(Nil)
+    }
+  })
+  |> result.replace_error("key `" <> target <> "` not found")
+  |> result.try(parse)
 }
