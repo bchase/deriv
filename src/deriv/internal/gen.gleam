@@ -918,8 +918,14 @@ fn process_acc(
           common.type_str(f.def)
         })
 
-      let const_srcs =
+      let #(overwrite_consts, new_consts) =
         acc.consts
+        |> list.partition(fn(f) {
+          f.overwrite && { extant_const_names |> dict.has_key(f.def.definition.name) }
+        })
+
+      let const_srcs =
+        new_consts
         |> list.filter(fn(f) {
           case f.overwrite {
             True -> True
@@ -951,6 +957,13 @@ fn process_acc(
           |> common.replace_function(
             func_name: func.def.definition.name,
             func_src: func.def |> common.func_str,
+          )
+        })
+        |> list.fold(overwrite_consts, _, fn(src, const_) {
+          src
+          |> common.replace_const(
+            const_name: const_.def.definition.name,
+            const_src: const_.def.definition,
           )
         })
         |> string.trim
