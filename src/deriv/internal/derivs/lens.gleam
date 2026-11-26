@@ -69,11 +69,10 @@ pub fn lens() -> GenDef {
     //
 
     use <- x.ensure_import(lens_import)
-    use <- x.overwrite_const(lens_const)
-    use <- x.overwrite_func(get_lens_func)
-    use <- x.overwrite_func(set_lens_func)
+    use <- x.def_consts(defs: [lens_const], overwrite: True)
+    use <- x.def_funcs(defs: [get_lens_func, set_lens_func], overwrite: True)
 
-    x.custom_type_variant_labelled_field_success()
+    x.done()
   }])
 }
 

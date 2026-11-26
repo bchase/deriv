@@ -232,13 +232,6 @@ const lens_funcs = lens.Lens(get: get_funcs, set: set_funcs)
 fn get_funcs(x: Write) { x.funcs }
 fn set_funcs(x: Write, funcs) { Write(..x, funcs:)}
 
-pub fn try(
-  gen gen: Gen(a, ctx),
-  cont cont: fn(a) -> Gen(b, ctx),
-) -> Gen(b, ctx) {
-  bind(gen, cont)
-}
-
 pub fn sequence(
   gens gens: List(Gen(a, ctx)),
   cont cont: fn(List(a)) -> Gen(b, ctx)
@@ -311,11 +304,12 @@ fn map_m(
   Gen(monad.map_m(xs, fn(x) { f(x).monad }))
 }
 
-fn ok(
-  result result: Result(t, e),
-  err err: fn(e) -> String
-) -> Gen(t, ctx) {
-  Gen(monad.ok(result, err))
+pub fn ok(
+  result result: Result(a, String),
+  cont cont: fn(a) -> Gen(b, ctx)
+) -> Gen(b, ctx) {
+  use x <- bind(Gen(monad.ok(result, function.identity)))
+  cont(x)
 }
 
 pub fn run_gen(
@@ -344,10 +338,10 @@ pub type Generated(t) {
 }
 
 pub fn ensure_imports(
-  def def: List(g.Definition(g.Import)),
+  defs defs: List(g.Definition(g.Import)),
   cont cont: fn() -> Gen(t, ctx),
 ) -> Gen(t, ctx) {
-  use <- write(def, lens_imports, list.append)
+  use <- write(defs, lens_imports, list.append)
   cont()
 }
 
@@ -359,52 +353,42 @@ pub fn ensure_import(
   cont()
 }
 
-pub fn ensure_const(
-  def def: g.Definition(g.Constant),
+pub fn def_consts(
+  defs defs: List(g.Definition(g.Constant)),
+  overwrite overwrite: Bool,
   cont cont: fn() -> Gen(t, ctx),
 ) -> Gen(t, ctx) {
-  use <- write(def, lens_consts, fn(defs, def) { list_push(defs, Generated(def:, overwrite: False)) })
+  use <- write(defs, lens_consts, fn(curr, new) {
+    new
+    |> list.map(Generated(def: _, overwrite:))
+    |> list.fold(curr, list_push)
+  })
   cont()
 }
 
-pub fn overwrite_const(
-  def def: g.Definition(g.Constant),
+pub fn def_custom_types(
+  defs defs: List(g.Definition(g.CustomType)),
+  overwrite overwrite: Bool,
   cont cont: fn() -> Gen(t, ctx),
 ) -> Gen(t, ctx) {
-  use <- write(def, lens_consts, fn(defs, def) { list_push(defs, Generated(def:, overwrite: True)) })
+  use <- write(defs, lens_types, fn(curr, new) {
+    new
+    |> list.map(Generated(def: _, overwrite:))
+    |> list.fold(curr, list_push)
+  })
   cont()
 }
 
-
-pub fn ensure_custom_type(
-  def def: g.Definition(g.CustomType),
+pub fn def_funcs(
+  defs defs: List(g.Definition(g.Function)),
+  overwrite overwrite: Bool,
   cont cont: fn() -> Gen(t, ctx),
 ) -> Gen(t, ctx) {
-  use <- write(def, lens_types, fn(defs, def) { list_push(defs, Generated(def:, overwrite: False)) })
-  cont()
-}
-
-pub fn overwrite_custom_type(
-  def def: g.Definition(g.CustomType),
-  cont cont: fn() -> Gen(t, ctx),
-) -> Gen(t, ctx) {
-  use <- write(def, lens_types, fn(defs, def) { list_push(defs, Generated(def:, overwrite: True)) })
-  cont()
-}
-
-pub fn ensure_func(
-  def def: g.Definition(g.Function),
-  cont cont: fn() -> Gen(t, ctx),
-) -> Gen(t, ctx) {
-  use <- write(def, lens_funcs, fn(defs, def) { list_push(defs, Generated(def:, overwrite: False)) })
-  cont()
-}
-
-pub fn overwrite_func(
-  def def: g.Definition(g.Function),
-  cont cont: fn() -> Gen(t, ctx),
-) -> Gen(t, ctx) {
-  use <- write(def, lens_funcs, fn(defs, def) { list_push(defs, Generated(def:, overwrite: True)) })
+  use <- write(defs, lens_funcs, fn(curr, new) {
+    new
+    |> list.map(Generated(def: _, overwrite:))
+    |> list.fold(curr, list_push)
+  })
   cont()
 }
 
@@ -445,9 +429,10 @@ pub fn ensure_named_gen_param(
   parse f: fn(String) -> Result(t, String),
 ) -> Gen(t, ctx) {
   use str <- ensure_named_gen_param_str(name)
-  ok(f(str), fn(err) {
+  use x <- ok(f(str) |> result.map_error(fn(err) {
     "named gen param " <> string.inspect(#(name, str)) <> " parse failed with err: " <> string.inspect(err)
-  })
+  }))
+  pure(x)
 }
 
 pub fn ensure_named_gen_param_str(
@@ -456,7 +441,7 @@ pub fn ensure_named_gen_param_str(
 ) -> Gen(t, ctx) {
   use args <- read(lens_args)
   use result <- named_gen_param_str(name)
-  use str <- bind(ok(result, fn(_err) {
+  use str <- ok(result |> result.map_error(fn(_err) {
     "named gen param " <> string.inspect(name) <> " but got: " <> string.inspect(args)
   }))
   cont(str)
@@ -485,12 +470,8 @@ pub fn has_gen_param(
   |> cont
 }
 
-pub fn success(val: t) -> Gen(t, ctx) {
-  pure(val)
-}
-
-pub fn failure(msg: String) -> Gen(t, ctx) {
-  fail(msg)
+pub fn done() -> Gen(Nil, ctx) {
+  pure(Nil)
 }
 
 pub fn file(
@@ -633,25 +614,15 @@ fn get_type_def_for(
   }
 }
 
-pub fn custom_type_variant_labelled_field_success(
-) -> Gen(Nil, CustomTypeVariantLabelledField) {
-  success(Nil)
-}
-
 pub fn variant_clause_success(
   expr expr: g.Expression,
 ) -> GenVariantCaseClause(g.Clause) {
-  use variant, type_def <- variant()
-  use fields <- writes(lens_fields)
-
   use file <- read(lens_file)
 
-  let variant =
-    scope_custom_type_variant(
-      type_def:,
-      variant:,
-      in: file,
-    )
+  use variant, type_def <- variant()
+  let variant = scope_custom_type_variant(type_def:, variant:, in: file)
+
+  use fields <- writes(lens_fields)
 
   let module =
     variant.module
@@ -695,11 +666,11 @@ pub fn local_custom_type_src(
           cont(src)
 
         Error(Nil) ->
-          failure("couldn't read local custom type src for span " <> string.inspect(span) <> " in " <> t)
+          fail("couldn't read local custom type src for span " <> string.inspect(span) <> " in " <> t)
       }
 
     Error(Nil) ->
-      failure("couldn't find local custom type: " <> t)
+      fail("couldn't find local custom type: " <> t)
   }
 }
 

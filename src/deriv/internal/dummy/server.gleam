@@ -23,7 +23,7 @@ pub fn handle_case() -> GenDef {
       param_type,
       return_type,
       encode_func,
-    ) <- x.try({case req_type_param_types {
+    ) <- x.ok({case req_type_param_types {
       [
         #(g.NamedType(..) as param_type, _param_custom_type),
         #(g.NamedType(name: return_type_name, ..) as return_type, _),
@@ -31,16 +31,16 @@ pub fn handle_case() -> GenDef {
         let encode_func =
           "api" |> ast.dot("encode_" <> casing.snake(return_type_name))
 
-        x.success(#(param_type, return_type, encode_func))
+        Ok(#(param_type, return_type, encode_func))
       }
 
       _ ->
-        x.failure("needs `NamedType` for req/resp types, but got: " <> string.inspect(req_type_param_types))
+        Error("needs `NamedType` for req/resp types, but got: " <> string.inspect(req_type_param_types))
     }})
 
     let resp_func = ast.term("resp_func")
 
-    use <- x.ensure_func(g.Definition([], g.Function(z,
+    use <- x.def_funcs(defs: [g.Definition([], g.Function(z,
       name: handler_func_name,
       publicity: g.Private,
       parameters: [
@@ -58,7 +58,7 @@ pub fn handle_case() -> GenDef {
         // ast.term("Nil") |> g.Expression,
         g.Todo(z, None) |> g.Expression,
       ],
-    )))
+    ))], overwrite: False)
 
     //
 

@@ -52,29 +52,11 @@ pub fn wrap_legacy(
     let Gen(imports:, consts:, types:, funcs:, ..) = gen(Type(type_), ctx)
 
     use <- x.ensure_imports(imports |> list.map(glance.Definition([], _)))
-    use _overwite_consts <- x.sequence(
-      consts
-      |> list.map(fn(c) {
-        use <- x.overwrite_const(c)
-        x.success(Nil)
-      })
-    )
-    use _overwrite_funcs <- x.sequence(
-      funcs
-      |> list.map(fn(func) {
-        use <- x.overwrite_func(func)
-        x.success(Nil)
-      })
-    )
-    use _overwrite_types <- x.sequence(
-      types
-      |> list.map(fn(type_) {
-        use <- x.overwrite_custom_type(type_)
-        x.success(Nil)
-      })
-    )
+    use <- x.def_consts(defs: consts, overwrite: True)
+    use <- x.def_funcs(defs: funcs, overwrite: True)
+    use <- x.def_custom_types(defs: types, overwrite: True)
 
-    x.success(Nil)
+    x.done()
   }])
 }
 
